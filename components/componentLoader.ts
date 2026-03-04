@@ -268,6 +268,19 @@ export async function loadComponent(
 			const componentConfig = config[componentName];
 			if (!componentConfig) continue;
 
+			// Track components that opt into auth passthrough so authentication middleware
+			// can decide per-application whether to enforce Harper JWTs.
+			try {
+				if (!isRoot && componentConfig.authentication?.passthrough === true) {
+					const routePath = componentConfig.path || '/';
+					if (!resources.authPassthroughPaths.includes(routePath)) {
+						resources.authPassthroughPaths.push(routePath);
+					}
+				}
+			} catch {
+				// Ignore malformed configs here; validation should catch these earlier.
+			}
+
 			// Initialize loading status for all components (applications and extensions)
 			componentLifecycle.loading(componentStatusName);
 

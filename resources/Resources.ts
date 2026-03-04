@@ -21,6 +21,9 @@ export class Resources extends Map<string, ResourceEntry> {
 	loginPath?: (request) => string;
 
 	allTypes: Map<any, any> = new Map();
+	// List of URL path prefixes for which Harper HTTP authentication should be treated as passthrough.
+	// These are populated from application/component configs that explicitly opt out of Harper auth.
+	authPassthroughPaths: string[] = [];
 
 	set(path, resource, exportTypes?: { [key: string]: boolean }, force?: boolean): void {
 		if (!resource) throw new Error('Must provide a resource');

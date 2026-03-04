@@ -175,6 +175,25 @@ export async function authentication(request, nextHandler) {
 				const strategy = authorization.slice(0, spaceIndex);
 				const credentials = authorization.slice(spaceIndex + 1);
 				let username, password;
+				const isOperationsServer = request.isOperationsServer;
+				let authPassthrough = false;
+				// For non-operations HTTP traffic, allow individual applications/components to opt
+				// out of Harper JWT enforcement based on their configured path prefixes.
+				if (!isOperationsServer && resources?.authPassthroughPaths?.length) {
+					const path = request.pathname || request.url || '';
+					const pathname = path || '/';
+					for (const prefix of resources.authPassthroughPaths) {
+						if (!prefix) continue;
+						const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}`;
+						if (
+							pathname === normalizedPrefix ||
+							pathname.startsWith(normalizedPrefix.endsWith('/') ? normalizedPrefix : `${normalizedPrefix}/`)
+						) {
+							authPassthrough = true;
+							break;
+						}
+					}
+				}
 				try {
 					switch (strategy) {
 						case 'Basic':
@@ -186,6 +205,11 @@ export async function authentication(request, nextHandler) {
 							newUser = username || password ? await server.getUser(username, password, request) : null;
 							break;
 						case 'Bearer':
+							if (authPassthrough) {
+								// In passthrough mode for non-operations HTTP traffic, ignore Harper-level JWT validation
+								// and allow the application layer to handle the Authorization header.
+								break;
+							}
 							try {
 								newUser = await validateOperationToken(credentials);
 							} catch (error) {
