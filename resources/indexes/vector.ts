@@ -37,7 +37,7 @@ export function cosineDistance(a: number[], b: number[]): number {
 	return 1 - dotProduct / (magnitudeA * magnitudeB || 1);
 }
 
-export function innerProductDistance(a: number[], b: number[]): number {
+export function dotProductDistance(a: number[], b: number[]): number {
 	if (!Array.isArray(a) || !Array.isArray(b)) {
 		throw new Error('Inner product comparison requires an array');
 	}
