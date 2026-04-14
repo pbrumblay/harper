@@ -1,4 +1,4 @@
-import { cosineDistance, euclideanDistance } from './vector.ts';
+import { cosineDistance, euclideanDistance, dotProductDistance } from './vector.ts';
 import { FLOAT32_OPTIONS } from 'msgpackr';
 import { loggerWithTag } from '../../utility/logging/logger.ts';
 import { ClientError } from '../../utility/errors/hdbError.js';
@@ -52,7 +52,7 @@ export class HierarchicalNavigableSmallWorld {
 			// (we would actually like to use float16 if it were available)
 			this.indexStore.encoder.useFloat32 = FLOAT32_OPTIONS.ALWAYS;
 		}
-		this.distance = options?.distance === 'euclidean' ? euclideanDistance : cosineDistance;
+		this.distance = options?.distance === 'euclidean' ? euclideanDistance : options?.distance === 'dotProduct' ? dotProductDistance : cosineDistance;
 		if (options) {
 			// allow all the HNSW parameters to be configured/tuned
 			if (options.M !== undefined) {
@@ -457,6 +457,7 @@ export class HierarchicalNavigableSmallWorld {
 		let distanceFunction: (a: number[], b: number[]) => number;
 		if (distance === 'cosine') distanceFunction = cosineDistance;
 		else if (distance === 'euclidean') distanceFunction = euclideanDistance;
+		else if (distance === 'dotProduct') distanceFunction = dotProductDistance;
 		else if (distance) throw new ClientError('Unknown distance function');
 		else distanceFunction = this.distance;
 		if (!target) throw new ClientError('A target vector must be provided for an HNSW query');
@@ -637,7 +638,7 @@ export class HierarchicalNavigableSmallWorld {
 
 			let distanceFunction = this.distance;
 			if (sortDefinition.type)
-				distanceFunction = sortDefinition.distance === 'euclidean' ? euclideanDistance : cosineDistance;
+				distanceFunction = sortDefinition.distance === 'euclidean' ? euclideanDistance : sortDefinition.distance === 'dotProduct' ? dotProductDistance : cosineDistance;
 			const distance = distanceFunction(sortDefinition.target, vector);
 			vectorDistances.set(entry, distance);
 			return distance;
