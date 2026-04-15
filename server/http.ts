@@ -5,11 +5,11 @@
 import { Scope } from '../components/Scope.ts';
 import { Socket } from 'node:net';
 import harperLogger from '../utility/logging/harper_logger.js';
-import { parentPort } from 'node:worker_threads';
+import { parentPort, threadId } from 'node:worker_threads';
 import env from '../utility/environment/environmentManager.js';
 import * as terms from '../utility/hdbTerms.ts';
 import { getConfigPath } from '../config/configUtils.js';
-import { getTicketKeys } from './threads/manageThreads.js';
+import { getTicketKeys, getWorkerIndex } from './threads/manageThreads.js';
 import { createTLSSelector } from '../security/keys.js';
 import { createSecureServer } from 'node:http2';
 import { createServer as createSecureServerHttp1 } from 'node:https';
@@ -19,6 +19,8 @@ import { appendHeader, Headers } from './serverHelpers/Headers.ts';
 import { Blob } from '../resources/blob.ts';
 import { recordAction, recordActionBinary } from '../resources/analytics/write.ts';
 import { Readable } from 'node:stream';
+import { mkdirSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { server, type ServerOptions, type HttpOptions, type UpgradeOptions, UpgradeListener } from './Server.ts';
 import { setPortServerMap, SERVERS } from './serverRegistry.ts';
 import { getComponentName } from '../components/componentLoader.ts';
@@ -36,6 +38,71 @@ const httpServers = {},
 	httpResponders = [];
 let httpOptions: HttpOptions = {};
 export const universalHeaders: [string, string][] = [];
+const udsCleanupPaths: { socketPath: string; yamlPath: string }[] = [];
+
+export function registerUdsCleanupPaths(socketPath: string, yamlPath: string) {
+	udsCleanupPaths.push({ socketPath, yamlPath });
+}
+
+export function cleanupUdsFiles() {
+	for (const { socketPath, yamlPath } of udsCleanupPaths) {
+		try { unlinkSync(socketPath); } catch {}
+		try { unlinkSync(yamlPath); } catch {}
+	}
+}
+
+/** Write YAML metadata for a UDS mirror socket, describing the TLS certs from the corresponding secure server. */
+export function writeUdsMetadata(yamlPath: string, port: number | string, secureServer: any) {
+	const contexts = secureServer.secureContexts;
+	let yaml = `pid: ${process.pid}\ntid: ${threadId}\nport: ${port}\n`;
+	yaml += `certificates:\n`;
+	if (contexts?.size > 0) {
+		const seen = new Set();
+		for (const [, ctx] of contexts) {
+			if (seen.has(ctx.name)) continue;
+			seen.add(ctx.name);
+			yaml += `  - name: ${JSON.stringify(ctx.name)}\n`;
+			yaml += `    hostnames:\n`;
+			for (const [h, c] of contexts) {
+				if (c.name === ctx.name) yaml += `      - ${JSON.stringify(h)}\n`;
+			}
+			if (ctx.options.key_file) {
+				yaml += `    privateKeyFile: ${JSON.stringify(join(env.get(terms.CONFIG_PARAMS.ROOTPATH), 'keys', ctx.options.key_file))}\n`;
+			}
+			if (ctx.options.cert) {
+				yaml += `    certificate: |\n`;
+				for (const line of ctx.options.cert.trimEnd().split('\n')) {
+					yaml += `      ${line}\n`;
+				}
+			}
+			if (ctx.certificateAuthorities?.length > 0) {
+				yaml += `    certificateAuthorities:\n`;
+				for (const [, ca] of ctx.certificateAuthorities) {
+					yaml += `      - |\n`;
+					for (const line of ca.trimEnd().split('\n')) {
+						yaml += `          ${line}\n`;
+					}
+				}
+			}
+		}
+	}
+	try {
+		writeFileSync(yamlPath, yaml);
+	} catch (error) {
+		harperLogger.error('Error writing UDS metadata to ' + yamlPath, error);
+	}
+}
+
+/** Clean all files in the sockets directory. Call from main thread on process startup. */
+export function cleanupSocketsDirectory() {
+	if (!env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)) return;
+	const socketsDir = join(env.getHdbBasePath(), 'sockets');
+	try {
+		for (const file of readdirSync(socketsDir)) {
+			try { unlinkSync(join(socketsDir, file)); } catch {}
+		}
+	} catch {}
+}
 
 export function handleApplication(scope: Scope) {
 	httpOptions = scope.options.getAll() as HttpOptions;
@@ -443,6 +510,43 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 			server.isSecure = true;
 		}
 		registerServer(server, port);
+
+		// Create a corresponding Unix Domain Socket mirror for secure ports
+		if (secure && env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)) {
+			const socketsDir = join(env.getHdbBasePath(), 'sockets');
+			mkdirSync(socketsDir, { recursive: true });
+			const socketName = `${getWorkerIndex()}-${port}`;
+			const udsPath = join(socketsDir, `${socketName}.sock`);
+			const yamlPath = join(socketsDir, `${socketName}.yaml`);
+
+			// Create a plain HTTP server (no TLS) with the same request handler
+			const udsServer = createServer(
+				{
+					keepAliveTimeout,
+					headersTimeout,
+					requestTimeout,
+					highWaterMark: 128 * 1024,
+					noDelay: true,
+					keepAlive: true,
+					keepAliveInitialDelay: 600,
+					maxHeaderSize: env.get(terms.CONFIG_PARAMS.HTTP_MAXHEADERSIZE),
+				},
+				(nodeRequest: IncomingMessage, nodeResponse: any) => {
+					const method = nodeRequest.method;
+					if (method === 'GET' || method === 'OPTIONS' || method === 'HEAD')
+						requestHandler(nodeRequest, nodeResponse);
+					else throttledRequestHandler(nodeRequest, nodeResponse);
+				}
+			);
+
+			udsServer.isPerThreadSocket = true;
+			SERVERS[udsPath] = udsServer;
+			registerUdsCleanupPaths(udsPath, yamlPath);
+
+			const writeMetadata = () => writeUdsMetadata(yamlPath, port, server);
+			options.SNICallback.ready.then(writeMetadata);
+			server.secureContextsListeners.push(writeMetadata);
+		}
 	}
 	return httpServers[port];
 }
