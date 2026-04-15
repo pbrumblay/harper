@@ -46,8 +46,12 @@ export function registerUdsCleanupPaths(socketPath: string, yamlPath: string) {
 
 export function cleanupUdsFiles() {
 	for (const { socketPath, yamlPath } of udsCleanupPaths) {
-		try { unlinkSync(socketPath); } catch {}
-		try { unlinkSync(yamlPath); } catch {}
+		try {
+			unlinkSync(socketPath);
+		} catch {}
+		try {
+			unlinkSync(yamlPath);
+		} catch {}
 	}
 }
 
@@ -99,7 +103,9 @@ export function cleanupSocketsDirectory() {
 	const socketsDir = join(env.getHdbBasePath(), 'sockets');
 	try {
 		for (const file of readdirSync(socketsDir)) {
-			try { unlinkSync(join(socketsDir, file)); } catch {}
+			try {
+				unlinkSync(join(socketsDir, file));
+			} catch {}
 		}
 	} catch {}
 }
@@ -533,8 +539,7 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 				},
 				(nodeRequest: IncomingMessage, nodeResponse: any) => {
 					const method = nodeRequest.method;
-					if (method === 'GET' || method === 'OPTIONS' || method === 'HEAD')
-						requestHandler(nodeRequest, nodeResponse);
+					if (method === 'GET' || method === 'OPTIONS' || method === 'HEAD') requestHandler(nodeRequest, nodeResponse);
 					else throttledRequestHandler(nodeRequest, nodeResponse);
 				}
 			);
