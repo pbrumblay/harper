@@ -10,7 +10,12 @@ const fs = require('fs');
 
 const env = require('#js/utility/environment/environmentManager');
 const terms = require('#src/utility/hdbTerms');
-const { writeUdsMetadata, registerUdsCleanupPaths, cleanupUdsFiles, cleanupSocketsDirectory } = require('#src/server/http');
+const {
+	writeUdsMetadata,
+	registerUdsCleanupPaths,
+	cleanupUdsFiles,
+	cleanupSocketsDirectory,
+} = require('#src/server/http');
 
 const TEST_SOCKETS_DIR = path.join(testUtils.ENV_DIR_PATH, 'sockets');
 
@@ -46,7 +51,9 @@ describe('UDS mirror (writeUdsMetadata, cleanup helpers)', () => {
 		// Remove any files left in the sockets dir between tests
 		try {
 			for (const f of fs.readdirSync(TEST_SOCKETS_DIR)) {
-				try { fs.unlinkSync(path.join(TEST_SOCKETS_DIR, f)); } catch {}
+				try {
+					fs.unlinkSync(path.join(TEST_SOCKETS_DIR, f));
+				} catch {}
 			}
 		} catch {} // dir may have been removed by a test
 	});
@@ -86,9 +93,7 @@ describe('UDS mirror (writeUdsMetadata, cleanup helpers)', () => {
 		it('writes certificate PEM as a YAML block scalar', () => {
 			const yamlPath = path.join(TEST_SOCKETS_DIR, '0-9926.yaml');
 			const certPem = '-----BEGIN CERTIFICATE-----\nABCD1234\n-----END CERTIFICATE-----';
-			const server = makeSecureServer([
-				{ name: 'c', hostnames: ['h.example.com'], cert: certPem },
-			]);
+			const server = makeSecureServer([{ name: 'c', hostnames: ['h.example.com'], cert: certPem }]);
 			writeUdsMetadata(yamlPath, 9926, server);
 			const content = fs.readFileSync(yamlPath, 'utf8');
 			assert.ok(content.includes('    certificate: |'), 'should use block scalar indicator');
@@ -145,7 +150,12 @@ describe('UDS mirror (writeUdsMetadata, cleanup helpers)', () => {
 				options: { cert: '-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----' },
 				certificateAuthorities: [],
 			};
-			const secureServer = { secureContexts: new Map([['a.example.com', ctx], ['b.example.com', ctx]]) };
+			const secureServer = {
+				secureContexts: new Map([
+					['a.example.com', ctx],
+					['b.example.com', ctx],
+				]),
+			};
 			writeUdsMetadata(yamlPath, 9926, secureServer);
 			const content = fs.readFileSync(yamlPath, 'utf8');
 			const nameMatches = [...content.matchAll(/name: "wildcard-cert"/g)];
@@ -179,10 +189,7 @@ describe('UDS mirror (writeUdsMetadata, cleanup helpers)', () => {
 		});
 
 		it('cleanupUdsFiles does not throw when files are already gone', () => {
-			registerUdsCleanupPaths(
-				path.join(TEST_SOCKETS_DIR, 'ghost.sock'),
-				path.join(TEST_SOCKETS_DIR, 'ghost.yaml')
-			);
+			registerUdsCleanupPaths(path.join(TEST_SOCKETS_DIR, 'ghost.sock'), path.join(TEST_SOCKETS_DIR, 'ghost.yaml'));
 			assert.doesNotThrow(() => cleanupUdsFiles());
 		});
 	});
