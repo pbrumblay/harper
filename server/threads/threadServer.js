@@ -174,8 +174,10 @@ function startServers() {
 	componentsLoadedResolve(loaded);
 	return loaded;
 }
+let listening;
 function listenOnPorts() {
-	const listening = [];
+	if (listening) return Promise.all(listening); // already set up
+	listening = [];
 	for (let port in SERVERS) {
 		const server = SERVERS[port];
 

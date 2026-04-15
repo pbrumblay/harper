@@ -358,6 +358,7 @@ export function start({ server, port, securePort }) {
 		});
 	}
 }
+export const startOnMainThread = start; // start on the main thread too so we can auth the operations API
 // operations
 export async function login(loginObject) {
 	if (!loginObject.baseRequest?.login) throw new Error('No session for login');
