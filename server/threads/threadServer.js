@@ -180,7 +180,7 @@ function listenOnPorts() {
 		const server = SERVERS[port];
 
 		// If server is unix domain socket
-		if (port.includes?.('/') && getWorkerIndex() == 0) {
+		if (port.includes?.('/')) {
 			if (existsSync(port)) unlinkSync(port);
 			listening.push(
 				new Promise((resolve, reject) => {
