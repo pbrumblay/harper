@@ -3320,7 +3320,10 @@ export function makeTable(options) {
 						// matching the behavior in graphql.ts to prevent ReferenceErrors
 						const attributesFallback = {};
 						for (const attr of this.attributes) attributesFallback[attr.name] = undefined;
-						this.setComputedAttribute(attribute.name, createComputedFrom(attribute.computedFromExpression, attributesFallback));
+						this.setComputedAttribute(
+							attribute.name,
+							createComputedFrom(attribute.computedFromExpression, attributesFallback)
+						);
 					}
 					propertyResolvers[attribute.name] = attribute.resolve = (object, context, entry) => {
 						const value = typeof computed.from === 'string' ? object[computed.from] : object;
