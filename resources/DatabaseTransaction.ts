@@ -35,6 +35,7 @@ export type CommitOptions = {
 	timestamp?: number;
 	retries?: number;
 	flush?: boolean;
+	transaction?: RocksTransaction;
 };
 
 type ReadTransaction = (LMDBTransaction | RocksTransaction) & {
@@ -116,8 +117,13 @@ export class DatabaseTransaction implements Transaction {
 		if (!this.transaction) return;
 		if (--this.readTxnsUsed === 0) {
 			trackedTxns.delete(this);
-			this.transaction?.abort();
-			this.transaction = null;
+			if (this.open === TRANSACTION_STATE.LINGERING) {
+				// if we have lingering writes, we have to call commit to finish them
+				this.commit();
+			} else {
+				this.transaction?.abort();
+				this.transaction = null;
+			}
 		}
 	}
 
@@ -139,9 +145,6 @@ export class DatabaseTransaction implements Transaction {
 	}
 
 	addWrite(operation: TransactionWrite) {
-		if (this.open === TRANSACTION_STATE.CLOSED) {
-			throw new Error('Can not use a transaction that is no longer open');
-		}
 		this.writes.push(operation);
 		if (!operation.deferSave) {
 			// Setting saved to false means to defer saving
@@ -150,61 +153,94 @@ export class DatabaseTransaction implements Transaction {
 		return operation;
 	}
 
-	save(operation: TransactionWrite, reloadEntry = false) {
+	save(operation: TransactionWrite, transaction?: RocksTransaction, reloadEntry = false) {
 		let txnTime = this.timestamp;
-		if (!this.transaction) {
-			this.transaction = new RocksTransaction(this.db.store as RocksStore);
+		transaction ??= this.transaction;
+		let immediateCommit = false;
+		if (!transaction) {
+			transaction = new RocksTransaction(this.db.store as RocksStore);
+			if (this.open === TRANSACTION_STATE.OPEN) {
+				this.transaction = transaction;
+			} else {
+				// if it is closed, we have to immediately commit, using our immediate transaction
+				immediateCommit = true;
+			}
 			if (txnTime) {
-				this.transaction.setTimestamp(txnTime);
+				transaction.setTimestamp(txnTime);
 			}
 		}
 		if (this.retries > 0) {
 			// this is marks the rocks transaction as a retry so we don't write the transaction log again
-			this.transaction.isRetry = true;
+			transaction.isRetry = true;
 		}
-		if (!txnTime) txnTime = this.timestamp = this.transaction.getTimestamp();
+		if (!txnTime) txnTime = this.timestamp = transaction.getTimestamp();
 		if (reloadEntry || operation.entry === undefined) {
-			operation.entry = operation.store.getEntry(operation.key, { transaction: this.transaction });
+			operation.entry = operation.store.getEntry(operation.key, { transaction });
 		}
-		operation.saved = true;
-		// immediately execute in this transaction
-		if (operation.validate?.(txnTime) === false) return;
-		let result: Promise<void> = operation.before?.() as Promise<void>;
-		if (result?.then) this.completions.push(result);
-		result = operation.beforeIntermediate?.() as Promise<void>;
-		if (result?.then) this.completions.push(result);
-		operation.commit(txnTime, operation.entry, this.retries > 0, this.transaction);
+		if (!operation.saved) {
+			operation.saved = true;
+			// immediately execute in this transaction
+			if (operation.validate?.(txnTime) === false) {
+				operation.commit = () => {}; // noop if we try again
+				return;
+			}
+			let result: Promise<void> = operation.before?.() as Promise<void>;
+			if (result?.then) this.completions.push(result);
+			result = operation.beforeIntermediate?.() as Promise<void>;
+			if (result?.then) this.completions.push(result);
+		}
+		operation.commit(txnTime, operation.entry, this.retries > 0, transaction);
+		if (immediateCommit) {
+			return this.commit({ transaction }); // immediately commit if the harper transaction is closed
+		}
 	}
 
 	/**
 	 * Resolves with information on the timestamp and success of the commit
 	 */
 	commit(options: CommitOptions = {}): MaybePromise<CommitResolution> {
+		let transaction = options.transaction ?? this.transaction; // we need to preserve this transaction as we might to resurrect it if we have to retry
 		for (let i = 0; i < this.writes.length; i++) {
 			let operation = this.writes[i];
 			if (this.retries === 0 && operation.saved) continue;
-			this.save(operation, i < this.validated);
+			this.save(operation, transaction, i < this.validated);
 		}
 		this.validated = this.writes.length;
-		return when(this.completions.length > 0 ? Promise.all(this.completions) : null, () => {
+		const completions = this.completions;
+		if (completions.length > 0) this.completions = []; // reset
+		return when(completions.length > 0 ? Promise.all(completions) : null, () => {
+			if (this.writes.length > this.validated) {
+				// check just in case we got any more transactions while we were waiting, if so just recursively continue to finish the additional writes now
+				return this.commit(options);
+			}
+			this.open = TRANSACTION_STATE.CLOSED;
 			let commitResolution: MaybePromise<void>;
 			if (--this.readTxnsUsed > 0) {
 				// we still have outstanding iterators using the transaction, we can't just commit/abort it, we will still
 				// need to use it
+				if (this.writes.length > 0) {
+					// if there are outstanding writes, we have to call commit later to finish them
+					this.open = TRANSACTION_STATE.LINGERING;
+					/* TODO: This is not really the intended behavior though, we want to immediately commit writes, but continue to use
+					 * the transaction, as there is likely existing references to the transaction in other parts of the codebase,
+					 * particularly in the query iterator */
+				}
+				/*
 				commitResolution =
 					this.writes.length > 0
-						? this.transaction?.commit({ renewAfterCommit: true /* Try to use RocksDB's CommitAndTryCreateSnapshot */ })
-						: // don't abort, we still have outstanding reads to complete
+						? transaction?.commit({ renewAfterCommit: true }) // Try to use RocksDB's CommitAndTryCreateSnapshot
+			: // don't abort, we still have outstanding reads to complete
 							null;
+				*/
 			} else {
 				// no more reads need to be performed, just commit/abort based if there are any writes
 				trackedTxns.delete(this);
-				if (this.transaction) {
+				this.transaction = null; // clear transaction so any further operations operate immediately
+				if (transaction) {
 					if (this.writes.length > 0) {
-						commitResolution = this.transaction.commit();
+						commitResolution = transaction.commit();
 					} else {
-						commitResolution = this.transaction.abort();
-						this.transaction = null; // immediately clear transaction, no need to wait
+						commitResolution = transaction.abort();
 					}
 				}
 			}
@@ -220,8 +256,7 @@ export class DatabaseTransaction implements Transaction {
 				const completions = [];
 				return commitResolution.then(
 					() => {
-						this.transaction.onCommit?.();
-						this.transaction = null; // the native transaction is done (reset if needed)
+						transaction.onCommit?.();
 						if (this.next) {
 							completions.push(this.next.commit(options));
 						}
@@ -260,7 +295,7 @@ export class DatabaseTransaction implements Transaction {
 							// if the transaction failed due to concurrent changes, we need to retry. First record this as an increased risk of contention/retry
 							// for future transactions
 							this.retries++;
-							return this.commit(options); // try again
+							return this.commit({ transaction }); // try again
 						} else throw error;
 					}
 				);
@@ -318,7 +353,7 @@ export class ImmediateTransaction extends DatabaseTransaction {
 	save(transaction: ImmediateTransaction) {
 		if (this.isCommitting) {
 			// if we are in the commit, do the save and force a reload so we get a read within the transaction
-			super.save(transaction, true);
+			super.save(transaction, null, true);
 		} else {
 			this.isCommitting = true;
 			return when(this.commit(), () => {

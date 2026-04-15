@@ -52,19 +52,24 @@ export class Echo extends Resource {
 
 class ResourceA extends Resource {
 	get(params) {
+		// legacy style
 		return { name: 'ResourceA', params };
 	}
 }
 
 class ResourceB extends Resource {
-	get(params) {
+	static get(params) {
+		// modern style
 		return { name: 'ResourceB', params };
 	}
 }
 
-class ResourceC extends Resource {
-	get(params) {
-		return { name: 'ResourceC', params };
+class ResourceC {
+	// without extending Resource, and use a Response
+	static get(params) {
+		let response = new Response();
+		response.data = { name: 'ResourceC', params };
+		return response;
 	}
 }
 

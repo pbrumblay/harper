@@ -1,7 +1,7 @@
 {
 	"name": "harper",
 	"description": "Harper is an open-source Node.js performance platform that unifies database, cache, application, and messaging layers into one in-memory process.",
-	"version": "5.0.0-beta.6",
+	"version": "5.0.1",
 	"license": "Apache-2.0",
 	"homepage": "https://harper.fast",
 	"bugs": {
@@ -112,7 +112,10 @@
 		}
 	},
 	"exports": {
-		".": "./dist/index.js"
+		".": {
+			"types": "./index.d.ts",
+			"default": "./dist/index.js"
+		}
 	},
 	"devDependencies": {
 		"@harperdb/code-guidelines": "^0.0.6",
@@ -122,7 +125,7 @@
 		"@types/lodash": "^4.17.23",
 		"@types/micromatch": "^4.0.9",
 		"@types/mocha": "^10.0.10",
-		"@types/sinon": "^17.0.4",
+		"@types/sinon": "^21.0.0",
 		"@types/tar-fs": "^2.0.4",
 		"@typescript-eslint/parser": "^8.48.1",
 		"axios": "1.14.0",
@@ -136,7 +139,7 @@
 		"mocha": "^11.7.5",
 		"mqtt": "~4.3.8",
 		"oxlint": "^1.31.0",
-		"prettier": "~3.7.3",
+		"prettier": "~3.8.0",
 		"rewire": "^9.0.1",
 		"sinon": "^21.0.0",
 		"sinon-chai": "^4.0.1",
@@ -149,7 +152,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1012.0",
-		"@aws-sdk/lib-storage": "3.964.0",
+		"@aws-sdk/lib-storage": "3.1024.0",
 		"@datadog/pprof": "^5.11.1",
 		"@endo/static-module-record": "^1.1.2",
 		"@fastify/autoload": "^6.3.1",
@@ -157,7 +160,7 @@
 		"@fastify/cors": "^11.2.0",
 		"@fastify/static": "^9.0.0",
 		"@harperfast/extended-iterable": "^1.0.1",
-		"@harperfast/rocksdb-js": "^0.1.13",
+		"@harperfast/rocksdb-js": "^1.0.0",
 		"@turf/area": "6.5.0",
 		"@turf/boolean-contains": "6.5.0",
 		"@turf/boolean-disjoint": "6.5.0",
@@ -181,7 +184,7 @@
 		"fast-glob": "3.3.3",
 		"fastify": "^5.8.2",
 		"fastify-plugin": "^5.1.0",
-		"fs-extra": "11.3.3",
+		"fs-extra": "11.3.4",
 		"graphql": "^16.10.0",
 		"graphql-http": "^1.22.4",
 		"gunzip-maybe": "1.4.2",
@@ -192,7 +195,7 @@
 		"json-bigint-fixes": "1.1.0",
 		"jsonata": "1.8.7",
 		"jsonwebtoken": "9.0.3",
-		"lmdb": "3.5.2",
+		"lmdb": "3.5.3",
 		"lodash": "^4.17.23",
 		"mathjs": "11.12.0",
 		"micromatch": "^4.0.8",
@@ -200,7 +203,7 @@
 		"moment": "2.30.1",
 		"mqtt-packet": "~9.0.1",
 		"msgpackr": "1.11.9",
-		"needle": "3.3.1",
+		"needle": "3.5.0",
 		"node-forge": "^1.3.1",
 		"node-stream-zip": "1.15.0",
 		"node-unix-socket": "0.2.7",
@@ -211,14 +214,14 @@
 		"passport": "0.7.0",
 		"passport-http": "0.3.0",
 		"passport-local": "1.0.0",
-		"pino": "8.16.0",
-		"pkijs": "3.2.5",
+		"pino": "8.21.0",
+		"pkijs": "3.4.0",
 		"prompt": "1.3.0",
 		"properties-reader": "2.3.0",
 		"recursive-iterator": "3.3.0",
-		"semver": "7.7.3",
+		"semver": "7.7.4",
 		"send": "^1.2.0",
-		"ses": "^1.14.0",
+		"ses": "^1.15.0",
 		"stream-chain": "2.2.5",
 		"stream-json": "1.9.1",
 		"systeminformation": "^5.31.4",
@@ -226,8 +229,8 @@
 		"ulidx": "0.5.0",
 		"uuid": "11.1.0",
 		"validate.js": "0.13.1",
-		"ws": "8.18.3",
-		"yaml": "2.8.2"
+		"ws": "8.20.0",
+		"yaml": "2.8.3"
 	},
 	"overrides": {
 		"alasql": {
@@ -236,7 +239,6 @@
 	},
 	"optionalDependencies": {
 		"bufferutil": "^4.0.9",
-		"hdd-space": "^1.2.0",
 		"segfault-handler": "^1.3.0",
 		"utf-8-validate": "^5.0.10"
 	}

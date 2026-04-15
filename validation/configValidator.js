@@ -226,9 +226,17 @@ function doesPathExist(pathToCheck) {
 }
 
 function validatePath(value, helpers) {
-	Joi.assert(value, string.pattern(/^[\\/]$|([\\/a-zA-Z_0-9:-]+)+$/, 'directory path'));
+	Joi.assert(value, string.pattern(/^[\\/~]$|([\\/~a-zA-Z_0-9:-]+)+$/, 'directory path'));
 
-	const doesExistMsg = doesPathExist(value);
+	let resolvedValue;
+	if (value.startsWith('~/')) {
+		resolvedValue = path.join(os.homedir(), value.slice(1));
+	} else if (path.isAbsolute(value)) {
+		resolvedValue = value;
+	} else {
+		resolvedValue = path.join(hdbRoot, value);
+	}
+	const doesExistMsg = doesPathExist(resolvedValue);
 	if (doesExistMsg) {
 		return helpers.message(doesExistMsg);
 	}
@@ -302,17 +310,17 @@ function setDefaultRoot(parent, helpers) {
 
 	switch (configParam) {
 		case 'componentsRoot':
-			return path.join(hdbRoot, DEFAULT_COMPONENTS_FOLDER);
+			return DEFAULT_COMPONENTS_FOLDER;
 		case 'logging.root':
-			return path.join(hdbRoot, DEFAULT_LOG_FOLDER);
+			return DEFAULT_LOG_FOLDER;
 		case 'storage.path':
 			const legacyStoragePath = path.join(hdbRoot, hdbTerms.LEGACY_DATABASES_DIR_NAME);
-			if (fs.existsSync(legacyStoragePath)) return legacyStoragePath;
-			return path.join(hdbRoot, hdbTerms.DATABASES_DIR_NAME);
+			if (fs.existsSync(legacyStoragePath)) return hdbTerms.LEGACY_DATABASES_DIR_NAME;
+			return hdbTerms.DATABASES_DIR_NAME;
 		case 'logging.rotation.path':
-			return path.join(hdbRoot, DEFAULT_LOG_FOLDER);
+			return DEFAULT_LOG_FOLDER;
 		case 'operationsApi.network.domainSocket':
-			return configParam == null ? null : path.join(hdbRoot, 'operations-server');
+			return configParam == null ? null : 'operations-server';
 		default:
 			throw new Error(`Error setting default root for config parameter: ${configParam}. Unrecognized config parameter`);
 	}

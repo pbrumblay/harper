@@ -8,7 +8,7 @@ import harperLogger from '../utility/logging/harper_logger.js';
 import { parentPort } from 'node:worker_threads';
 import env from '../utility/environment/environmentManager.js';
 import * as terms from '../utility/hdbTerms.ts';
-import { resolvePath } from '../config/configUtils.js';
+import { getConfigPath } from '../config/configUtils.js';
 import { getTicketKeys } from './threads/manageThreads.js';
 import { createTLSSelector } from '../security/keys.js';
 import { createSecureServer } from 'node:http2';
@@ -19,7 +19,7 @@ import { appendHeader, Headers } from './serverHelpers/Headers.ts';
 import { Blob } from '../resources/blob.ts';
 import { recordAction, recordActionBinary } from '../resources/analytics/write.ts';
 import { Readable } from 'node:stream';
-import { server, type ServerOptions, type HttpOptions } from './Server.ts';
+import { server, type ServerOptions, type HttpOptions, type UpgradeOptions, UpgradeListener } from './Server.ts';
 import { setPortServerMap, SERVERS } from './serverRegistry.ts';
 import { getComponentName } from '../components/componentLoader.ts';
 import { throttle } from './throttle.ts';
@@ -35,6 +35,7 @@ const httpServers = {},
 	httpChain = {},
 	httpResponders = [];
 let httpOptions: HttpOptions = {};
+export const universalHeaders: [string, string][] = [];
 
 export function handleApplication(scope: Scope) {
 	httpOptions = scope.options.getAll() as HttpOptions;
@@ -181,7 +182,7 @@ function getPorts(options) {
 
 	if (options?.usageType === 'operations-api' && env.get(terms.CONFIG_PARAMS.OPERATIONSAPI_NETWORK_DOMAINSOCKET)) {
 		ports.push({
-			port: resolvePath(env.get(terms.CONFIG_PARAMS.OPERATIONSAPI_NETWORK_DOMAINSOCKET)),
+			port: getConfigPath(terms.CONFIG_PARAMS.OPERATIONSAPI_NETWORK_DOMAINSOCKET),
 			secure: false,
 		});
 	}
@@ -269,7 +270,9 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 				if (!response.headers?.set) {
 					response.headers = new Headers(response.headers);
 				}
-
+				for (let [key, value] of universalHeaders) {
+					response.headers.set(key, value);
+				}
 				if (response.status === -1) {
 					// This means the HDB stack didn't handle the request, and we can then cascade the request
 					// to the server-level handler, forming the bridge to the slower legacy fastify framework that expects
@@ -487,29 +490,10 @@ Object.defineProperty(IncomingMessage.prototype, 'upgrade', {
 	set(_v) {},
 });
 
-type OnUpgradeOptions = {
-	port?: number;
-	securePort?: number;
-	runFirst?: boolean;
-};
-
-/**
- * @typedef {(request: unknown, next: Listener) => void | Promise<void>} Listener
- */
-
 const upgradeListeners = [],
 	upgradeChains = {};
 
-/**
- *
- * @param {Listener} listener
- * @param {OnUpgradeOptions} options
- * @returns
- */
-function onUpgrade(
-	listener: (request: Request, next: (request: Request) => Response) => void,
-	options: OnUpgradeOptions
-) {
+function onUpgrade(listener: UpgradeListener, options: UpgradeOptions) {
 	for (const { port } of getPorts(options)) {
 		upgradeListeners[options?.runFirst ? 'unshift' : 'push']({ listener, port });
 		upgradeChains[port] = makeCallbackChain(upgradeListeners, port);
@@ -565,13 +549,14 @@ function onWebSocket(listener: (ws: WebSocket) => void, options: OnWebSocketOpti
 			onUpgrade(
 				(request, socket, head, next) => {
 					// If the request has already been upgraded, continue without upgrading
-					if (request.__harperdbRequestUpgraded) {
+					if (request.__harperdbRequestUpgraded || request.__harperRequestUpgraded) {
 						return next(request, socket, head);
 					}
 
 					// Otherwise, upgrade the socket and then continue
 					return websocketServers[port].handleUpgrade(request, socket, head, (ws) => {
 						request.__harperdbRequestUpgraded = true;
+						request.__harperRequestUpgraded = true;
 						next(request, socket, head);
 						websocketServers[port].emit('connection', ws, request);
 					});

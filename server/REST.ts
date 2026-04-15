@@ -4,7 +4,7 @@ import * as harperLogger from '../utility/logging/harper_logger.js';
 import { ServerOptions } from 'http';
 import { ServerError, ClientError } from '../utility/errors/hdbError.js';
 import { Resources } from '../resources/Resources.ts';
-import { Resource } from '../resources/Resource.ts';
+import { Resource, missingMethod, allowedMethods } from '../resources/Resource.ts';
 import { IterableEventQueue } from '../resources/IterableEventQueue.ts';
 import { transaction } from '../resources/transaction.ts';
 import { Headers, mergeHeaders } from '../server/serverHelpers/Headers.ts';
@@ -114,29 +114,38 @@ async function http(request: Context & Request, nextHandler) {
 			switch (method) {
 				case 'GET':
 				case 'HEAD':
-					return resource.get(target, request);
+					return resource.get ? resource.get(target, request) : missingMethod(resource, 'get');
 				case 'POST':
-					return resource.post(target, request.data, request);
+					return resource.post ? resource.post(target, request.data, request) : missingMethod(resource, 'post');
 				case 'PUT':
-					return resource.put(target, request.data, request);
+					return resource.put ? resource.put(target, request.data, request) : missingMethod(resource, 'put');
 				case 'DELETE':
-					return resource.delete(target, request);
+					return resource.delete ? resource.delete(target, request) : missingMethod(resource, 'delete');
 				case 'PATCH':
-					return resource.patch(target, request.data, request);
+					return resource.patch ? resource.patch(target, request.data, request) : missingMethod(resource, 'patch');
 				case 'OPTIONS': // used primarily for CORS
-					headers.setIfNone('Allow', 'GET, HEAD, POST, PUT, DELETE, PATCH, OPTIONS, TRACE, QUERY, COPY, MOVE');
+					headers.setIfNone(
+						'Allow',
+						allowedMethods(resource)
+							.map((method) => method.toUpperCase())
+							.join(', ')
+					);
 					return;
 				case 'CONNECT':
 					// websockets? and event-stream
-					return resource.connect(target, null, request);
+					return resource.connect ? resource.connect(target, null, request) : missingMethod(resource, 'connect');
 				case 'TRACE':
 					return 'Harper is the terminating server';
 				case 'QUERY':
-					return resource.query(target, request.data, request);
+					return resource.query ? resource.query(target, request.data, request) : missingMethod(resource, 'query');
 				case 'COPY': // methods suggested from webdav RFC 4918
-					return resource.copy(target, headersObject.destination, request);
+					return resource.copy
+						? resource.copy(target, headersObject.destination, request)
+						: missingMethod(resource, 'copy');
 				case 'MOVE':
-					return resource.move(target, headersObject.destination, request);
+					return resource.move
+						? resource.move(target, headersObject.destination, request)
+						: missingMethod(resource, 'move');
 				case 'BREW': // RFC 2324
 					throw new ClientError("Harper is short and stout and can't brew coffee", 418);
 				default:
@@ -164,8 +173,18 @@ async function http(request: Context & Request, nextHandler) {
 				responseData.headers = responseHeaders;
 			// if no body, look for provided data to serialize
 			if (!responseData.body) {
-				if ('data' in responseData) responseData.body = serialize(responseData.data, request, responseData);
-				else responseData.body = serialize(responseData, request, responseData);
+				let body: any;
+				if ('data' in responseData) {
+					// a standard Response object does not have a setter for body, so we force it
+					body = serialize(responseData.data, request, responseData);
+				} else if (responseData.body === undefined) {
+					// if there is really no body, serialize this object into the body. Note that `new Response()` creates a response
+					// with a null body, and will not fall into this branch
+					body = serialize(responseData, request, responseData);
+				}
+				if (body) {
+					responseData = { status: responseData.status, headers: responseData.headers, body };
+				}
 			}
 			responseData.status ??= status ?? 200;
 			return responseData;

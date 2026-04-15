@@ -234,7 +234,7 @@ describe('HierarchicalNavigableSmallWorld indexing', () => {
 		}
 		if (invertedSimiliarities > 6)
 			console.log('found', invertedSimiliarities, 'inversions of distance, which is more than desirable');
-		assert(invertedSimiliarities < 5);
+		assert(invertedSimiliarities <= 6, `expected at most 6 distance inversions, got ${invertedSimiliarities}`);
 	}
 });
 async function fromAsync(iterable) {

@@ -5,7 +5,7 @@ import { tables, databases } from '../resources/databases.ts';
 import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { SourceTextModule, SyntheticModule, createContext, runInContext } from 'node:vm';
+import { SourceTextModule, SyntheticModule, createContext, runInContext, runInThisContext } from 'node:vm';
 import { ApplicationScope } from '../components/ApplicationScope.ts';
 import logger from '../utility/logging/harper_logger.js';
 import { createRequire } from 'node:module';
@@ -17,8 +17,9 @@ import type { CompartmentOptions } from 'ses';
 import { mkdirSync, readFileSync, writeFileSync, unlinkSync, openSync, closeSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
+import { whenComponentsLoaded } from '../server/threads/threadServer.js';
 
-type Lockdown = 'none' | 'freeze' | 'ses';
+type Lockdown = 'none' | 'freeze' | 'ses' | 'freeze-after-load';
 const APPLICATIONS_LOCKDOWN: Lockdown = env.get(CONFIG_PARAMS.APPLICATIONS_LOCKDOWN);
 const HARPER_MODULE_IDS = new Set([
 	'harper',
@@ -50,46 +51,18 @@ export async function scopedImport(filePath: string | URL, scope?: ApplicationSc
 			});
 		} else {
 			preventFunctionConstructor();
-			for (let name of Object.getOwnPropertyNames(Object.prototype)) {
-				if (name === '__proto__') continue;
-				overridableProperty(Object.prototype, name);
+			if (APPLICATIONS_LOCKDOWN === 'freeze-after-load') {
+				whenComponentsLoaded.then(freezeIntrinsics);
+			} else {
+				freezeIntrinsics();
 			}
-			overridableProperty(Promise.prototype, 'then');
-			overridableProperty(Date, 'now');
-			for (let Intrinsic of [
-				Object,
-				Array,
-				Promise,
-				BigInt,
-				String,
-				Number,
-				Boolean,
-				Symbol,
-				RegExp,
-				Date,
-				Map,
-				Set,
-				WeakMap,
-				WeakSet,
-				Math,
-				JSON,
-				Reflect,
-				Atomics,
-				SharedArrayBuffer,
-				WeakRef,
-				FinalizationRegistry,
-			]) {
-				Object.freeze(Intrinsic);
-				Object.freeze(Intrinsic.prototype);
-			}
-			Object.freeze(Function);
 		}
 	}
 	const moduleUrl = (filePath instanceof URL ? filePath : pathToFileURL(filePath)).toString();
 	try {
-		const containmentMode = scope?.mode;
-		if (scope && containmentMode !== 'none') {
-			if (containmentMode === 'compartment') {
+		const loaderMode = scope?.mode;
+		if (scope && loaderMode !== 'native') {
+			if (loaderMode === 'compartment') {
 				// use SES Compartments
 				// note that we use a single compartment per scope and we load it on-demand, only
 				// loading if necessary (since it is actually very heavy)
@@ -97,9 +70,12 @@ export async function scopedImport(filePath: string | URL, scope?: ApplicationSc
 				if (!scope.compartment) scope.compartment = getCompartment(scope, globals);
 				const result = await (await scope.compartment).import(moduleUrl);
 				return result.namespace;
+			} else if (loaderMode === 'vm-current-context' && SourceTextModule) {
+				// Use VM module loader with current context (shares intrinsics, no custom globals)
+				return await loadModuleWithVM(moduleUrl, scope, false);
 			} else if (SourceTextModule) {
-				// else use standard node:vm module to do containment (if it is available)
-				return await loadModuleWithVM(moduleUrl, scope);
+				// Use VM module to do module loading with custom context (sandboxed)
+				return await loadModuleWithVM(moduleUrl, scope, true);
 			}
 		}
 		// important! we need to await the import, otherwise the error will not be caught
@@ -121,12 +97,13 @@ export async function scopedImport(filePath: string | URL, scope?: ApplicationSc
 
 let amaro: typeof import('amaro') | undefined;
 /**
- * Strip TypeScript types using the amaro library (what Node.js uses internally)
- * Falls back to regex-based stripping if amaro is not available
+ * Strip TypeScript types synchronously using the amaro library (what Node.js uses internally)
  */
-async function stripTypeScriptTypes(source: string): Promise<string> {
+function stripTypeScriptTypes(source: string): string {
 	// Use amaro - the library that Node.js uses internally for type stripping
-	amaro = await import('amaro');
+	if (!amaro) {
+		amaro = require('amaro');
+	}
 	return amaro.transformSync(source, { mode: 'strip-only' }).code;
 }
 
@@ -143,15 +120,42 @@ function parseJsonModule(source: string, url: string): any {
 }
 
 /**
- * Load a module using Node's vm.Module API with (not really secure) sandboxing
+ * Load a module using Node's vm.Module API with optional sandboxing
+ * @param moduleUrl - The URL of the module to load
+ * @param scope - The application scope
+ * @param useCustomContext - If true, uses a sandboxed context with custom globals. If false, uses current context.
  */
-async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope) {
-	const moduleCache = new Map<string, Promise<SourceTextModule | SyntheticModule>>();
-	const linkingPromises = new Map<string, Promise<void>>();
+async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope, useCustomContext: boolean = true) {
+	// we want to retain the same module caches across any loading with the application scope
+	let moduleCaches = scope.moduleCache as {
+		moduleCache: Map<string, SourceTextModule | SyntheticModule | Promise<SourceTextModule | SyntheticModule>>;
+		linkingPromises: Map<string, Promise<void>>;
+		cjsCache: Map<string, { exports: any }>;
+		contextObject: any;
+		context: any;
+	};
+	if (!moduleCaches) {
+		// if they haven't been initialized, do so now
+		let contextObject: any, context: any;
+		if (useCustomContext) {
+			// Create a sandboxed context with custom globals
+			contextObject = getGlobalObject(scope, true);
+			context = createContext(contextObject);
+		} else {
+			// Use current context (no sandboxing, shares intrinsics with parent)
+			contextObject = undefined;
+			context = undefined;
+		}
 
-	// Create a secure context with limited globals
-	const contextObject = getGlobalObject(scope);
-	const context = createContext(contextObject);
+		moduleCaches = scope.moduleCache = {
+			moduleCache: new Map(),
+			linkingPromises: new Map(),
+			cjsCache: new Map(),
+			contextObject,
+			context,
+		};
+	}
+	const { moduleCache, linkingPromises, cjsCache, contextObject, context } = moduleCaches;
 
 	/**
 	 * Resolve module specifier to absolute URL
@@ -165,6 +169,9 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope) {
 			// block harper/* for now (reserving for potential future use)
 			throw new Error(`Module ${specifier} is not allowed, may only access the 'harper' module`);
 		}
+		if (parts[0] === 'file:') {
+			return specifier;
+		}
 		const resolved = createRequire(referrer).resolve(specifier);
 		if (isAbsolute(resolved)) {
 			return pathToFileURL(resolved).toString();
@@ -173,10 +180,19 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope) {
 	}
 
 	/**
-	 * Load a CommonJS module in our private context
+	 * Load a CommonJS module in our context (private or current)
 	 */
 	function loadCJS(url: string, source: string): { exports: any } {
+		// Check cache first to handle circular dependencies
+		if (cjsCache.has(url)) {
+			return cjsCache.get(url)!;
+		}
+
+		// Create module object and cache it immediately (before execution)
+		// This allows circular dependencies to get a reference to the incomplete module
 		const cjsModule = { exports: {} };
+		cjsCache.set(url, cjsModule);
+
 		if (url.endsWith('.json')) {
 			cjsModule.exports = parseJsonModule(source, url);
 			return cjsModule;
@@ -200,15 +216,21 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope) {
 			})
 		`;
 
-		const wrappedFn = runInContext(cjsWrapper, contextObject, {
+		const runOptions = {
 			filename: url,
 			async importModuleDynamically(specifier: string, script) {
 				const resolvedUrl = resolveModule(specifier, script.sourceURL);
-				const useContainment = specifier.startsWith('.') || scope.dependencyContainment;
-				const dynamicModule = await loadModuleWithCache(resolvedUrl, useContainment);
+				const useApplicationLoader = shouldUseApplicationLoader(specifier, resolvedUrl);
+				const dynamicModule = await loadModuleWithCache(resolvedUrl, useApplicationLoader);
 				return dynamicModule;
 			},
-		});
+		};
+
+		// If contextObject is undefined, use current context with runInThisContext
+		const wrappedFn = contextObject
+			? runInContext(cjsWrapper, contextObject, runOptions)
+			: runInThisContext(cjsWrapper, runOptions);
+
 		wrappedFn(
 			cjsModule,
 			cjsModule.exports,
@@ -221,40 +243,116 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope) {
 	}
 	function loadCJSModule(url: string, source: string, usePrivateGlobal: boolean): SyntheticModule {
 		const cjsModule = usePrivateGlobal ? loadCJS(url, source) : { exports: require(url) };
-		const exportNames = Object.keys(cjsModule.exports);
+		let exports = cjsModule.exports;
+		if (exports.default === undefined) {
+			// provide the default export for compatibility
+			exports = { default: exports, ...exports };
+		}
+		const exportNames = Object.keys(exports);
+
+		const options: any = { identifier: url };
+		if (usePrivateGlobal && context) {
+			options.context = context;
+		}
+
 		const synModule = new SyntheticModule(
-			exportNames.length > 0 ? exportNames : ['default'],
+			exportNames,
 			function () {
-				if (exportNames.length > 0) {
-					for (const key of exportNames) {
-						this.setExport(key, cjsModule.exports[key]);
-					}
-				} else {
-					this.setExport('default', cjsModule.exports);
+				for (const key of exportNames) {
+					this.setExport(key, exports[key]);
 				}
 			},
-			{ identifier: url, context }
+			options
 		);
 		// Don't cache here - let getOrCreateModule handle caching
 		return synModule;
 	}
 
 	/**
-	 * Linker function for module resolution during instantiation
+	 * Check if a package (or any of its dependencies) depends on harper
+	 * Expects a file URL like: file:///path/to/node_modules/package-name/dist/index.js
 	 */
-	async function linker(specifier: string, referencingModule: SourceTextModule | SyntheticModule) {
-		const resolvedUrl = resolveModule(specifier, referencingModule.identifier);
+	function packageDependsOnHarper(fileUrl: string): boolean {
+		try {
+			// Convert file:// URL to path
+			const filePath = fileURLToPath(fileUrl);
 
-		const useContainment = specifier.startsWith('.') || scope.dependencyContainment;
-		// Return the module immediately (even if not yet linked) to support circular dependencies
-		return await getOrCreateModule(resolvedUrl, useContainment);
+			// Find the node_modules directory and package name
+			// Example: /path/to/node_modules/package-name/dist/index.js
+			// or: /path/to/node_modules/@scope/package-name/dist/index.js
+			const nodeModulesMarker = '/node_modules/';
+			const nodeModulesIndex = filePath.lastIndexOf(nodeModulesMarker);
+			if (nodeModulesIndex === -1) return false;
+
+			// Get the part after /node_modules/
+			const afterNodeModules = filePath.substring(nodeModulesIndex + nodeModulesMarker.length);
+			const parts = afterNodeModules.split('/');
+
+			// Handle scoped packages (@scope/package-name) vs regular packages (package-name)
+			const beforeNodeModules = filePath.substring(0, nodeModulesIndex);
+			const packageRoot = parts[0].startsWith('@')
+				? join(beforeNodeModules, 'node_modules', parts[0], parts[1])
+				: join(beforeNodeModules, 'node_modules', parts[0]);
+
+			// Read package.json from the package root
+			const packageJsonPath = join(packageRoot, 'package.json');
+			const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+
+			const deps = {
+				...packageJson.dependencies,
+				...packageJson.devDependencies,
+				...packageJson.peerDependencies,
+			};
+
+			// Check if harper is a direct dependency
+			return Object.keys(deps).some((dep) => HARPER_MODULE_IDS.has(dep));
+		} catch {
+			return false;
+		}
 	}
 
-	async function getOrCreateModule(
+	/**
+	 * Determine if a module should use application VM module loader based on specifier and resolved URL
+	 */
+	function shouldUseApplicationLoader(specifier: string, resolvedUrl: string): boolean {
+		// Always contain relative imports
+		if (specifier.startsWith('.')) {
+			return true;
+		}
+
+		// Check the dependencyLoader for definitive settings, if it is native we always use native loader
+		if (scope.dependencyLoader === 'native') {
+			return false;
+		}
+
+		// If it is set to always use the app module loader
+		if (scope.dependencyLoader === 'app') {
+			return true;
+		}
+
+		// For npm packages, check if they depend on harper
+		if (resolvedUrl.startsWith('file://') && resolvedUrl.includes('/node_modules/')) {
+			return packageDependsOnHarper(resolvedUrl);
+		}
+		return false;
+	}
+
+	/**
+	 * Linker function for module resolution during instantiation.
+	 * This is synchronous because Node's module.link() requires the linker
+	 * to return modules synchronously.
+	 */
+	function linker(specifier: string, referencingModule: SourceTextModule | SyntheticModule) {
+		const resolvedUrl = resolveModule(specifier, referencingModule.identifier);
+		const useApplicationLoader = shouldUseApplicationLoader(specifier, resolvedUrl);
+		return getOrCreateModule(resolvedUrl, useApplicationLoader);
+	}
+
+	function getOrCreateModule(
 		url: string,
 		usePrivateGlobal: boolean
-	): Promise<SourceTextModule | SyntheticModule> {
-		// Check cache first - return cached module immediately (even if not linked yet)
+	): SourceTextModule | SyntheticModule | Promise<SourceTextModule | SyntheticModule> {
+		// Check if module is already created
 		if (moduleCache.has(url)) {
 			return moduleCache.get(url)!;
 		}
@@ -275,8 +373,15 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope) {
 		// Only link/evaluate once per module
 		if (!linkingPromises.has(url)) {
 			const linkingPromise = (async () => {
-				await module.link(linker);
-				await module.evaluate();
+				// Check module status - only link if it's 'unlinked'
+				// Status can be: 'unlinked', 'linking', 'linked', 'evaluating', 'evaluated'
+				if (module.status === 'unlinked') {
+					await module.link(linker);
+				}
+				// Only evaluate if not already evaluated
+				if (module.status === 'linked') {
+					await module.evaluate();
+				}
 			})();
 			linkingPromises.set(url, linkingPromise);
 		}
@@ -287,107 +392,121 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope) {
 		return module;
 	}
 	/**
-	 * Create a module from URL without linking or evaluating
+	 * Create a SyntheticModule from exported object
 	 */
-	async function createModule(url: string, usePrivateGlobal: boolean): Promise<SourceTextModule | SyntheticModule> {
-		let module: SourceTextModule | SyntheticModule;
+	function createSyntheticModule(url: string, exportedObject: any): SyntheticModule {
+		const exportNames = Object.keys(exportedObject);
+		return new SyntheticModule(
+			exportNames,
+			function () {
+				for (const key of exportNames) {
+					this.setExport(key, exportedObject[key]);
+				}
+			},
+			{ identifier: url, context }
+		);
+	}
 
-		// Handle special built-in modules
-		if (url === 'harper') {
-			let harperExports = getHarperExports(scope);
-			module = new SyntheticModule(
-				Object.keys(harperExports),
+	/**
+	 * Normalize imported module to ensure it has proper exports including default
+	 */
+	function normalizeImportedModule(importedModule: any): any {
+		const cjsModule = importedModule['module.exports'];
+		if (cjsModule) {
+			// back-compat import
+			importedModule = importedModule.default ? { default: importedModule.default, ...cjsModule } : cjsModule;
+		}
+		// Ensure there's a default export for ESM imports that expect it
+		if (!importedModule.default) {
+			importedModule = { default: importedModule, ...importedModule };
+		}
+		return importedModule;
+	}
+
+	/**
+	 * Create a SourceTextModule or SyntheticModule from source code
+	 */
+	function createModuleFromSource(
+		url: string,
+		source: string,
+		usePrivateGlobal: boolean
+	): SourceTextModule | SyntheticModule {
+		// Handle JSON modules
+		if (url.endsWith('.json')) {
+			const jsonData = parseJsonModule(source, url);
+			return new SyntheticModule(
+				['default'],
 				function () {
-					for (let key in harperExports) {
-						this.setExport(key, harperExports[key]);
-					}
+					this.setExport('default', jsonData);
 				},
 				{ identifier: url, context }
 			);
-		} else if (url.startsWith('file://') && usePrivateGlobal) {
-			checkAllowedModulePath(url, scope.verifyPath);
-			let source = await readFile(new URL(url), { encoding: 'utf-8' });
-
-			// Handle JSON modules as a SyntheticModule with a default export.
-			// JSON imports only support default exports per the ESM spec.
-			if (url.endsWith('.json')) {
-				const jsonData = parseJsonModule(source, url);
-				module = new SyntheticModule(
-					['default'],
-					function () {
-						this.setExport('default', jsonData);
-					},
-					{ identifier: url, context }
-				);
-			} else {
-				// Strip TypeScript types if this is a .ts file
-				if (url.endsWith('.ts') || url.endsWith('.tsx')) {
-					source = await stripTypeScriptTypes(source);
-				}
-
-				// Try CJS first since it will fail fast with clear syntax errors on ESM syntax
-				try {
-					module = loadCJSModule(url, source, usePrivateGlobal);
-				} catch {
-					// If CJS loading fails (likely due to ESM syntax like import/export), try ESM
-					try {
-						module = new SourceTextModule(source, {
-							identifier: url,
-							context,
-							initializeImportMeta(meta) {
-								meta.url = url;
-							},
-							async importModuleDynamically(specifier: string) {
-								const resolvedUrl = resolveModule(specifier, url);
-								const dynamicModule = await loadModuleWithCache(resolvedUrl, true);
-								return dynamicModule;
-							},
-						});
-					} catch (esmErr) {
-						// Both failed - throw the ESM error as it's likely more relevant
-						throw esmErr;
-					}
-				}
-			}
-		} else {
-			const replacedModule = checkAllowedModulePath(url, scope.verifyPath);
-			// For Node.js built-in modules (node:) and npm packages
-			// Always try require first to properly handle CJS modules with named exports
-			try {
-				const cjsExports = replacedModule ?? require(url);
-				// It's a CJS module - expose all properties as named exports
-				const exportNames = Object.keys(cjsExports);
-				module = new SyntheticModule(
-					exportNames.length > 0 ? [...exportNames, 'default'] : ['default'],
-					function () {
-						if (exportNames.length > 0) {
-							for (const key of exportNames) {
-								this.setExport(key, cjsExports[key]);
-							}
-						}
-						this.setExport('default', cjsExports);
-					},
-					{ identifier: url, context }
-				);
-			} catch {
-				// Fall back to dynamic import for ESM packages
-				const importedModule = await import(url);
-				const exportNames = Object.keys(importedModule);
-				module = new SyntheticModule(
-					exportNames,
-					function () {
-						for (const key of exportNames) {
-							this.setExport(key, importedModule[key]);
-						}
-					},
-					{ identifier: url, context }
-				);
-			}
 		}
 
-		return module;
+		// Strip TypeScript types if this is a .ts file
+		if (url.endsWith('.ts') || url.endsWith('.tsx')) {
+			source = stripTypeScriptTypes(source);
+		}
+
+		// Try CJS first since it will fail fast with clear syntax errors on ESM syntax
+		try {
+			return loadCJSModule(url, source, usePrivateGlobal);
+		} catch (cjsErr) {
+			// Only fallback to ESM if the error was due to ESM syntax (import/export statements)
+			// Check if the error message indicates ESM syntax
+			const errorMessage = cjsErr?.message || '';
+			const isEsmSyntaxError =
+				errorMessage.includes('import') ||
+				errorMessage.includes('export') ||
+				errorMessage.includes('Cannot use import statement') ||
+				errorMessage.includes('Unexpected token');
+
+			if (!isEsmSyntaxError) {
+				// This was a real error (not ESM syntax), rethrow it
+				throw cjsErr;
+			}
+
+			// If CJS loading fails due to ESM syntax, try ESM
+			return new SourceTextModule(source, {
+				identifier: url,
+				context,
+				initializeImportMeta(meta) {
+					meta.url = url;
+				},
+				importModuleDynamically(specifier: string) {
+					const resolvedUrl = resolveModule(specifier, url);
+					const useApplicationLoader = shouldUseApplicationLoader(specifier, resolvedUrl);
+					return loadModuleWithCache(resolvedUrl, useApplicationLoader);
+				},
+			});
+		}
 	}
 
+	/**
+	 * Create a module from URL without linking or evaluating (async version for initial load)
+	 */
+	function createModule(
+		url: string,
+		usePrivateGlobal: boolean
+	): SourceTextModule | SyntheticModule | Promise<SourceTextModule | SyntheticModule> {
+		// Handle special built-in modules
+		if (url === 'harper') {
+			return createSyntheticModule(url, getHarperExports(scope));
+		}
+
+		if (url.startsWith('file://') && usePrivateGlobal) {
+			checkAllowedModulePath(url, scope.verifyPath);
+			const source = readFileSync(new URL(url), { encoding: 'utf-8' });
+			return createModuleFromSource(url, source, usePrivateGlobal);
+		}
+
+		// For Node.js built-in modules (node:) and npm packages without application loader for dependency
+		const replacedModule = checkAllowedModulePath(url, scope.verifyPath);
+		if (replacedModule) {
+			return createSyntheticModule(url, normalizeImportedModule(replacedModule));
+		}
+		return import(url).then((importedModule) => createSyntheticModule(url, normalizeImportedModule(importedModule)));
+	}
 	// Load the entry module
 	const entryModule = await loadModuleWithCache(moduleUrl, true);
 
@@ -433,8 +552,8 @@ async function getCompartment(scope: ApplicationScope, globals) {
 						},
 					};
 				} else if (moduleSpecifier.startsWith('file:') && !moduleSpecifier.includes('node_modules')) {
-					const moduleText = await readFile(new URL(moduleSpecifier), { encoding: 'utf-8' });
-					// Handle JSON files in comparttment mode the same way as in VM mode
+					let moduleText = await readFile(new URL(moduleSpecifier), { encoding: 'utf-8' });
+					// Handle JSON files in compartment mode the same way as in VM mode
 					if (moduleSpecifier.endsWith('.json')) {
 						const jsonData = parseJsonModule(moduleText, moduleSpecifier);
 						return {
@@ -444,6 +563,10 @@ async function getCompartment(scope: ApplicationScope, globals) {
 								exports.default = jsonData;
 							},
 						};
+					}
+					// Strip TypeScript types if this is a .ts file
+					if (moduleSpecifier.endsWith('.ts') || moduleSpecifier.endsWith('.tsx')) {
+						moduleText = stripTypeScriptTypes(moduleText);
 					}
 					return new StaticModuleRecord(moduleText, moduleSpecifier);
 				} else {
@@ -479,6 +602,9 @@ function secureOnlyFetch(resource, options) {
 	return fetch(resource, options);
 }
 
+// These globals need to match the literals produced in the VM context
+const contextualizedJSGlobals = ['Object', 'Array', 'Function', 'globalThis'];
+
 let defaultJSGlobalNames: string[];
 // get the global variable names that are intrinsically present in a VM context (so we don't override them)
 function getDefaultJSGlobalNames() {
@@ -494,12 +620,13 @@ function getDefaultJSGlobalNames() {
 /**
  * Get the set of global variables that should be available to modules that run in scoped compartments/contexts.
  */
-function getGlobalObject(scope: ApplicationScope) {
+function getGlobalObject(scope: ApplicationScope, copyIntrinsics = false) {
 	const appGlobal = {};
 	// create the new global object, assigning all the global variables from this global
 	// except those that will be natural intrinsics of the new VM
+	const globalsToExclude = copyIntrinsics ? contextualizedJSGlobals : getDefaultJSGlobalNames();
 	for (let name of Object.getOwnPropertyNames(global)) {
-		if (getDefaultJSGlobalNames().includes(name)) continue;
+		if (globalsToExclude.includes(name)) continue;
 		appGlobal[name] = global[name];
 	}
 	// now assign Harper scope-specific variables
@@ -533,6 +660,25 @@ function getHarperExports(scope: ApplicationScope) {
 		authenticateUser: server.authenticateUser,
 		operation: server.operation,
 		contentTypes,
+		Attribute: undefined,
+		Config: undefined,
+		ConfigValue: undefined,
+		Context: undefined,
+		FileAndURLPathConfig: undefined,
+		FilesOption: undefined,
+		FilesOptionObject: undefined,
+		IterableEventQueue: undefined,
+		Logger: undefined,
+		Query: undefined,
+		RecordObject: undefined,
+		RequestTargetOrId: undefined,
+		ResourceInterface: undefined,
+		Scope: undefined,
+		Session: undefined,
+		SourceContext: undefined,
+		SubscriptionRequest: undefined,
+		Table: undefined,
+		User: undefined,
 	};
 }
 const ALLOWED_NODE_BUILTIN_MODULES = env.get(CONFIG_PARAMS.APPLICATIONS_ALLOWEDBUILTINMODULES)
@@ -544,13 +690,18 @@ const ALLOWED_NODE_BUILTIN_MODULES = env.get(CONFIG_PARAMS.APPLICATIONS_ALLOWEDB
 			},
 		};
 const ALLOWED_COMMANDS = new Set(env.get(CONFIG_PARAMS.APPLICATIONS_ALLOWEDSPAWNCOMMANDS) ?? []);
-const REPLACED_BUILTIN_MODULES = {
-	child_process: {
-		exec: createSpawn(child_process.exec),
-		execFile: createSpawn(child_process.execFile),
-		fork: createSpawn(child_process.fork, true), // this is launching node, so deemed safe
-		spawn: createSpawn(child_process.spawn),
+const child_processConstrained = {
+	exec: createSpawn(child_process.exec),
+	execFile: createSpawn(child_process.execFile),
+	fork: createSpawn(child_process.fork, true), // this is launching node, so deemed safe
+	spawn: createSpawn(child_process.spawn),
+	execSync: function () {
+		throw new Error('execSync is not allowed');
 	},
+};
+child_processConstrained.default = child_processConstrained;
+const REPLACED_BUILTIN_MODULES = {
+	child_process: child_processConstrained,
 };
 /**
  * Creates a ChildProcess-like object for an existing process
@@ -752,6 +903,45 @@ function getResponse() {
 
 export function preventFunctionConstructor() {
 	Function.prototype.constructor = function () {}; // prevent this from being used to eval data in a parent context
+}
+
+function freezeIntrinsics() {
+	overridableProperty(Object.prototype, 'toString');
+	overridableProperty(Object.prototype, 'valueOf');
+	overridableProperty(Object.prototype, 'hasOwnProperty');
+	overridableProperty(Object.prototype, 'constructor');
+	overridableProperty(Promise.prototype, 'then');
+	overridableProperty(Date, 'now');
+	for (let name of ['get', 'set', 'has', 'delete', 'clear', 'forEach', 'entries', 'keys', 'values']) {
+		overridableProperty(Map.prototype, name);
+	}
+	for (let Intrinsic of [
+		Object,
+		Array,
+		Promise,
+		BigInt,
+		String,
+		Number,
+		Boolean,
+		Symbol,
+		RegExp,
+		Date,
+		Map,
+		Set,
+		WeakMap,
+		WeakSet,
+		Math,
+		JSON,
+		Reflect,
+		Atomics,
+		SharedArrayBuffer,
+		WeakRef,
+		FinalizationRegistry,
+	]) {
+		Object.freeze(Intrinsic);
+		Object.freeze(Intrinsic.prototype);
+	}
+	Object.freeze(Function);
 }
 
 /**

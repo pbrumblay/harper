@@ -1,5 +1,5 @@
 import { type Logger } from '../utility/logging/logger.ts';
-import { getConfigObj, getConfigValue } from '../config/configUtils.js';
+import { getConfigObj, getConfigValue, getConfigPath } from '../config/configUtils.js';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.js';
 import logger from '../utility/logging/harper_logger.js';
 
@@ -31,6 +31,7 @@ interface ApplicationConfig {
 	install?: {
 		command?: string;
 		timeout?: number;
+		allowInstallScripts?: boolean;
 	};
 	// an application config can have other arbitrary properties
 	[key: string]: unknown;
@@ -94,6 +95,15 @@ export function assertApplicationConfig(
 			(typeof applicationConfig.install.timeout !== 'number' || applicationConfig.install.timeout < 0)
 		) {
 			throw new InvalidInstallTimeoutError(applicationName, applicationConfig.install.timeout);
+		}
+
+		if (
+			'allowInstallScripts' in applicationConfig.install &&
+			typeof applicationConfig.install.allowInstallScripts !== 'boolean'
+		) {
+			throw new (class InvalidInstallAllowScriptsError extends TypeError {})(
+				`Invalid 'install.allowInstallScripts' property for application ${applicationName}: expected boolean, got ${typeof applicationConfig.install.allowInstallScripts}`
+			);
 		}
 	}
 }
@@ -309,7 +319,7 @@ export async function installApplication(application: Application) {
 		const { stdout, stderr, code } = await nonInteractiveSpawn(
 			application.name,
 			(application.packageManagerPrefix ? application.packageManagerPrefix + ' ' : '') + packageManager.name,
-			['install'], // All of `npm`, `yarn`, and `pnpm` support the `install` command. If we need to configure options here we may have to use some other defaults though
+			application.install?.allowInstallScripts ? ['install'] : ['install', '--ignore-scripts'], // All of `npm`, `yarn`, and `pnpm` support the `install` command. If we need to configure options here we may have to use some other defaults though
 			application.dirPath,
 			application.install?.timeout
 		);
@@ -355,10 +365,13 @@ export async function installApplication(application: Application) {
 	}
 
 	// Finally, default to running `npm install`
+	const npmInstallArgs = application.install?.allowInstallScripts
+		? ['install', '--force']
+		: ['install', '--force', '--ignore-scripts'];
 	const { stdout, stderr, code } = await nonInteractiveSpawn(
 		application.name,
 		(application.packageManagerPrefix ? application.packageManagerPrefix + ' ' : '') + 'npm',
-		['install', '--force'],
+		npmInstallArgs,
 		application.dirPath,
 		application.install?.timeout
 	);
@@ -385,14 +398,14 @@ interface ApplicationOptions {
 	name: string;
 	payload?: Buffer | string;
 	packageIdentifier?: string;
-	install?: { command?: string; timeout?: number };
+	install?: { command?: string; timeout?: number; allowInstallScripts?: boolean };
 }
 
 export class Application {
 	name: string;
 	payload?: Buffer | string;
 	packageIdentifier?: string;
-	install?: { command?: string; timeout?: number };
+	install?: { command?: string; timeout?: number; allowInstallScripts?: boolean };
 	dirPath: string;
 	logger: Logger;
 	packageManagerPrefix: string; // can be used to configure a package manager prefix, specifically "sfw".
@@ -402,7 +415,9 @@ export class Application {
 		this.payload = payload;
 		this.packageIdentifier = packageIdentifier && derivePackageIdentifier(packageIdentifier);
 		this.install = install;
-		this.dirPath = join(getConfigValue(CONFIG_PARAMS.COMPONENTSROOT), name);
+		const componentsRoot = getConfigPath(CONFIG_PARAMS.COMPONENTSROOT);
+		if (!componentsRoot) throw new Error('componentsRoot is not configured');
+		this.dirPath = join(componentsRoot, name);
 		this.logger = logger.loggerWithTag(name);
 		this.packageManagerPrefix = getConfigValue(CONFIG_PARAMS.APPLICATIONS_PACKAGEMANAGERPREFIX);
 	}
@@ -464,7 +479,8 @@ export async function installApplications() {
 
 	const config = getConfigObj();
 
-	const componentsRootDirPath = getConfigValue(CONFIG_PARAMS.COMPONENTSROOT);
+	const componentsRootDirPath = getConfigPath(CONFIG_PARAMS.COMPONENTSROOT);
+	if (!componentsRootDirPath) throw new Error('componentsRoot is not configured');
 
 	// Ensure component directory exists
 	await mkdir(componentsRootDirPath, { recursive: true });

@@ -45,7 +45,7 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 		let applicationScope = new ApplicationScope('test', mockResources, server);
 		Object.assign(applicationScope, {
 			mode: 'vm',
-			dependencyContainment: false,
+			dependencyLoader: 'native',
 			verifyPath: PACKAGE_ROOT,
 		});
 		await loadComponent(componentDir, mockResources, 'test-origin', {
@@ -67,6 +67,27 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 
 		// verify the exported resource works
 		assert.equal(mockResources.get('/testExport').get(), 'hello world');
+		assert(mockResources.get('/testExport').getDate() instanceof Date, 'instanceof Date should work');
+		assert((await mockResources.get('/testExport').testLoadTypeScript()).isTyped, 'TypeScript exports');
+		assert.equal(typeof mockResources.get('/TestComponent').get, 'function');
+		assert.equal(typeof mockResources.get('/my-component').get, 'function');
+	});
+	it('should be able to use VM loading with current context and load component', async function () {
+		let applicationScope = new ApplicationScope('test', mockResources, server);
+		Object.assign(applicationScope, {
+			mode: 'vm-current-context',
+			dependencyLoader: 'native',
+			verifyPath: PACKAGE_ROOT,
+		});
+		await loadComponent(componentDir, mockResources, 'test-origin', {
+			applicationScope,
+		});
+
+		// verify the exported resource works
+		assert.equal(mockResources.get('/testExport').get(), 'hello world');
+		assert(mockResources.get('/testExport').getDate() instanceof Date, 'instanceof Date should work');
+		// should shared intrinsics
+		assert(mockResources.get('/testExport').getArray() instanceof Array, 'instanceof Array should work');
 		assert((await mockResources.get('/testExport').testLoadTypeScript()).isTyped, 'TypeScript exports');
 		assert.equal(typeof mockResources.get('/TestComponent').get, 'function');
 		assert.equal(typeof mockResources.get('/my-component').get, 'function');
@@ -75,7 +96,7 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 		let applicationScope = new ApplicationScope('test', mockResources, server);
 		Object.assign(applicationScope, {
 			mode: 'vm',
-			dependencyContainment: true,
+			dependencyLoader: 'app',
 			verifyPath: PACKAGE_ROOT,
 		});
 		await loadComponent(componentDir, mockResources, 'test-origin', {
@@ -98,7 +119,7 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 		let applicationScope = new ApplicationScope('test', mockResources, server);
 		Object.assign(applicationScope, {
 			mode: 'compartment',
-			dependencyContainment: true,
+			dependencyLoader: 'app',
 			verifyPath: PACKAGE_ROOT,
 		});
 		await loadComponent(componentDir, mockResources, 'test-origin', {
@@ -111,6 +132,10 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 			'undefined',
 			'Component global variable should not leak into parent context'
 		);
+		if (mockResources.get('/')) {
+			// indicates an error
+			console.log(mockResources.get('/'));
+		}
 
 		// verify the exported resource works
 		assert.equal(mockResources.get('/testExport').get(), 'hello world');
@@ -123,7 +148,7 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 		let applicationScope = new ApplicationScope('test', mockResources, server);
 		Object.assign(applicationScope, {
 			mode: 'vm',
-			dependencyContainment: false,
+			dependencyLoader: 'native',
 			verifyPath: PACKAGE_ROOT,
 		});
 		await loadComponent(componentDir, mockResources, 'test-origin', {
@@ -143,7 +168,7 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 		let applicationScope = new ApplicationScope('test', mockResources, server);
 		Object.assign(applicationScope, {
 			mode: 'vm',
-			dependencyContainment: false,
+			dependencyLoader: 'native',
 			verifyPath: PACKAGE_ROOT,
 		});
 		await loadComponent(componentDir, mockResources, 'test-origin', {
@@ -166,7 +191,7 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 		let applicationScope = new ApplicationScope('test', mockResources, server);
 		Object.assign(applicationScope, {
 			mode: 'vm',
-			dependencyContainment: false,
+			dependencyLoader: 'native',
 			verifyPath: PACKAGE_ROOT,
 		});
 		await loadComponent(componentDir, mockResources, 'test-origin', {
@@ -187,5 +212,95 @@ describe('Global Variable Isolation in testJSWithDeps', function () {
 			child2.on('exit', resolve);
 			child1.kill();
 		});
+	});
+
+	it('should handle ESM circular dependencies correctly', async function () {
+		let applicationScope = new ApplicationScope('test', mockResources, server);
+		Object.assign(applicationScope, {
+			mode: 'vm',
+			dependencyLoader: 'native',
+			verifyPath: PACKAGE_ROOT,
+		});
+		await loadComponent(componentDir, mockResources, 'test-origin', {
+			applicationScope,
+		});
+
+		// The circular.js and in-child-dir.js have circular imports
+		// If they loaded successfully, circular dependencies work
+		// The test is in in-child-dir.js line 18: assert.equal(testCircularExport(), MyComponent)
+		assert(mockResources.get('/testExport'), 'Should load with circular dependencies');
+	});
+
+	it('should handle CJS circular dependencies correctly', async function () {
+		const { scopedImport } = require('#src/security/jsLoader');
+		let applicationScope = new ApplicationScope('test', mockResources, server);
+		Object.assign(applicationScope, {
+			mode: 'vm',
+			dependencyLoader: 'native',
+			verifyPath: PACKAGE_ROOT,
+		});
+
+		const cjsModuleA = await scopedImport(path.join(componentDir, 'cjs-circular-a.cjs'), applicationScope);
+
+		// Should successfully load circular CJS modules
+		assert.equal(cjsModuleA.valueA, 'from-a', 'Should have valueA');
+		assert.equal(cjsModuleA.valueB, 'from-b', 'Should have valueB from circular import');
+		assert.equal(cjsModuleA.combined(), 'from-a-from-b', 'Should combine values from both modules');
+	});
+
+	it('should load packages that depend on harper through VM', async function () {
+		const { scopedImport } = require('#src/security/jsLoader');
+		let applicationScope = new ApplicationScope('test', mockResources, server);
+		Object.assign(applicationScope, {
+			mode: 'vm',
+			dependencyLoader: 'native', // Default to native loading
+			verifyPath: PACKAGE_ROOT,
+		});
+
+		// harper-dependent-package has harper in its dependencies, so should use VM
+		const harperPkg = await scopedImport(
+			path.join(componentDir, 'node_modules', 'harper-dependent-package', 'index.js'),
+			applicationScope
+		);
+
+		assert(harperPkg.HarperDependentResource, 'Should load package that depends on harper');
+		assert.equal(harperPkg.usesHarper, true, 'Should have access to harper exports');
+	});
+
+	it('should load packages without harper dependency natively', async function () {
+		const { scopedImport } = require('#src/security/jsLoader');
+		let applicationScope = new ApplicationScope('test', mockResources, server);
+		Object.assign(applicationScope, {
+			mode: 'vm',
+			dependencyLoader: 'native', // Default to native loading
+			verifyPath: PACKAGE_ROOT,
+		});
+
+		// fake-package doesn't depend on harper, should load natively (not through VM)
+		// This avoids context isolation issues with packages like vite
+		const fakePkg = await scopedImport(
+			path.join(componentDir, 'node_modules', 'fake-package', 'index.js'),
+			applicationScope
+		);
+
+		// Should load successfully without VM context issues
+		assert(fakePkg, 'Should load package without harper dependency');
+	});
+
+	it('should handle CJS modules from node_modules correctly', async function () {
+		let applicationScope = new ApplicationScope('test', mockResources, server);
+		Object.assign(applicationScope, {
+			mode: 'vm',
+			dependencyLoader: 'native',
+			verifyPath: PACKAGE_ROOT,
+		});
+		await loadComponent(componentDir, mockResources, 'test-origin', {
+			applicationScope,
+		});
+
+		// mqtt is a CJS module that should be detected and loaded properly
+		// The test imports { connect } from 'mqtt' in in-child-dir.js
+		// If it loaded without error, CJS detection works
+		assert(mockResources.get('/testExport'), 'Should load CJS packages with named exports');
 	});
 });

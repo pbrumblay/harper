@@ -3,6 +3,7 @@ import { ExtendedIterable } from '@harperfast/extended-iterable';
 import { Decoder, readAuditEntry, ENTRY_DATAVIEW, AuditRecord, createAuditEntry } from './auditStore.ts';
 import { isMainThread } from 'node:worker_threads';
 import { EventEmitter } from 'node:events';
+import { asBinary } from 'lmdb';
 
 if (!process.env.HARPER_NO_FLUSH_ON_EXIT && isMainThread) {
 	// we want to be able to test log replay
@@ -12,6 +13,11 @@ if (!process.env.HARPER_NO_FLUSH_ON_EXIT && isMainThread) {
 // reserving 0x80000000 for future use if we need a flag to indicate 64-bits of flag bits for more flags
 const HAS_PREVIOUS_RESIDENCY_ID = 0x40000000;
 const HAS_PREVIOUS_VERSION = 0x20000000;
+
+type TransactionLogIterator = Iterator<TransactionEntry | number> & {
+	addLog(logName: string);
+	removeLog(logName: string);
+};
 
 /**
  * Represents a transaction log store backed by RocksDB.
@@ -81,7 +87,7 @@ export class RocksTransactionLogStore extends EventEmitter {
 
 	putSync(suggestedKey: any, value: any, options: any) {
 		if (typeof suggestedKey === 'symbol') {
-			this.rootStore.putSync(suggestedKey, value, options);
+			this.rootStore.putSync(suggestedKey, asBinary(value), options);
 		} else {
 			this.put(suggestedKey, value, options);
 		}
@@ -106,6 +112,12 @@ export class RocksTransactionLogStore extends EventEmitter {
 			// Harper puts some metadata in the database, we will just put this in the root store instead
 			return this.rootStore.getSync(key);
 		}
+	}
+	getBinary(key: any) {
+		if (typeof key === 'number') {
+			throw new Error('Unsupported binary access by number');
+		}
+		return this.rootStore.getBinarySync(key);
 	}
 	getEntry() {
 		throw new Error('Not implemented');
@@ -161,7 +173,7 @@ export class RocksTransactionLogStore extends EventEmitter {
 		readUncommitted?: boolean;
 	}): Iterable<AuditRecord> {
 		let iterable = new ExtendedIterable<TransactionEntry>();
-		let aggregateIterator: Iterator<TransactionEntry>;
+		let aggregateIterator: TransactionLogIterator;
 		if (options.log !== undefined) {
 			let log = typeof options.log === 'number' ? this.nodeLogs?.[options.log] : this.logByName.get(options.log);
 			if (!log) {
@@ -253,7 +265,7 @@ export class RocksTransactionLogStore extends EventEmitter {
 					nextEntries.length = 0; // reset so if this iterator is restarted, we can re-query
 					return { value: undefined, done: true };
 				},
-				addLog: (logName) => {
+				addLog(logName: string) {
 					let index = options.excludeLogs?.indexOf(logName);
 					if (index >= 0) {
 						options.excludeLogs.splice(index, 1);
@@ -306,10 +318,10 @@ export class RocksTransactionLogStore extends EventEmitter {
 		}
 		return mappedAggregateIterable;
 	}
-	getKeys(options: any) {
+	getKeys(_options?: any) {
 		return []; // TODO: implement this
-		options.onlyKeys = true;
-		return this.getRange(options);
+		// options.onlyKeys = true;
+		// return this.getRange(options);
 	}
 	getStats() {
 		let totalSize = 0;

@@ -279,9 +279,9 @@ describe('certificateVerification/index.ts', function () {
 				const result = await indexModule.verifyCertificate(mockPeerCert, { certificateVerification: true });
 
 				assert.strictEqual(verifyOCSPStub.called, false);
-				// No verification available with fail-open
+				// Both verification methods explicitly disabled
 				assert.strictEqual(result.valid, true);
-				assert.strictEqual(result.status, 'verification-unavailable-allowed');
+				assert.strictEqual(result.status, 'disabled');
 			});
 
 			it('should skip OCSP when no responder URLs', async function () {

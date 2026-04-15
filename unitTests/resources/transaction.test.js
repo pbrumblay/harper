@@ -1,5 +1,6 @@
 require('../testUtils');
 const assert = require('assert');
+const { setTimeout: delay } = require('node:timers/promises');
 const { setupTestDBPath } = require('../testUtils');
 const { table } = require('#src/resources/databases');
 const { setMainIsWorker } = require('#js/server/threads/manageThreads');
@@ -394,6 +395,36 @@ describe('Transactions', () => {
 			assert.equal(entity['propertyA'], 'valueA');
 			assert.equal(entity['propertyB'], 'valueB');
 			 */
+		});
+		it('Can handle writes after a transaction has completed', async function () {
+			const context = {};
+			let writes;
+			await transaction(context, async () => {
+				writes = (async () => {
+					for (let i = 0; i < 10; i++) {
+						await TxnTest.put(48, { name: 'in and out of txn', count: i });
+						await delay(i);
+					}
+				})();
+			});
+			await writes;
+			let entity = await TxnTest.get(48);
+			assert.equal(entity.count, 9);
+		});
+		it('Can handle writes after a transaction has completed, but we explicitly reuse the DatabaseTransaction', async function () {
+			const context = {};
+			let writes;
+			await transaction(context, async (transaction) => {
+				writes = (async () => {
+					for (let i = 0; i < 10; i++) {
+						await TxnTest.put(49, { name: 'in and out of txn', count: i }, { transaction });
+						await delay(1);
+					}
+				})();
+			});
+			await writes;
+			let entity = await TxnTest.get(49);
+			assert.equal(entity.count, 9);
 		});
 		it('Can update new object and addTo consecutively replication updates', async function () {
 			class WithCountOnGet extends TxnTest {

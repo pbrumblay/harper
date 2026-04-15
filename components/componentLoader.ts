@@ -27,7 +27,7 @@ import { getHdbBasePath } from '../utility/environment/environmentManager.js';
 import * as operationsServer from '../server/operationsServer.ts';
 import * as auth from '../security/auth.ts';
 import * as mqtt from '../server/mqtt.ts';
-import { getConfigObj, resolvePath } from '../config/configUtils.js';
+import { getConfigObj, getConfigPath } from '../config/configUtils.js';
 import { createReuseportFd } from '../server/serverHelpers/Request.ts';
 import { ErrorResource } from '../resources/ErrorResource.ts';
 import { Scope } from './Scope.ts';
@@ -39,8 +39,9 @@ import { lifecycle as componentLifecycle } from './status/index.ts';
 import { DEFAULT_CONFIG } from './DEFAULT_CONFIG.ts';
 import { PluginModule } from './PluginModule.ts';
 import { getEnvBuiltInComponents } from './Application.ts';
+import { pathToFileURL } from 'node:url';
 
-const CF_ROUTES_DIR = resolvePath(env.get(CONFIG_PARAMS.COMPONENTSROOT));
+const CF_ROUTES_DIR = getConfigPath(CONFIG_PARAMS.COMPONENTSROOT);
 let loadedComponents = new Map<any, any>();
 let watchesSetup;
 let resources;
@@ -147,20 +148,28 @@ function symlinkHarperModule(componentDirectory: string) {
 					mkdirSync(nodeModulesDir);
 				}
 
-				// validate harperdb module
+				// validate harper module
 				const harperModule = join(nodeModulesDir, 'harper');
 				if (existsSync(harperModule)) {
-					if (realpathSync(harperModule) === realpathSync(PACKAGE_ROOT)) {
-						// if it exists and correctly linked, resolve
-						return resolve();
+					if (realpathSync(harperModule) !== realpathSync(PACKAGE_ROOT)) {
+						// if it exists but is incorrectly linked, fix it
+						rmSync(harperModule, { recursive: true, force: true });
+						// create link to harper module
+						symlinkSync(PACKAGE_ROOT, harperModule, 'dir');
 					}
-
-					// Otherwise remove it then link
-					rmSync(harperModule, { recursive: true, force: true });
+				} else {
+					// create link to harper module
+					symlinkSync(PACKAGE_ROOT, harperModule, 'dir');
+				}
+				// if there is a harperdb module, fix that too
+				const harperdbModule = join(nodeModulesDir, 'harperdb');
+				if (existsSync(harperdbModule) && realpathSync(harperdbModule) !== realpathSync(PACKAGE_ROOT)) {
+					// if it exists but is incorrectly linked, fix it
+					rmSync(harperdbModule, { recursive: true, force: true });
+					// create link to harper module
+					symlinkSync(PACKAGE_ROOT, harperdbModule, 'dir');
 				}
 
-				// create link to harperdb module
-				symlinkSync(PACKAGE_ROOT, harperModule, 'dir');
 				resolve();
 			} finally {
 				// finally release the lock
@@ -352,7 +361,9 @@ export async function loadComponent(
 					const plugin = TRUSTED_RESOURCE_PLUGINS[componentName];
 					extensionModule =
 						typeof plugin === 'string'
-							? await import(plugin.startsWith('@/') ? join(PACKAGE_ROOT, plugin.slice(1)) : plugin)
+							? await import(
+									plugin.startsWith('@/') ? pathToFileURL(join(PACKAGE_ROOT, plugin.slice(1))).toString() : plugin
+								)
 							: plugin;
 				}
 

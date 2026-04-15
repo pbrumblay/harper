@@ -99,9 +99,14 @@ export async function verifyCertificate(
 				logger.debug?.('Attempting OCSP verification');
 				const result = await verifyOCSP(certChain[0].cert, certChain[0].issuer, config.ocsp, ocspUrls);
 
-				// Return result (definitive or not)
-				logger.debug?.(`OCSP verification result: ${result.status}`);
-				return result;
+				// Return on definitive result (good or revoked); fall through for inconclusive
+				// so the failureMode logic below applies (same pattern as CRL)
+				if (result.status === 'good' || result.status === 'revoked') {
+					logger.debug?.(`OCSP verification result: ${result.status}`);
+					return result;
+				}
+
+				logger.debug?.(`OCSP verification inconclusive: ${result.status}, applying failure mode`);
 			} catch (error) {
 				logger.warn?.(`OCSP verification failed: ${error}`);
 			}
@@ -113,6 +118,13 @@ export async function verifyCertificate(
 	}
 
 	// All methods tried or skipped - determine failure handling
+	// If both methods are explicitly disabled (not just unavailable), treat as disabled
+	if (config.crl.enabled === false && config.ocsp.enabled === false) {
+		logger.debug?.('Both CRL and OCSP disabled - verification disabled');
+		return { valid: true, status: 'disabled', method: 'disabled' };
+	}
+
+	// Methods are enabled but unavailable - apply failure mode
 	if (config.failureMode === 'fail-closed') {
 		return { valid: false, status: 'no-verification-available', method: 'disabled' };
 	}

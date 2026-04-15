@@ -57,6 +57,7 @@ exports.deleteConfigFromFile = deleteConfigFromFile;
 exports.getConfigObj = getConfigObj;
 exports.resolvePath = resolvePath;
 exports.getFlatConfigObj = getFlatConfigObj;
+exports.getConfigPath = getConfigPath;
 
 function resolvePath(relativePath) {
 	if (relativePath?.startsWith('~/')) {
@@ -70,7 +71,23 @@ function resolvePath(relativePath) {
 		return relativePath;
 	}
 }
-
+/**
+ * Get a config value and resolve it as a path relative to rootPath.
+ * Use this for any config param that represents a file/directory path.
+ * @param param
+ */
+function getConfigPath(param) {
+	const env = require('../utility/environment/environmentManager.js');
+	const value = env.get(param);
+	if (!value || typeof value !== 'string') return value;
+	if (value.startsWith('~/')) {
+		return path.join(hdbUtils.getHomeDir(), value.slice(1));
+	}
+	if (path.isAbsolute(value)) return value;
+	const rootPath = env.getHdbBasePath();
+	if (!rootPath) return value;
+	return path.resolve(rootPath, value);
+}
 /**
  * Builds the Harper config file using user inputs and default values from defaultConfig.yaml
  * @param args - any args that the user provided.
@@ -332,15 +349,14 @@ function initConfig(force = false) {
  * @param configFilePath
  */
 function checkForUpdatedConfig(configDoc, configFilePath) {
-	const rootPath = configDoc.getIn(['rootPath']);
 	let updateFile = false;
 	if (!configDoc.hasIn(['storage', 'path'])) {
-		configDoc.setIn(['storage', 'path'], path.join(rootPath, 'database'));
+		configDoc.setIn(['storage', 'path'], 'database');
 		updateFile = true;
 	}
 
 	if (!configDoc.hasIn(['logging', 'rotation', 'path'])) {
-		configDoc.setIn(['logging', 'rotation', 'path'], path.join(rootPath, 'log'));
+		configDoc.setIn(['logging', 'rotation', 'path'], 'log');
 		updateFile = true;
 	}
 

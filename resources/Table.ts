@@ -23,7 +23,7 @@ import type { User } from '../security/user.ts';
 import lmdbProcessRows from '../dataLayer/harperBridge/lmdbBridge/lmdbUtility/lmdbProcessRows.js';
 import { Resource, transformForSelect } from './Resource.ts';
 import { when, promiseNormalize } from '../utility/when.ts';
-import { DatabaseTransaction, ImmediateTransaction } from './DatabaseTransaction.ts';
+import { DatabaseTransaction, ImmediateTransaction, TRANSACTION_STATE } from './DatabaseTransaction.ts';
 import * as envMngr from '../utility/environment/environmentManager.js';
 import { addSubscription } from './transactionBroadcast.ts';
 import { handleHDBError, ClientError, ServerError, AccessViolation } from '../utility/errors/hdbError.js';
@@ -580,10 +580,16 @@ export function makeTable(options) {
 							// dictates not to go to source
 							if (!this.doesExist()) throw new ServerError('Entry is not cached', 504);
 						} else if (resourceOptions?.ensureLoaded) {
-							const loadingFromSource = ensureLoadedFromSource(this.constructor.source, id, entry, request, this);
+							const loadingFromSource = ensureLoadedFromSource(
+								this.constructor.source,
+								id,
+								entry,
+								request,
+								this,
+								target
+							);
 							if (loadingFromSource) {
 								txn?.disregardReadTxn(); // this could take some time, so don't keep the transaction open if possible
-								target.loadedFromSource = true;
 								return when(loadingFromSource, (entry) => {
 									TableResource._updateResource(this, entry);
 									return this;
@@ -988,10 +994,16 @@ export function makeTable(options) {
 									// dictates not to go to source
 									if (!entry?.value) throw new ServerError('Entry is not cached', 504);
 								} else if (ensureLoaded) {
-									const loadingFromSource = ensureLoadedFromSource(constructor.source, id, entry, context, this);
+									const loadingFromSource = ensureLoadedFromSource(
+										constructor.source,
+										id,
+										entry,
+										context,
+										this,
+										target
+									);
 									if (loadingFromSource) {
 										txn?.disregardReadTxn(); // this could take some time, so don't keep the transaction open if possible
-										target.loadedFromSource = true;
 										return loadingFromSource.then((entry) => entry?.value);
 									}
 								}
@@ -1421,18 +1433,6 @@ export function makeTable(options) {
 			if (hasSourceGet) {
 				// if there is a resolution in-progress, abandon the eviction
 				if (primaryStore.hasLock(id, entry.version)) return;
-				// if there is a source, we are not "deleting" the record, just removing our local copy, but preserving what we need for indexing
-				let partialRecord;
-				for (const name in indices) {
-					// if there are any indices, we need to preserve a partial evicted record to ensure we can still do searches
-					if (!partialRecord) partialRecord = {};
-					partialRecord[name] = existingRecord[name];
-				}
-				// if we are evicting and not deleting, need to preserve the partial record
-				if (partialRecord) {
-					// treat this as a record resolution (so previous version is checked) with no audit record
-					return updateRecord(id, partialRecord, entry, existingVersion, EVICTED, null, null, null, true);
-				}
 			}
 			primaryStore.ifVersion?.(id, existingVersion, () => {
 				updateIndices(id, existingRecord, null);
@@ -1654,8 +1654,8 @@ export function makeTable(options) {
 					const type = fullUpdate ? 'put' : 'patch';
 					let residencyId: number | undefined;
 					if (options?.residencyId != undefined) residencyId = options.residencyId;
-					const expiresAt = context?.expiresAt ?? (expirationMs ? expirationMs + Date.now() : -1);
-					let additionalAuditRefs: Array<{ version: number; nodeId: number }> = []; // track additional audit refs to store
+					const expiresAt: number = context?.expiresAt ?? (expirationMs ? expirationMs + Date.now() : -1);
+					const additionalAuditRefs: Array<{ version: number; nodeId: number }> = []; // track additional audit refs to store
 
 					if (precedesExisting <= 0) {
 						// This block is to handle the case of saving an update where the transaction timestamp is older than the
@@ -1834,6 +1834,11 @@ export function makeTable(options) {
 										// if there are any indices, we need to preserve a partial invalidated record to ensure we can still do searches
 										recordToStore[name] = auditRecordToStore[name];
 									}
+									if (createdTimeProperty && auditRecordToStore[createdTimeProperty.name] != null) {
+										// preserve the created timestamp in the partial record so it isn't lost when we don't have residency
+										if (!recordToStore) recordToStore = {};
+										recordToStore[createdTimeProperty.name] = auditRecordToStore[createdTimeProperty.name];
+									}
 								}
 							}
 						}
@@ -1845,7 +1850,7 @@ export function makeTable(options) {
 					}
 					logger.trace?.(
 						`Saving record with id: ${id}, timestamp: ${new Date(txnTime).toISOString()}${
-							expiresAt ? ', expires at: ' + new Date(expiresAt).toISOString() : ''
+							expiresAt > 0 ? ', expires at: ' + new Date(expiresAt).toISOString() : ''
 						}${
 							existingEntry?.version
 								? ', replaces entry from: ' + new Date(existingEntry.version).toISOString()
@@ -3480,7 +3485,7 @@ export function makeTable(options) {
 	if (expirationMs) TableResource.setTTLExpiration(expirationMs / 1000);
 	if (expiresAtProperty) runRecordExpirationEviction();
 	return TableResource;
-	function updateIndices(id: any, existingRecord: any, record: any, options: any) {
+	function updateIndices(id: any, existingRecord: any, record: any, options?: any) {
 		let hasChanges;
 		// iterate the entries from the record
 		// for-in is about 5x as fast as for-of Object.entries, and this is extremely time sensitive since it can be
@@ -3732,7 +3737,7 @@ export function makeTable(options) {
 		}
 	}
 
-	function ensureLoadedFromSource(source: typeof TableResource, id, entry, context, resource?) {
+	function ensureLoadedFromSource(source: typeof TableResource, id, entry, context, resource?, target?) {
 		if (hasSourceGet) {
 			let needsSourceData = false;
 			if (context.noCache) needsSourceData = true;
@@ -3751,7 +3756,7 @@ export function makeTable(options) {
 				recordActionBinary(!needsSourceData, 'cache-hit', tableName);
 			}
 			if (needsSourceData) {
-				const loadingFromSource = getFromSource(source, id, entry, context).then((entry) => {
+				const loadingFromSource = getFromSource(source, id, entry, context, target).then((entry) => {
 					if (entry?.value && entry?.value.getRecord?.())
 						logger.error?.('Can not assign a record that is already a resource');
 					if (context) {
@@ -3798,7 +3803,12 @@ export function makeTable(options) {
 				const nextTxn = transaction.next;
 				if (!nextTxn) {
 					// no next one, then add our database
-					transaction = transaction.next = isRocksDB ? new DatabaseTransaction() : new LMDBTransaction();
+					transaction.next = isRocksDB ? new DatabaseTransaction() : new LMDBTransaction();
+					if (transaction.open === TRANSACTION_STATE.CLOSED) {
+						// if the current transaction is already closed, we need to retain that state on new databases we work with
+						transaction.next.open = TRANSACTION_STATE.CLOSED;
+					}
+					transaction = transaction.next;
 					transaction.db = primaryStore;
 					return transaction;
 				}
@@ -3921,7 +3931,8 @@ export function makeTable(options) {
 		source: typeof TableResource,
 		id: Id,
 		existingEntry: Entry,
-		context: Context
+		context: Context,
+		target?
 	): Promise<Entry> {
 		const metadataFlags = existingEntry?.metadataFlags;
 
@@ -3943,9 +3954,13 @@ export function makeTable(options) {
 				entry.metadataFlags & (INVALIDATED | EVICTED) ||
 				(entry.expiresAt != undefined && entry.expiresAt < Date.now())
 			)
-				// try again
-				whenResolved(getFromSource(source, id, primaryStore.getEntry(id), context));
-			else whenResolved(entry);
+				// try again — entry still not valid, need to actually fetch from source
+				whenResolved(getFromSource(source, id, primaryStore.getEntry(id), context, target));
+			else {
+				// served from cache after waiting for another request to resolve
+				if (target) target.loadedFromSource = false;
+				whenResolved(entry);
+			}
 		};
 		const lockAcquired = primaryStore.tryLock(id, callback);
 
@@ -3957,6 +3972,8 @@ export function makeTable(options) {
 				}, LOCK_TIMEOUT);
 			});
 		}
+		// lock acquired — this request will actually load from source
+		if (target) target.loadedFromSource = true;
 
 		const existingRecord = existingEntry?.value;
 		// it is important to remember that this is _NOT_ part of the current transaction; nothing is changing
@@ -4113,6 +4130,27 @@ export function makeTable(options) {
 								let auditRecord: any;
 								let omitLocalRecord = false;
 								let residencyId: number;
+								if (updatedTimeProperty) {
+									updatedRecord[updatedTimeProperty.name] =
+										updatedTimeProperty.type === 'Date'
+											? new Date(txnTime)
+											: updatedTimeProperty.type === 'String'
+												? new Date(txnTime).toISOString()
+												: txnTime;
+								}
+								if (createdTimeProperty && updatedRecord[createdTimeProperty.name] == null) {
+									const existingCreatedTime = existingEntry?.value?.[createdTimeProperty.name];
+									if (existingCreatedTime != null) {
+										updatedRecord[createdTimeProperty.name] = existingCreatedTime;
+									} else {
+										updatedRecord[createdTimeProperty.name] =
+											createdTimeProperty.type === 'Date'
+												? new Date(txnTime)
+												: createdTimeProperty.type === 'String'
+													? new Date(txnTime).toISOString()
+													: txnTime;
+									}
+								}
 								const residency = residencyFromFunction(TableResource.getResidency(updatedRecord, context));
 								if (residency) {
 									if (!residency.includes(server.hostname)) {
@@ -4131,6 +4169,11 @@ export function makeTable(options) {
 												}
 												// if there are any indices, we need to preserve a partial invalidated record to ensure we can still do searches
 												updatedRecord[name] = auditRecord[name];
+											}
+											if (createdTimeProperty && auditRecord[createdTimeProperty.name] != null) {
+												// preserve the created timestamp in the partial record so it isn't lost when we don't have residency
+												if (!updatedRecord) updatedRecord = {};
+												updatedRecord[createdTimeProperty.name] = auditRecord[createdTimeProperty.name];
 											}
 										}
 									}

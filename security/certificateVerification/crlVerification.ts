@@ -338,7 +338,21 @@ export async function performCRLCheck(
 		const crlStatus = await checkCRLFreshness(distributionPoints, issuerPem, config);
 
 		if (crlStatus.upToDate) {
-			// We have current CRL data and certificate is not in it
+			// CRL was just fetched/refreshed — re-check the revoked table since it may have
+			// been populated by processRevokedCertificates during the download above
+			const revokedEntryFresh = await (revokedTable as any).get(compositeId);
+			if (revokedEntryFresh) {
+				const entry = revokedEntryFresh as any;
+				const now = Date.now();
+				if (entry.crl_next_update > now || entry.crl_next_update + config.gracePeriod > now) {
+					return {
+						status: 'revoked',
+						reason: entry.revocation_reason || 'unspecified',
+						source: entry.crl_source,
+					};
+				}
+			}
+			// Certificate is not in the fresh CRL — it's good
 			return {
 				status: 'good',
 				source: crlStatus.source,
@@ -505,10 +519,9 @@ async function downloadAndParseCRL(
 			expiresAt: nextUpdate,
 		};
 
-		// Process revoked certificates in the background
-		processRevokedCertificates(crl, issuerPemStr, distributionPoint, nextUpdate).catch((error) => {
-			logger.error?.(`Error processing revoked certificates: ${error}`);
-		});
+		// Process revoked certificates before returning so the revoked table is populated
+		// before any subsequent lookup in performCRLCheck
+		await processRevokedCertificates(crl, issuerPemStr, distributionPoint, nextUpdate);
 
 		return cacheEntry;
 	} finally {
@@ -578,7 +591,7 @@ async function processRevokedCertificates(
 					expiresAt: nextUpdate,
 				};
 
-				await (revokedTable as any).create(entry.composite_id, entry);
+				await (revokedTable as any).put(entry.composite_id, entry);
 			} catch (error) {
 				logger.warn?.(`Failed to process revoked certificate: ${error}`);
 				// Continue with other certificates
