@@ -518,6 +518,9 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 		}
 		registerServer(server, port);
 
+		// Operations API domain socket connections bypass auth (equivalent to local access)
+		if (isOperationsServer && String(port).includes('/')) server.bypassLocalAuth = true;
+
 		// Create a corresponding Unix Domain Socket mirror for secure ports
 		if (secure && env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)) {
 			const socketsDir = join(env.getHdbBasePath(), 'sockets');
