@@ -2,6 +2,7 @@
  * This module represents the HTTP component for Harper, and receives the HTTP options and uses them to configure
  * HTTP servers
  */
+import { currentThreadId } from '@harperfast/rocksdb-js';
 import { Scope } from '../components/Scope.ts';
 import { Socket } from 'node:net';
 import harperLogger from '../utility/logging/harper_logger.js';
@@ -58,7 +59,7 @@ export function cleanupUdsFiles() {
 /** Write YAML metadata for a UDS mirror socket, describing the TLS certs from the corresponding secure server. */
 export function writeUdsMetadata(yamlPath: string, port: number | string, secureServer: any) {
 	const contexts = secureServer.secureContexts;
-	let yaml = `pid: ${process.pid}\ntid: ${threadId}\nport: ${port}\n`;
+	let yaml = `pid: ${process.pid}\ntid: ${currentThreadId()}\nport: ${port}\n`;
 	yaml += `certificates:\n`;
 	if (contexts?.size > 0) {
 		const seen = new Set();
