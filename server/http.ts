@@ -549,6 +549,7 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 			);
 
 			udsServer.isPerThreadSocket = true;
+			enableProxyProtocol(udsServer);
 			SERVERS[udsPath] = udsServer;
 			registerUdsCleanupPaths(udsPath, yamlPath);
 
@@ -695,6 +696,37 @@ function onWebSocket(listener: (ws: WebSocket) => void, options: OnWebSocketOpti
 	}
 
 	return servers;
+}
+
+// PROXY protocol v1 max header length per spec: 108 bytes
+const PROXY_V1_MAX_HEADER = 108;
+
+function enableProxyProtocol(httpServer) {
+	// Prepend so we run before the HTTP parser's own connection listener.
+	httpServer.prependListener('connection', (socket) => {
+		socket.once('data', (chunk: Buffer) => {
+			// Fast path: PROXY v1 always starts with "PROXY " (0x50 0x52 0x4f 0x58 0x59 0x20)
+			if (chunk.length >= 6 && chunk[0] === 0x50 && chunk[1] === 0x52 && chunk[2] === 0x4f && chunk[3] === 0x58 && chunk[4] === 0x59 && chunk[5] === 0x20) {
+				const header = chunk.toString('latin1', 0, Math.min(PROXY_V1_MAX_HEADER, chunk.length));
+				const eol = header.indexOf('\r\n');
+				if (eol !== -1) {
+					// "PROXY TCP4 <src-ip> <dst-ip> <src-port> <dst-port>"
+					const parts = header.slice(0, eol).split(' ');
+					if (parts.length === 6) {
+						// Override the UDS socket's undefined remoteAddress/remotePort with the real client values.
+						Object.defineProperty(socket, 'remoteAddress', { value: parts[2], configurable: true });
+						Object.defineProperty(socket, 'remotePort', { value: parseInt(parts[4], 10), configurable: true });
+					}
+					// Push back any bytes that followed the header so the HTTP parser sees them.
+					const rest = chunk.subarray(eol + 2);
+					if (rest.length > 0) socket.unshift(rest);
+					return;
+				}
+			}
+			// Not a PROXY header (or malformed) — put bytes back unchanged.
+			socket.unshift(chunk);
+		});
+	});
 }
 
 function defaultNotFound(request, response) {
