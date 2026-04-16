@@ -243,7 +243,7 @@ export async function authentication(request, nextHandler) {
 			request.user = await server.getUser(session.user, null, request);
 		} else if (
 			(AUTHORIZE_LOCAL && (request.ip?.includes('127.0.0.') || request.ip == '::1')) ||
-			(request?._nodeRequest?.socket?.server?._pipeName && request.ip === undefined) // allow socket domain
+			(request?._nodeRequest?.socket?.server?._pipeName && request?._nodeRequest?.socket?.server?.bypassLocalAuth && request.ip === undefined) // allow operations API domain socket
 		) {
 			request.user = await getSuperUser();
 		}
