@@ -167,6 +167,7 @@ suite(
 suite('OCSP Certificate Verification - Disabled', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: OcspCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-ocsp-disabled-'));
@@ -226,6 +227,7 @@ suite('OCSP Certificate Verification - Disabled', (ctx: ContextWithHarper) => {
 suite('OCSP Certificate Verification - Fail-Open Mode', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: OcspCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-ocsp-failopen-'));
@@ -284,6 +286,7 @@ suite('OCSP Certificate Verification - Fail-Open Mode', (ctx: ContextWithHarper)
 suite('OCSP Certificate Verification - Fail-Closed with Timeout', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: OcspCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-ocsp-timeout-'));

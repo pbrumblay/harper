@@ -12,12 +12,12 @@ import {
 } from '../utils/harperLifecycle.ts';
 import { ok } from 'node:assert';
 import { join } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
+const testsBun = process.env.HARPER_RUNTIME === 'bun';
 
 suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
+	const legacyPath = process.env.HARPER_LEGACY_VERSION_PATH;
+	if (!legacyPath || testsBun) return;
 	before(async () => {
-		const legacyPath = process.env.HARPER_LEGACY_VERSION_PATH;
-		if (!legacyPath) return;
 		await startHarper(ctx, {
 			config: {},
 			env: {
@@ -25,9 +25,7 @@ suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 				REPLICATION_HOSTNAME: 'localhost',
 			},
 			harperBinPath: join(legacyPath, 'bin', 'harperdb.js'),
-			harperRuntime: 'node', // legacy harperdb.js is node only
 		});
-		console.log('Started legacy harper on node', ctx.harper);
 		await sendOperation(ctx.harper, {
 			operation: 'create_table',
 			table: 'test',
@@ -59,10 +57,7 @@ suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 
 	test('upgrade and start', async () => {
 		await killHarper(ctx); // kill old 4.x harper
-		console.log('Killed legacy harper on node', ctx.harper);
-
 		await startHarper(ctx, { config: {}, env: {} }); // start on v5
-		console.log('Starting new harper on node', ctx.harper);
 		let response = await sendOperation(ctx.harper, {
 			operation: 'search_by_conditions',
 			table: 'test',

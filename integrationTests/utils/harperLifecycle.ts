@@ -45,12 +45,6 @@ export interface StartHarperOptions {
 	 * Version of Harper to install and use for this test suite.
 	 */
 	harperBinPath?: string;
-	/**
-	 * Runtime environment for Harper ('node' or 'bun').
-	 * Set via the HARPER_RUNTIME environment variable ('node' or 'bun').
-	 * Defaults to 'node'.
-	 */
-	harperRuntime?: string;
 }
 
 export interface HarperContext {
@@ -120,7 +114,6 @@ interface RunHarperCommandOptions {
 	/** When set, stdout and stderr are written to files in this directory */
 	logDir?: string;
 	harperBinPath?: string; // an explicit location installation of a harper package's bin module
-	harperRuntime?: string;
 }
 
 /**
@@ -137,16 +130,14 @@ function runHarperCommand({
 	completionMessage,
 	logDir,
 	harperBinPath,
-	harperRuntime,
 }: RunHarperCommandOptions): Promise<ChildProcess> {
 	const harperScript = getHarperScript(harperBinPath);
-	harperRuntime ??= HARPER_RUNTIME;
+	const runtime = HARPER_RUNTIME;
 	const runtimeArgs =
-		harperRuntime === 'bun'
+		runtime === 'bun'
 			? [harperScript, ...args]
 			: ['--trace-warnings', '--force-node-api-uncaught-exceptions-policy=true', harperScript, ...args];
-	console.log('running', harperRuntime, runtimeArgs);
-	const proc = spawn(harperRuntime, runtimeArgs, {
+	const proc = spawn(runtime, runtimeArgs, {
 		env: { ...process.env, ...env },
 	});
 
@@ -336,7 +327,6 @@ export async function startHarper(ctx: ContextWithHarper, options?: StartHarperO
 		env: harperEnv,
 		completionMessage: 'successfully started',
 		logDir,
-		harperRuntime: options?.harperRuntime,
 		harperBinPath: options?.harperBinPath,
 	});
 

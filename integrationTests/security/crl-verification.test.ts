@@ -36,6 +36,7 @@ suite(
 		let crlServer: CrlServerContext | null = null;
 		let certsPath: string; // Track separately for cleanup even if server is stopped
 		if (testsBun) return; // no Bun testing for now
+
 		before(async () => {
 			// 1. Create temp directory for certificates
 			certsPath = await mkdtemp(join(tmpdir(), 'harper-crl-test-'));
@@ -174,6 +175,7 @@ suite(
 suite('CRL Certificate Verification - Disabled', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: CrlCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-crl-disabled-'));
@@ -233,6 +235,7 @@ suite('CRL Certificate Verification - Disabled', (ctx: ContextWithHarper) => {
 suite('CRL Certificate Verification - Fail-Open Mode', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: CrlCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-crl-failopen-'));
@@ -291,6 +294,7 @@ suite('CRL Certificate Verification - Fail-Open Mode', (ctx: ContextWithHarper) 
 suite('CRL Certificate Verification - Fail-Closed with Timeout', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: CrlCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-crl-timeout-'));
