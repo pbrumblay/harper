@@ -19,7 +19,7 @@ import { Request, BunRequest, isBun } from './serverHelpers/Request.ts';
 import { appendHeader, Headers } from './serverHelpers/Headers.ts';
 import { Blob } from '../resources/blob.ts';
 import { recordAction, recordActionBinary } from '../resources/analytics/write.ts';
-import { Readable } from 'node:stream';
+import { Readable, PassThrough, Writable } from 'node:stream';
 import { mkdirSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { server, type ServerOptions, type HttpOptions, type UpgradeOptions, UpgradeListener } from './Server.ts';
@@ -664,9 +664,43 @@ function getBunHTTPServer(port: number, secure: boolean, options: ServerOptions)
 					body = Readable.from(body);
 				}
 				if (body?.pipe) {
-					// Convert Node stream to ReadableStream for Bun
-					const webStream = Readable.toWeb(body);
-					return new Response(webStream as any, { status, headers: responseHeaders });
+					// Some streams (e.g. SendStream from 'send') call setHeader/writeHead on the
+					// pipe destination, expecting an http.ServerResponse. Use a Writable with a
+					// minimal shim so those calls capture headers, and buffer the data before
+					// returning a Response (avoids Readable.toWeb() compat issues with Bun).
+					const chunks: Buffer[] = [];
+					const buffer = await new Promise<Buffer>((resolve, reject) => {
+						const dest = new Writable({
+							write(chunk, _encoding, callback) {
+								chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+								callback();
+							},
+							final(callback) {
+								callback();
+								resolve(Buffer.concat(chunks));
+							},
+						});
+						Object.assign(dest, {
+							setHeader: (n: string, v: string) => responseHeaders.set(n, String(v)),
+							getHeader: (n: string) => responseHeaders.get(n),
+							removeHeader: (n: string) => responseHeaders.delete(n),
+							writeHead: (_s: number, hdrs?: any) => {
+								if (hdrs) for (const [k, v] of Object.entries(hdrs)) responseHeaders.set(k, String(v));
+							},
+							statusCode: status,
+							headersSent: false,
+							// 'on-finished' (used by 'send') checks msg.finished to see if stream is done.
+							// Writable.finished is undefined in Bun (not boolean), so isFinished() returns undefined
+							// which !== false, causing on-finished to call cleanup() immediately and destroy the
+							// ReadStream before data flows. Setting finished: false makes it wait for 'finish' event.
+							finished: false,
+						});
+						body.on('error', reject);
+						dest.on('error', reject);
+						body.pipe(dest);
+					});
+					responseHeaders.set('Content-Length', String(buffer.length));
+					return new Response(buffer, { status, headers: responseHeaders });
 				}
 				if (body?.then) {
 					body = await body;
