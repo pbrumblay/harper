@@ -272,11 +272,22 @@ async function listenOnPortsBun() {
 			}
 		}
 		try {
+			// Parse "host:port" strings the same way as listenOnPorts() does for Node
+			let portHostname;
+			let portNumber;
+			const lastColon = String(port).lastIndexOf(':');
+			if (lastColon > 0 && !String(port).startsWith('/')) {
+				portHostname = String(port).slice(0, lastColon).replace(/[[\]]/g, '');
+				portNumber = +String(port).slice(lastColon + 1);
+			} else {
+				portNumber = +port;
+			}
 			const serveOptions = {
-				port: +port,
+				port: portNumber,
 				reusePort: true,
 				fetch: config.fetch,
 			};
+			if (portHostname) serveOptions.hostname = portHostname;
 			// Add TLS config if this is a secure server
 			if (config.isSecure && config.tlsSelector) {
 				// Wait for TLS certs to be loaded
