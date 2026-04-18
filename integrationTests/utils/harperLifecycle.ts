@@ -145,6 +145,7 @@ function runHarperCommand({
 		harperRuntime === 'bun'
 			? [harperScript, ...args]
 			: ['--trace-warnings', '--force-node-api-uncaught-exceptions-policy=true', harperScript, ...args];
+	console.log('running', harperRuntime, runtimeArgs);
 	const proc = spawn(harperRuntime, runtimeArgs, {
 		env: { ...process.env, ...env },
 	});

@@ -25,7 +25,7 @@ import {
 
 const HTTPS_PORT = 9927;
 const FIXTURE_PATH = join(import.meta.dirname, 'fixture');
-const isBun = typeof globalThis.Bun !== 'undefined';
+const testsBun = process.env.HARPER_RUNTIME === 'bun';
 
 // The last test stops the CRL server to verify caching, so tests must run sequentially.
 // Tests CANNOT run concurrently because the caching test stops the server that earlier tests need.
@@ -35,7 +35,7 @@ suite(
 	(ctx: ContextWithHarper) => {
 		let crlServer: CrlServerContext | null = null;
 		let certsPath: string; // Track separately for cleanup even if server is stopped
-		if (isBun) return; // no Bun testing for now
+		if (testsBun) return; // no Bun testing for now
 		before(async () => {
 			// 1. Create temp directory for certificates
 			certsPath = await mkdtemp(join(tmpdir(), 'harper-crl-test-'));

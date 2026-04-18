@@ -27,6 +27,7 @@ suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 			harperBinPath: join(legacyPath, 'bin', 'harperdb.js'),
 			harperRuntime: 'node', // legacy harperdb.js is node only
 		});
+		console.log('Started legacy harper on node', ctx.harper);
 		await sendOperation(ctx.harper, {
 			operation: 'create_table',
 			table: 'test',
@@ -58,7 +59,10 @@ suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 
 	test('upgrade and start', async () => {
 		await killHarper(ctx); // kill old 4.x harper
+		console.log('Killed legacy harper on node', ctx.harper);
+
 		await startHarper(ctx, { config: {}, env: {} }); // start on v5
+		console.log('Starting new harper on node', ctx.harper);
 		let response = await sendOperation(ctx.harper, {
 			operation: 'search_by_conditions',
 			table: 'test',
