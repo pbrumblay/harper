@@ -580,7 +580,6 @@ function getBunHTTPServer(port: number, secure: boolean, options: ServerOptions)
 	setPortServerMap(port, { protocol_name: secure ? 'HTTPS' : 'HTTP', name: getComponentName() });
 	if (!httpServers[port]) {
 		const serverPrefix = isOperationsServer ? 'operationsApi_network' : (usageType ?? 'http');
-		const requestQueueLimit = env.get(serverPrefix + '_requestQueueLimit');
 
 		const fetchHandler = async (webRequest: globalThis.Request, bunServer: any): Promise<Response> => {
 			const startTime = performance.now();
@@ -718,7 +717,9 @@ let bunFastifyInstances: Record<string | number, any> = {};
 export function registerBunFastifyInstance(port: string | number, instance: any) {
 	bunFastifyInstances[port] = instance;
 }
-async function bunDelegateToNodeServer(nodeServer: any, webRequest: globalThis.Request, harperRequest: any): Promise<Response> {
+const INTERNAL_USER_HEADER = 'x-harper-internal-pre-auth-user';
+
+async function bunDelegateToNodeServer(nodeServer: any, webRequest: globalThis.Request, bunRequest?: any): Promise<Response> {
 	// Check if there's a Fastify instance registered for this port (preferred path)
 	for (const port in bunFallbackServers) {
 		if (bunFallbackServers[port] === nodeServer && bunFastifyInstances[port]) {
@@ -726,7 +727,17 @@ async function bunDelegateToNodeServer(nodeServer: any, webRequest: globalThis.R
 			const url = new URL(webRequest.url);
 			const body = webRequest.body ? Buffer.from(await webRequest.arrayBuffer()) : undefined;
 			const headers: Record<string, string> = {};
-			webRequest.headers.forEach((value, key) => { headers[key] = value; });
+			webRequest.headers.forEach((value, key) => {
+				// Strip any forged pre-auth header from real clients
+				if (key.toLowerCase() !== INTERNAL_USER_HEADER) headers[key] = value;
+			});
+			// If Harper's auth middleware authenticated this request without credentials (e.g. via
+			// AUTHORIZE_LOCAL for loopback connections in dev mode), pass the user so Fastify can
+			// skip its own auth. Only applies when there is no Authorization header — if credentials
+			// were provided, let Fastify's Passport validate them normally.
+			if (bunRequest?.user && !headers['authorization']) {
+				headers[INTERNAL_USER_HEADER] = JSON.stringify(bunRequest.user);
+			}
 			const injectResult = await fastify.inject({
 				method: webRequest.method,
 				url: url.pathname + url.search,
@@ -943,7 +954,15 @@ function enableProxyProtocol(httpServer) {
 	httpServer.prependListener('connection', (socket) => {
 		socket.once('data', (chunk: Buffer) => {
 			// Fast path: PROXY v1 always starts with "PROXY " (0x50 0x52 0x4f 0x58 0x59 0x20)
-			if (chunk.length >= 6 && chunk[0] === 0x50 && chunk[1] === 0x52 && chunk[2] === 0x4f && chunk[3] === 0x58 && chunk[4] === 0x59 && chunk[5] === 0x20) {
+			if (
+				chunk.length >= 6 &&
+				chunk[0] === 0x50 &&
+				chunk[1] === 0x52 &&
+				chunk[2] === 0x4f &&
+				chunk[3] === 0x58 &&
+				chunk[4] === 0x59 &&
+				chunk[5] === 0x20
+			) {
 				const header = chunk.toString('latin1', 0, Math.min(PROXY_V1_MAX_HEADER, chunk.length));
 				const eol = header.indexOf('\r\n');
 				if (eol !== -1) {

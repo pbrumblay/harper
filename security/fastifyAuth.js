@@ -31,8 +31,14 @@ passport.deserializeUser(function (user, done) {
 	done(null, user);
 });
 
+const INTERNAL_USER_HEADER = 'x-harper-internal-pre-auth-user';
+
 function authorize(req, res, next) {
 	if (req.raw?.user !== undefined) return next(null, req.raw.user);
+	// On Bun, Harper's auth middleware passes pre-authenticated users via this internal header.
+	// It is stripped from real network requests in bunDelegateToNodeServer, so it is safe to trust here.
+	const preAuthUser = req.headers?.[INTERNAL_USER_HEADER];
+	if (preAuthUser) return next(null, JSON.parse(preAuthUser));
 	let strategy;
 	let token;
 	if (req.headers?.authorization) {
