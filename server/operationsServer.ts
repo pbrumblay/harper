@@ -22,6 +22,7 @@ import {
 	serverErrorHandler,
 	reqBodyValidationHandler,
 } from './serverHelpers/serverHandlers.js';
+import { registerBunFastifyInstance } from './http.ts';
 import { registerContentHandlers } from './serverHelpers/contentTypes.ts';
 import type { OperationFunctionName } from './serverHelpers/serverUtilities.ts';
 import type { ParsedSqlObject } from '../sqlTranslator/index.js';
@@ -67,6 +68,11 @@ async function operationsServer(options: ServerOptions & { resources?: Resources
 			// now that server is fully loaded/ready, start listening on port provided in config settings or just use
 			// zero to wait for sockets from the main thread
 			serverRegistration.http(server.server, options);
+			// On Bun, register the Fastify instance so requests can be delegated via inject()
+			if (typeof globalThis.Bun !== 'undefined') {
+				const port = options.port || options.securePort || env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_PORT);
+				if (port) registerBunFastifyInstance(port, server);
+			}
 			if (!server.server.closeIdleConnections) {
 				// before Node v18, closeIdleConnections is not available, and we have to setup a listener for fastify
 				// to handle closing by setting up the dynamic port

@@ -18,6 +18,13 @@ export const DEFAULT_STARTUP_TIMEOUT_MS = parseInt(process.env.HARPER_INTEGRATIO
 const LOG_DIR = process.env.HARPER_INTEGRATION_TEST_LOG_DIR;
 
 /**
+ * The runtime to use for running Harper during tests.
+ * Set via the HARPER_RUNTIME environment variable ('node' or 'bun').
+ * Defaults to 'node'.
+ */
+export const HARPER_RUNTIME: 'node' | 'bun' = (process.env.HARPER_RUNTIME as any) || 'node';
+
+/**
  * Options for setting up a Harper instance.
  */
 export interface StartHarperOptions {
@@ -125,9 +132,13 @@ function runHarperCommand({
 	harperBinPath,
 }: RunHarperCommandOptions): Promise<ChildProcess> {
 	const harperScript = getHarperScript(harperBinPath);
+	const runtime = HARPER_RUNTIME;
+	const runtimeArgs = runtime === 'bun'
+		? [harperScript, ...args]
+		: ['--trace-warnings', '--force-node-api-uncaught-exceptions-policy=true', harperScript, ...args];
 	const proc = spawn(
-		'node',
-		['--trace-warnings', '--force-node-api-uncaught-exceptions-policy=true', harperScript, ...args],
+		runtime,
+		runtimeArgs,
 		{
 			env: { ...process.env, ...env },
 		}

@@ -28,7 +28,7 @@ import * as operationsServer from '../server/operationsServer.ts';
 import * as auth from '../security/auth.ts';
 import * as mqtt from '../server/mqtt.ts';
 import { getConfigObj, getConfigPath } from '../config/configUtils.js';
-import { createReuseportFd } from '../server/serverHelpers/Request.ts';
+import { isBun } from '../server/serverHelpers/Request.ts';
 import { ErrorResource } from '../resources/ErrorResource.ts';
 import { Scope } from './Scope.ts';
 import { ApplicationScope } from './ApplicationScope.ts';
@@ -448,7 +448,7 @@ export async function loadComponent(
 									const sessionAffinity = env.get(CONFIG_PARAMS.HTTP_SESSIONAFFINITY);
 									if (sessionAffinity)
 										harperLogger.warn('Session affinity is not recommended and may cause memory leaks');
-									if (sessionAffinity || !createReuseportFd) {
+									if (sessionAffinity) {
 										// if there is a TCP port associated with the plugin, we set up the routing on the main thread for it
 										portsStarted.push(possiblePort);
 										startSocketServer(possiblePort, sessionAffinity);

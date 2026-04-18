@@ -15,7 +15,7 @@ const terms = require('../../utility/hdbTerms.ts');
 const { server } = require('../Server.ts');
 let { createServer: createSecureSocketServer } = require('node:tls');
 const { restartNumber, getWorkerIndex } = require('./manageThreads.js');
-const { createReuseportFd } = require('../serverHelpers/Request.ts');
+const { isBun } = require('../serverHelpers/Request.ts');
 const { createTLSSelector } = require('../../security/keys.js');
 const { startupLog } = require('../../bin/run.js');
 const { SERVERS, setPortServerMap, portServer } = require('../serverRegistry.ts');
@@ -26,38 +26,40 @@ const debugThreads = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG);
 const sessionAffinity = env.get(terms.CONFIG_PARAMS.HTTP_SESSIONAFFINITY);
 server.socket = onSocket;
 
-if (debugThreads) {
-	let port;
-	if (isMainThread) {
-		port = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG_PORT) ?? 9229;
-		process.on(['SIGINT', 'SIGTERM', 'SIGQUIT', 'exit'], () => {
-			try {
-				require('inspector').close();
-			} catch (error) {
-				harperLogger.info('Could not close debugger', error);
+if (!isBun) {
+	if (debugThreads) {
+		let port;
+		if (isMainThread) {
+			port = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG_PORT) ?? 9229;
+			process.on(['SIGINT', 'SIGTERM', 'SIGQUIT', 'exit'], () => {
+				try {
+					require('inspector').close();
+				} catch (error) {
+					harperLogger.info('Could not close debugger', error);
+				}
+			});
+		} else {
+			const startingPort = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG_STARTINGPORT);
+			if (startingPort && getWorkerIndex() >= 0) {
+				port = startingPort + getWorkerIndex();
 			}
-		});
-	} else {
-		const startingPort = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG_STARTINGPORT);
-		if (startingPort && getWorkerIndex() >= 0) {
-			port = startingPort + getWorkerIndex();
 		}
-	}
-	if (port) {
-		const host = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG_HOST);
-		const waitForDebugger = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG_WAITFORDEBUGGER);
+		if (port) {
+			const host = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG_HOST);
+			const waitForDebugger = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG_WAITFORDEBUGGER);
+			try {
+				require('inspector').open(port, host, waitForDebugger);
+			} catch (error) {
+				harperLogger.trace(`Could not start debugging on port ${port}, you may already be debugging:`, error.message);
+			}
+		}
+	} else if (process.env.DEV_MODE && isMainThread) {
 		try {
-			require('inspector').open(port, host, waitForDebugger);
+			require('inspector').open(9229);
 		} catch (error) {
-			harperLogger.trace(`Could not start debugging on port ${port}, you may already be debugging:`, error.message);
+			if (restartNumber <= 1)
+				harperLogger.trace('Could not start debugging on port 9229, you may already be debugging:', error.message);
 		}
-	}
-} else if (process.env.DEV_MODE && isMainThread) {
-	try {
-		require('inspector').open(9229);
-	} catch (error) {
-		if (restartNumber <= 1)
-			harperLogger.trace('Could not start debugging on port 9229, you may already be debugging:', error.message);
 	}
 }
 
@@ -98,56 +100,73 @@ function startServers() {
 						harperLogger.trace('received shutdown request', threadId);
 						// shutdown (for these threads) means stop listening for incoming requests (finish what we are working) and
 						// close connections as possible, then let the event loop complete
-						for (let port in SERVERS) {
-							const server = SERVERS[port];
-							let closeAllTimer;
-							if (server.closeIdleConnections) {
-								// Here we attempt to gracefully close all outstanding keep-alive connections,
-								// repeatedly closing any connections that are idle. This allows any active requests
-								// to finish sending their response, then we close their connections.
-								let symbols = Object.getOwnPropertySymbols(server);
-								let connectionsSymbol = symbols.find((symbol) => symbol.description.includes('connections'));
-								let closeAttempts = 0;
-								let timer = setInterval(() => {
-									closeAttempts++;
-									const forceClose = closeAttempts >= 100;
-									if (!server[connectionsSymbol]) {
-										if (forceClose) server.closeAllConnections?.();
-										clearInterval(timer);
-										return;
-									}
-									const connections = server[connectionsSymbol][forceClose ? 'all' : 'idle']?.() || [];
-									if (connections.length === 0) {
-										if (forceClose) clearInterval(timer);
-										return;
-									}
-									if (closeAttempts === 1) harperLogger.info(`Closing ${connections.length} idle connections`);
-									else if (forceClose) harperLogger.warn(`Forcefully closing ${connections.length} active connections`);
-									for (let i = 0, l = connections.length; i < l; i++) {
-										const socket = connections[i].socket;
-										if (socket._httpMessage && !socket._httpMessage.finished && !forceClose) {
-											continue;
-										}
-										if (forceClose) socket.destroySoon();
-										else socket.end('HTTP/1.1 408 Request Timeout\r\nConnection: close\r\n\r\n');
-									}
-								}, 25).unref();
+						if (isBun) {
+							// Bun servers use .stop() for graceful shutdown
+							for (let port in SERVERS) {
+								const server = SERVERS[port];
+								if (server?.stop) {
+									server.stop();
+								} else if (server?.close) {
+									server.close();
+								}
 							}
-							// And we tell the server not to accept any more incoming connections
-							server.close?.(() => {
-								clearInterval(closeAllTimer);
-								// We hope for a graceful exit once all connections have been closed, and no
-								// more incoming connections are accepted, but if we need to, we eventually will exit
-								setTimeout(() => {
-									console.log('forced close server', port, threadId);
-									if (!server.cantCleanupProperly) harperLogger.warn('Had to forcefully exit the thread', threadId);
-									process.exit(0);
-								}, 5000).unref();
-							});
+							// Give pending requests time to finish, then exit
+							setTimeout(() => {
+								process.exit(0);
+							}, 5000).unref();
+						} else {
+							for (let port in SERVERS) {
+								const server = SERVERS[port];
+								let closeAllTimer;
+								if (server.closeIdleConnections) {
+									// Here we attempt to gracefully close all outstanding keep-alive connections,
+									// repeatedly closing any connections that are idle. This allows any active requests
+									// to finish sending their response, then we close their connections.
+									let symbols = Object.getOwnPropertySymbols(server);
+									let connectionsSymbol = symbols.find((symbol) => symbol.description.includes('connections'));
+									let closeAttempts = 0;
+									let timer = setInterval(() => {
+										closeAttempts++;
+										const forceClose = closeAttempts >= 100;
+										if (!server[connectionsSymbol]) {
+											if (forceClose) server.closeAllConnections?.();
+											clearInterval(timer);
+											return;
+										}
+										const connections = server[connectionsSymbol][forceClose ? 'all' : 'idle']?.() || [];
+										if (connections.length === 0) {
+											if (forceClose) clearInterval(timer);
+											return;
+										}
+										if (closeAttempts === 1) harperLogger.info(`Closing ${connections.length} idle connections`);
+										else if (forceClose)
+											harperLogger.warn(`Forcefully closing ${connections.length} active connections`);
+										for (let i = 0, l = connections.length; i < l; i++) {
+											const socket = connections[i].socket;
+											if (socket._httpMessage && !socket._httpMessage.finished && !forceClose) {
+												continue;
+											}
+											if (forceClose) socket.destroySoon();
+											else socket.end('HTTP/1.1 408 Request Timeout\r\nConnection: close\r\n\r\n');
+										}
+									}, 25).unref();
+								}
+								// And we tell the server not to accept any more incoming connections
+								server.close?.(() => {
+									clearInterval(closeAllTimer);
+									// We hope for a graceful exit once all connections have been closed, and no
+									// more incoming connections are accepted, but if we need to, we eventually will exit
+									setTimeout(() => {
+										console.log('forced close server', port, threadId);
+										if (!server.cantCleanupProperly) harperLogger.warn('Had to forcefully exit the thread', threadId);
+										process.exit(0);
+									}, 5000).unref();
+								});
+							}
 						}
 						// Clean up per-thread UDS socket and metadata files
 						httpComponent.cleanupUdsFiles();
-						if (debugThreads || process.env.DEV_MODE) {
+						if (!isBun && (debugThreads || process.env.DEV_MODE)) {
 							try {
 								require('inspector').close();
 							} catch (error) {
@@ -158,7 +177,7 @@ function startServers() {
 				})
 				.ref(); // use this to keep the thread running until we are ready to shutdown and clean up handles
 			let listening;
-			if (createReuseportFd && !sessionAffinity) {
+			if (!sessionAffinity) {
 				listening = listenOnPorts();
 			}
 
@@ -180,6 +199,7 @@ function startServers() {
 	return loaded;
 }
 function listenOnPorts() {
+	if (isBun) return listenOnPortsBun();
 	const listening = [];
 	for (let port in SERVERS) {
 		const server = SERVERS[port];
@@ -212,15 +232,15 @@ function listenOnPorts() {
 		try {
 			const lastColon = port.lastIndexOf(':');
 			if (lastColon > 0)
-				if (createReuseportFd)
-					// if there is a colon, we assume it is a host:port pair, and then strip brackets as that is a common way to
-					// specify an IPv6 address
-					listen_on = {
-						fd: createReuseportFd(+port.slice(lastColon + 1).replace(/[[\]]/g, ''), port.slice(0, lastColon)),
-					};
-				else listen_on = { host: +port.slice(lastColon + 1).replace(/[[\]]/g, ''), port: port.slice(0, lastColon) };
-			else if (createReuseportFd) listen_on = { fd: createReuseportFd(+port, '::') };
-			else listen_on = { port };
+				// if there is a colon, we assume it is a host:port pair, and then strip brackets as that is a common way to
+				// specify an IPv6 address
+				listen_on = {
+					host: port.slice(0, lastColon).replace(/[[\]]/g, ''),
+					port: +port.slice(lastColon + 1),
+					reusePort: true,
+				};
+			else listen_on = { port: +port, host: '::', reusePort: true };
+			if (isNaN(listen_on.port)) continue;
 		} catch (error) {
 			harperLogger.error(`Unable to bind to port ${port}`, error);
 			continue;
@@ -235,6 +255,142 @@ function listenOnPorts() {
 					.on('error', reject);
 			})
 		);
+	}
+	return Promise.all(listening);
+}
+
+async function listenOnPortsBun() {
+	const bunServeConfigs = httpComponent.bunServeConfigs;
+	for (let port in bunServeConfigs) {
+		const config = bunServeConfigs[port];
+		const threadRange = env.get(terms.CONFIG_PARAMS.HTTP_THREADRANGE);
+		if (threadRange) {
+			let threadRangeArray = typeof threadRange === 'string' ? threadRange.split('-') : threadRange;
+			let threadIndex = getWorkerIndex();
+			if (threadIndex < threadRangeArray[0] || threadIndex > threadRangeArray[1]) {
+				continue;
+			}
+		}
+		try {
+			const serveOptions = {
+				port: +port,
+				reusePort: true,
+				fetch: config.fetch,
+			};
+			// Add TLS config if this is a secure server
+			if (config.isSecure && config.tlsSelector) {
+				// Wait for TLS certs to be loaded
+				const defaultContext = await config.tlsSelector.ready;
+				if (defaultContext) {
+					serveOptions.tls = {
+						cert: defaultContext.options.cert,
+						key: defaultContext.options.key,
+					};
+					// Bun expects ca as string or array of strings; only include if valid
+					let ca = defaultContext.options.ca;
+					if (ca) {
+						if (Array.isArray(ca)) ca = ca.filter((entry) => typeof entry === 'string');
+						if (typeof ca === 'string' || (Array.isArray(ca) && ca.length > 0)) {
+							serveOptions.tls.ca = ca;
+						}
+					}
+				}
+				// Set up listener for cert updates to reload TLS
+				const pseudoServer = config.pseudoServer;
+				if (pseudoServer?.secureContextsListeners) {
+					pseudoServer.secureContextsListeners.push(() => {
+						const updatedCtx = config.tlsSelector.defaultContext;
+						if (updatedCtx && SERVERS[port]?.reload) {
+							const tlsUpdate = {
+								cert: updatedCtx.options.cert,
+								key: updatedCtx.options.key,
+							};
+							let ca = updatedCtx.options.ca;
+							if (ca) {
+								if (Array.isArray(ca)) ca = ca.filter((entry) => typeof entry === 'string');
+								if (typeof ca === 'string' || (Array.isArray(ca) && ca.length > 0)) {
+									tlsUpdate.ca = ca;
+								}
+							}
+							SERVERS[port].reload({ tls: tlsUpdate });
+						}
+					});
+				}
+			}
+			// Add WebSocket handlers if configured
+			if (config.websocket) {
+				serveOptions.websocket = config.websocket;
+			}
+			// If this is a unix domain socket path
+			if (String(port).includes('/')) {
+				if (existsSync(port)) unlinkSync(port);
+				serveOptions.unix = port;
+				delete serveOptions.port;
+			}
+			if (isNaN(serveOptions.port)) continue;
+			const bunServer = Bun.serve(serveOptions);
+			SERVERS[port] = bunServer;
+			harperLogger.trace('Bun listening on port ' + port, threadId);
+
+			// Create a corresponding Unix Domain Socket mirror for secure ports
+			if (config.isSecure && env.get(terms.CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)) {
+				const socketsDir = join(env.getHdbBasePath(), 'sockets');
+				mkdirSync(socketsDir, { recursive: true });
+				const socketName = `${getWorkerIndex()}-${port}`;
+				const udsPath = join(socketsDir, `${socketName}.sock`);
+				const yamlPath = join(socketsDir, `${socketName}.yaml`);
+				if (existsSync(udsPath)) unlinkSync(udsPath);
+
+				// Create a plain HTTP Bun server on the UDS (no TLS)
+				const udsServer = Bun.serve({
+					unix: udsPath,
+					fetch: config.fetch,
+					websocket: config.websocket,
+				});
+				SERVERS[udsPath] = udsServer;
+				httpComponent.registerUdsCleanupPaths(udsPath, yamlPath);
+
+				const writeMetadata = () => httpComponent.writeUdsMetadata(yamlPath, port, config.pseudoServer);
+				config.tlsSelector.ready.then(writeMetadata);
+				config.pseudoServer?.secureContextsListeners?.push(writeMetadata);
+				harperLogger.info('Domain socket listening on ' + udsPath);
+			}
+		} catch (error) {
+			harperLogger.error(`Unable to start Bun server on port ${port}`, error);
+		}
+	}
+	// Also start any non-HTTP servers (raw socket servers) that were registered in SERVERS
+	const listening = [];
+	for (let port in SERVERS) {
+		const server = SERVERS[port];
+		// Skip Bun servers (they're already listening) and config objects
+		if (server?.stop || bunServeConfigs[port]) continue;
+		if (server?.listen) {
+			if (port.includes?.('/')) {
+				if (existsSync(port)) unlinkSync(port);
+				listening.push(
+					new Promise((resolve, reject) => {
+						server
+							.listen({ path: port }, () => {
+								resolve({ port });
+								harperLogger.info('Domain socket listening on ' + port);
+							})
+							.on('error', reject);
+					})
+				);
+			} else {
+				listening.push(
+					new Promise((resolve, reject) => {
+						server
+							.listen({ port: +port, host: '::', reusePort: true }, () => {
+								resolve({ port });
+								harperLogger.trace('Listening on port ' + port, threadId);
+							})
+							.on('error', reject);
+					})
+				);
+			}
+		}
 	}
 	return Promise.all(listening);
 }

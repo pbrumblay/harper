@@ -4,7 +4,7 @@ const { Worker, MessageChannel, parentPort, isMainThread, threadId, workerData }
 const { join, isAbsolute, extname } = require('path');
 const { server } = require('../Server.ts');
 const { totalmem } = require('os');
-const { setHeapSnapshotNearHeapLimit } = require('v8');
+const { setHeapSnapshotNearHeapLimit } = typeof globalThis.Bun !== 'undefined' ? {} : require('v8');
 const hdbTerms = require('../../utility/hdbTerms.ts');
 const envMgr = require('../../utility/environment/environmentManager.js');
 const harperLogger = require('../../utility/logging/harper_logger.js');
@@ -12,6 +12,7 @@ const { randomBytes } = require('crypto');
 const { _assignPackageExport } = require('../../globals.js');
 const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
 const chokidar = require('chokidar');
+const isBun = typeof globalThis.Bun !== 'undefined';
 const MB = 1024 * 1024;
 const workers = []; // these are our child workers that we are managing
 const connectedPorts = []; // these are all known connected worker ports (siblings, children, parents)
@@ -145,13 +146,14 @@ function startWorker(path, options = {}) {
 
 	if (!extname(path)) path += '.js';
 
-	const execArgv = [
+	const isBun = typeof globalThis.Bun !== 'undefined';
+	const execArgv = isBun ? [] : [
 		'--enable-source-maps',
 		'--experimental-vm-modules', // used for giving applications their own top level scope
 		'--disable-warning=ExperimentalWarning', // yeah, yeah, we know it is experimental
 		'--expose-internals', // expose Node.js internal utils so jsLoader can use `decorateErrorStack()`
 	];
-	if (envMgr.get(hdbTerms.CONFIG_PARAMS.THREADS_HEAPSNAPSHOTNEARLIMIT))
+	if (!isBun && envMgr.get(hdbTerms.CONFIG_PARAMS.THREADS_HEAPSNAPSHOTNEARLIMIT))
 		execArgv.push('--heapsnapshot-near-heap-limit=1');
 
 	const worker = new Worker(isAbsolute(path) ? path : join(PACKAGE_ROOT, path), {
@@ -455,16 +457,21 @@ function startMonitoring() {
 	// utilization levels (last second) and so we don't have to make these calls to frequently
 	setInterval(() => {
 		for (let worker of workers) {
-			let current_ELU = worker.performance.eventLoopUtilization();
-			let recent_ELU;
-			if (worker.lastTotalELU) {
-				// get the difference between current and last to determine the last second of utilization
-				recent_ELU = worker.performance.eventLoopUtilization(current_ELU, worker.lastTotalELU);
+			if (!isBun && worker.performance?.eventLoopUtilization) {
+				let current_ELU = worker.performance.eventLoopUtilization();
+				let recent_ELU;
+				if (worker.lastTotalELU) {
+					// get the difference between current and last to determine the last second of utilization
+					recent_ELU = worker.performance.eventLoopUtilization(current_ELU, worker.lastTotalELU);
+				} else {
+					recent_ELU = current_ELU;
+				}
+				worker.lastTotalELU = current_ELU;
+				worker.recentELU = recent_ELU;
 			} else {
-				recent_ELU = current_ELU;
+				// Bun doesn't support eventLoopUtilization, use a default idle value
+				worker.recentELU = worker.recentELU || { idle: 1, active: 0, utilization: 0 };
 			}
-			worker.lastTotalELU = current_ELU;
-			worker.recentELU = recent_ELU;
 		}
 		if (monitorListener) monitorListener();
 	}, MONITORING_INTERVAL).unref();
