@@ -147,12 +147,14 @@ function startWorker(path, options = {}) {
 	if (!extname(path)) path += '.js';
 
 	const isBun = typeof globalThis.Bun !== 'undefined';
-	const execArgv = isBun ? [] : [
-		'--enable-source-maps',
-		'--experimental-vm-modules', // used for giving applications their own top level scope
-		'--disable-warning=ExperimentalWarning', // yeah, yeah, we know it is experimental
-		'--expose-internals', // expose Node.js internal utils so jsLoader can use `decorateErrorStack()`
-	];
+	const execArgv = isBun
+		? []
+		: [
+				'--enable-source-maps',
+				'--experimental-vm-modules', // used for giving applications their own top level scope
+				'--disable-warning=ExperimentalWarning', // yeah, yeah, we know it is experimental
+				'--expose-internals', // expose Node.js internal utils so jsLoader can use `decorateErrorStack()`
+			];
 	if (!isBun && envMgr.get(hdbTerms.CONFIG_PARAMS.THREADS_HEAPSNAPSHOTNEARLIMIT))
 		execArgv.push('--heapsnapshot-near-heap-limit=1');
 

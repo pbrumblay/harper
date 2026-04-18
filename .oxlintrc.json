@@ -39,7 +39,8 @@
 		"threads": "readonly",
 		"Resource": "readonly",
 		"headersTest": "readonly",
-		"logger": "readonly"
+		"logger": "readonly",
+		"Bun": "readonly"
 	},
 	"ignorePatterns": ["unitTests/security/jsLoader/fixtures"]
 }

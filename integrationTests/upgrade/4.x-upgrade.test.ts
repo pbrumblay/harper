@@ -12,6 +12,7 @@ import {
 } from '../utils/harperLifecycle.ts';
 import { ok } from 'node:assert';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 	before(async () => {
@@ -24,6 +25,7 @@ suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 				REPLICATION_HOSTNAME: 'localhost',
 			},
 			harperBinPath: join(legacyPath, 'bin', 'harperdb.js'),
+			harperRuntime: 'node', // legacy harperdb.js is node only
 		});
 		await sendOperation(ctx.harper, {
 			operation: 'create_table',

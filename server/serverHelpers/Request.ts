@@ -241,7 +241,11 @@ class BunRequestBody {
 				this.#readable = Readable.fromWeb(body as any);
 			} else {
 				// No body — create an empty readable that immediately ends
-				this.#readable = new Readable({ read() { this.push(null); } });
+				this.#readable = new Readable({
+					read() {
+						this.push(null);
+					},
+				});
 			}
 		}
 		return this.#readable;
