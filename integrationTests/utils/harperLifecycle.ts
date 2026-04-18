@@ -354,6 +354,7 @@ export async function startHarper(ctx: ContextWithHarper, options?: StartHarperO
  * @param ctx
  */
 export async function killHarper(ctx: ContextWithHarper): Promise<void> {
+	if (!ctx.harper?.process) return;
 	await new Promise<void>((resolve) => {
 		let timer: NodeJS.Timeout;
 		ctx.harper.process.on('exit', () => {
@@ -393,6 +394,7 @@ export async function killHarper(ctx: ContextWithHarper): Promise<void> {
  * ```
  */
 export async function teardownHarper(ctx: ContextWithHarper): Promise<void> {
+	if (!ctx.harper) return;
 	await killHarper(ctx);
 
 	await releaseLoopbackAddress(ctx.harper.hostname);
