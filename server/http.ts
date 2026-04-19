@@ -644,6 +644,11 @@ function getBunHTTPServer(port: number, secure: boolean, options: ServerOptions)
 						body = body.stream();
 					}
 				}
+				// Propagate Connection: close so Bun closes the TCP connection after this response,
+				// preventing stale keep-alive sockets from causing silent hangs on subsequent requests.
+				if (webRequest.headers.get('connection')?.toLowerCase() === 'close') {
+					responseHeaders.set('connection', 'close');
+				}
 				const handlerPath = request.handlerPath;
 				const method = request.method;
 				recordAction(
@@ -781,6 +786,11 @@ async function bunDelegateToNodeServer(nodeServer: any, webRequest: globalThis.R
 			const webHeaders = new globalThis.Headers();
 			for (const [k, v] of Object.entries(injectResult.headers)) {
 				if (v != null) webHeaders.set(k, Array.isArray(v) ? v.join(', ') : String(v));
+			}
+			// Propagate Connection: close so Bun closes the TCP connection after this response,
+			// preventing stale keep-alive sockets from causing silent hangs on subsequent requests.
+			if (webRequest.headers.get('connection')?.toLowerCase() === 'close') {
+				webHeaders.set('connection', 'close');
 			}
 			return new Response(injectResult.rawPayload?.length > 0 ? injectResult.rawPayload : null, {
 				status: injectResult.statusCode,
