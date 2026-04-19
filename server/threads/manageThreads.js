@@ -24,6 +24,7 @@ const RESOURCE_REPORT = 'resource_report';
 const THREAD_INFO = 'thread_info';
 const ADDED_PORT = 'added-port';
 const ACKNOWLEDGEMENT = 'ack';
+const REMOVE_PORT = 'remove-port';
 let getThreadInfo;
 _assignPackageExport('threads', connectedPorts);
 
@@ -515,8 +516,30 @@ if (parentPort && workerData?.addPorts) {
 }
 module.exports.getThreadInfo = getThreadInfo;
 
+function removePort(port, deadThreadId) {
+	const idx = connectedPorts.indexOf(port);
+	if (idx === -1) return;
+	connectedPorts.splice(idx, 1);
+	// Notify remaining peers to remove this dead sibling port. In Bun, sibling
+	// MessagePorts don't emit 'close' when a peer worker exits, so we broadcast
+	// a REMOVE_PORT message from here (which fires reliably on Worker 'exit')
+	// instead. This is also harmless on Node.js — peers that already cleaned up
+	// via 'close' will simply find threadId missing and skip the splice.
+	if (deadThreadId != null) {
+		for (let remainingPort of connectedPorts) {
+			try {
+				remainingPort.postMessage({ type: REMOVE_PORT, threadId: deadThreadId });
+			} catch (e) {
+				// port may already be dead; ignore
+			}
+		}
+	}
+}
+
 function addPort(port, keepRef) {
 	connectedPorts.push(port);
+	// Capture threadId now — Bun resets port.threadId to -1 by the time 'exit' fires.
+	const portThreadId = port.threadId;
 	port
 		.on('message', (message) => {
 			if (message.type === ADDED_PORT) {
@@ -527,15 +550,18 @@ function addPort(port, keepRef) {
 				if (completion) {
 					completion();
 				}
+			} else if (message.type === REMOVE_PORT) {
+				const idx = connectedPorts.findIndex((p) => p.threadId === message.threadId);
+				if (idx !== -1) connectedPorts.splice(idx, 1);
 			} else {
 				notifyMessageListeners(message, port);
 			}
 		})
 		.on('close', () => {
-			connectedPorts.splice(connectedPorts.indexOf(port), 1);
+			removePort(port, portThreadId);
 		})
 		.on('exit', () => {
-			connectedPorts.splice(connectedPorts.indexOf(port), 1);
+			removePort(port, portThreadId);
 		});
 	if (keepRef) port.refCount = 100;
 	else port.unref();
