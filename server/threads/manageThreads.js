@@ -25,6 +25,7 @@ const THREAD_INFO = 'thread_info';
 const ADDED_PORT = 'added-port';
 const ACKNOWLEDGEMENT = 'ack';
 const REMOVE_PORT = 'remove-port';
+const FORCE_EXIT = 'force-exit';
 let getThreadInfo;
 _assignPackageExport('threads', connectedPorts);
 
@@ -277,10 +278,17 @@ async function restartWorkers(
 			worker.emit('shutdown', {});
 			const overlapping = OVERLAPPING_RESTART_TYPES.indexOf(worker.name) > -1;
 			let whenDone = new Promise((resolve) => {
-				// in case the exit inside the thread doesn't timeout, call terminate if necessary
+				// in case the exit inside the thread doesn't timeout, force it from the outside
 				let timeout = setTimeout(() => {
 					harperLogger.warn('Thread did not voluntarily terminate, terminating from the outside', worker.threadId);
-					worker.terminate();
+					if (isBun) {
+						// worker.terminate() triggers a NAPI segfault in Bun; ask the worker to self-exit instead
+						try {
+							worker.postMessage({ type: FORCE_EXIT });
+						} catch {}
+					} else {
+						worker.terminate();
+					}
 				}, threadTerminationTimeout * 2).unref();
 				worker.on('exit', () => {
 					clearTimeout(timeout);
@@ -329,9 +337,18 @@ async function restartWorkers(
 function shutdownWorkers(name) {
 	return restartWorkers(name, Infinity, false);
 }
-function shutdownWorkersNow(name) {
+async function shutdownWorkersNow(name) {
 	shutdownWorkers(name); // set the state of all the workers to shut down. this should finish the important stuff synchronously
-	return Promise.all(workers.map((worker) => worker.terminate()));
+	if (isBun) {
+		// worker.terminate() triggers a NAPI segfault in Bun; ask workers to self-exit instead
+		workers.forEach((worker) => {
+			try {
+				worker.postMessage({ type: FORCE_EXIT });
+			} catch {}
+		});
+	} else {
+		await Promise.all(workers.map((worker) => worker.terminate()));
+	}
 }
 
 const messageListeners = [];
@@ -627,5 +644,10 @@ if (isMainThread) {
 			// require('why-is-node-running')();
 			process.exit(0);
 		}, threadTerminationTimeout).unref(); // don't block the shutdown
+	});
+	// In Bun, worker.terminate() triggers a NAPI segfault; the main thread sends FORCE_EXIT
+	// instead, and the worker self-exits cleanly to avoid the crash.
+	onMessageByType(FORCE_EXIT, () => {
+		process.exit(0);
 	});
 }
