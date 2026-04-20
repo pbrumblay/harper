@@ -9,19 +9,19 @@ const USERS_NOT_DBS = ['super_user', 'structure_user'];
  * This is the component for handling role declarations in the Harper system. This will read roles.yaml for role
  * definitions and ensure that they are created in the system database.
  */
-// eslint-disable-next-line no-unused-vars
-export function start({ ensureTable }) {
-	return {
-		handleFile,
-		setupFile: handleFile,
-	};
+export function handleApplication(scope: import('../components/Scope.ts').Scope) {
+	scope.handleEntry(async (entry) => {
+		if (entry.eventType === 'unlink') return;
+		return handleFile(entry.contents);
+	});
+}
 
-	/**
-	 * This function will handle the roles.yaml file content that has been read, and ensure that the roles are translated to
-	 * the right shape and created in the system database.
-	 * @param rolesContent
-	 */
-	async function handleFile(rolesContent) {
+/**
+ * This function will handle the roles.yaml file content that has been read, and ensure that the roles are translated to
+ * the right shape and created in the system database.
+ * @param rolesContent
+ */
+async function handleFile(rolesContent) {
 		let rolesToDefine = parseDocument(rolesContent.toString(), { simpleKeys: true }).toJSON();
 		for (let roleName in rolesToDefine) {
 			let role = rolesToDefine[roleName];
@@ -76,7 +76,6 @@ export function start({ ensureTable }) {
 			role.role = role.id = roleName;
 			await ensureRole(role);
 		}
-	}
 }
 async function ensureRole(role) {
 	const roleTable = getDatabases().system.hdb_role;
@@ -93,6 +92,3 @@ async function ensureRole(role) {
 	return addRole(role);
 }
 
-// we can define these on the main thread
-export const startOnMainThread = start;
-// useful for testing
