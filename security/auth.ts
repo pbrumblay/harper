@@ -344,19 +344,15 @@ export async function authentication(request, nextHandler) {
 		return response;
 	}
 }
-let started;
-export function start({ server, port, securePort }) {
-	server.http(authentication, port || securePort ? { port, securePort } : { port: 'all' });
-	// keep it cleaned out periodically
-	if (!started) {
-		started = true;
-		setInterval(() => {
-			authorizationCache = new Map();
-		}, env.get(CONFIG_PARAMS.AUTHENTICATION_CACHETTL)).unref();
-		user.addListener(() => {
-			authorizationCache = new Map();
-		});
-	}
+export function handleApplication(scope: import('../components/Scope.ts').Scope) {
+	const { port, securePort } = scope.options.getAll() as { port?: number; securePort?: number };
+	scope.server.http(authentication, port || securePort ? { port, securePort } : { port: 'all' });
+	setInterval(() => {
+		authorizationCache = new Map();
+	}, env.get(CONFIG_PARAMS.AUTHENTICATION_CACHETTL)).unref();
+	user.addListener(() => {
+		authorizationCache = new Map();
+	});
 }
 // operations
 export async function login(loginObject) {
