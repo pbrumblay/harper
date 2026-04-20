@@ -69,6 +69,14 @@ process.on('uncaughtException', (error) => {
 	if (error.message === 'write EIO') return; // that means the terminal is closed
 	harperLogger.error('uncaughtException', error);
 });
+// In both Node.js 15+ and Bun, an unhandled promise rejection exits the worker unless a
+// handler is registered. Without this, any async path that rejects without being caught
+// (e.g. a cache-update commit error when the caller has already resolved) will kill the
+// worker thread. Mirror the uncaughtException behavior: log and continue.
+process.on('unhandledRejection', (reason) => {
+	if (reason?.isHandled) return;
+	harperLogger.error('unhandledRejection', reason);
+});
 env.initSync();
 exports.globals = globals;
 exports.listenOnPorts = listenOnPorts;
@@ -194,8 +202,22 @@ function startServers() {
 			});
 		});
 	componentsLoadedResolve(loaded);
-	// Clean up UDS files on unexpected process exit
-	process.on('exit', () => httpComponent.cleanupUdsFiles());
+	// Clean up UDS files and force-close Bun server connections on unexpected exit.
+	// Without the stop(true) call, clients holding keep-alive connections to a dead Bun
+	// worker never receive a FIN/RST and hang indefinitely waiting for a response.
+	process.on('exit', () => {
+		if (isBun) {
+			for (const port in SERVERS) {
+				const srv = SERVERS[port];
+				if (srv?.stop) {
+					try {
+						srv.stop(true); // force-close all connections immediately
+					} catch {}
+				}
+			}
+		}
+		httpComponent.cleanupUdsFiles();
+	});
 	return loaded;
 }
 function listenOnPorts() {
