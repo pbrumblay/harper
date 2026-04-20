@@ -758,7 +758,11 @@ export function registerBunFastifyInstance(port: string | number, instance: any)
 }
 const INTERNAL_USER_HEADER = 'x-harper-internal-pre-auth-user';
 
-async function bunDelegateToNodeServer(nodeServer: any, webRequest: globalThis.Request, bunRequest?: any): Promise<Response> {
+async function bunDelegateToNodeServer(
+	nodeServer: any,
+	webRequest: globalThis.Request,
+	bunRequest?: any
+): Promise<Response> {
 	// Check if there's a Fastify instance registered for this port (preferred path)
 	for (const port in bunFallbackServers) {
 		if (bunFallbackServers[port] === nodeServer && bunFastifyInstances[port]) {

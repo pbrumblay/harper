@@ -298,7 +298,6 @@ export async function startHarper(ctx: ContextWithHarper, options?: StartHarperO
 
 	const args = [
 		`--ROOTPATH=${dataRootDir}`,
-		'--DEFAULTS_MODE=dev',
 		`--HDB_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME}`,
 		`--HDB_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}`,
 		'--THREADS_COUNT=1',

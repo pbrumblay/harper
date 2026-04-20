@@ -62,11 +62,11 @@ suite('Local application deployment', (ctx: ContextWithHarper) => {
 	test('throughput benchmark: Simple table PUT/GET', async (t) => {
 		const base = `${ctx.harper.httpURL}/Simple`;
 		const auth = `Basic ${Buffer.from(`${ctx.harper.admin.username}:${ctx.harper.admin.password}`).toString('base64')}`;
-		const jsonHeaders = { 'Content-Type': 'application/json', Authorization: auth };
+		const jsonHeaders = { 'Content-Type': 'application/json', 'Authorization': auth };
 		const readHeaders = { Authorization: auth };
 
 		const CONCURRENCY = 25;
-		const TOTAL_REQUESTS = 2000;
+		const TOTAL_REQUESTS = 20000;
 		const READ_WRITE_RATIO = 20; // reads per write
 
 		// Pre-populate records so GETs have data to hit
@@ -116,7 +116,9 @@ suite('Local application deployment', (ctx: ContextWithHarper) => {
 
 		while (dispatched < TOTAL_REQUESTS || inflight.size > 0) {
 			while (inflight.size < CONCURRENCY && dispatched < TOTAL_REQUESTS) {
-				const p: Promise<void> = sendRequest(dispatched++).then(() => { inflight.delete(p); });
+				const p: Promise<void> = sendRequest(dispatched++).then(() => {
+					inflight.delete(p);
+				});
 				inflight.add(p);
 			}
 			if (inflight.size > 0) await Promise.race(inflight);
@@ -132,7 +134,7 @@ suite('Local application deployment', (ctx: ContextWithHarper) => {
 		t.diagnostic(`  Throughput : ${throughput} req/s`);
 		t.diagnostic(`  Total time : ${(totalMs / 1000).toFixed(2)}s`);
 		t.diagnostic(`  Errors     : ${errors}`);
-		t.diagnostic(`  Latency p50: ${pct(0.50)}ms`);
+		t.diagnostic(`  Latency p50: ${pct(0.5)}ms`);
 		t.diagnostic(`  Latency p95: ${pct(0.95)}ms`);
 		t.diagnostic(`  Latency p99: ${pct(0.99)}ms`);
 
