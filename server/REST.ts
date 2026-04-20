@@ -277,26 +277,23 @@ async function http(request: Context & Request, nextHandler) {
 	}
 }
 
-let started;
 let resources: Resources;
 let addedMetrics;
 let connectionCount = 0;
 
-export function start(options: ServerOptions & { path: string; port: number; server: any; resources: Resources }) {
-	httpOptions = options;
-	if (options.includeExpensiveRecordCountEstimates) {
+export function handleApplication(scope: import('../components/Scope.ts').Scope) {
+	httpOptions = scope.options.getAll();
+	if ((httpOptions as any).includeExpensiveRecordCountEstimates) {
 		// If they really want to enable expensive record count estimates
 		Request.prototype.includeExpensiveRecordCountEstimates = true;
 	}
-	if (started) return;
-	started = true;
-	resources = options.resources;
-	options.server.http(async (request: Request, nextHandler) => {
+	resources = scope.resources;
+	scope.server.http(async (request: Request, nextHandler) => {
 		if (request.isWebSocket) return;
 		return http(request, nextHandler);
-	}, options);
-	if (options.webSocket === false) return;
-	options.server.ws(async (ws, request, chainCompletion) => {
+	}, httpOptions);
+	if ((httpOptions as any).webSocket === false) return;
+	scope.server.ws(async (ws, request, chainCompletion) => {
 		connectionCount++;
 		const incomingMessages = new IterableEventQueue();
 		if (!addedMetrics) {
@@ -382,7 +379,7 @@ export function start(options: ServerOptions & { path: string; port: number; ser
 			);
 		}
 		ws.close();
-	}, options);
+	}, httpOptions);
 }
 const HTTP_TO_WEBSOCKET_CLOSE_CODES = {
 	401: 3000,

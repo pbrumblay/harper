@@ -35,13 +35,14 @@ server.knownGraphQLDirectives.push(
  * @param filePath
  * @param resources
  */
-export function start({ ensureTable }) {
-	return {
-		handleFile,
-		setupFile: handleFile,
-	};
+export function handleApplication(scope: import('../components/Scope.ts').Scope) {
+	scope.handleEntry(async (entry) => {
+		if (entry.eventType === 'unlink') return;
+		await processGraphQLSchema(entry.contents, entry.urlPath, entry.absolutePath, scope.resources);
+	});
+}
 
-	async function handleFile(gqlContent, urlPath, filePath, resources) {
+async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 		// lazy load the graphql package so we don't load it for users that don't use graphql
 		const { parse, Source, Kind } = await import('graphql');
 		const ast = parse(new Source(gqlContent.toString(), filePath));
@@ -184,7 +185,7 @@ export function start({ ensureTable }) {
 		for (const typeDef of tables) {
 			// with graphql database definitions, this is a declaration that the table should exist and that it
 			// should be created if it does not exist
-			typeDef.tableClass = ensureTable(typeDef);
+			typeDef.tableClass = table(typeDef);
 			if (typeDef.export) {
 				// allow empty string to be used to declare a table on the root path
 				if (typeDef.export.name === '') resources.set(dirname(urlPath), typeDef.tableClass);
@@ -212,10 +213,8 @@ export function start({ ensureTable }) {
 			);
 			return script.runInThisContext()(attributes); // run the script in the context of the current context/global and return the function we defined
 		}
-	}
 }
 
-export const startOnMainThread = start;
 // useful for testing
 export const loadGQLSchema = (content) =>
-	start({ ensureTable: table }).handleFile(content, null, null, new Resources());
+	processGraphQLSchema(content, null, null, new Resources());
