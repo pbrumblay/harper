@@ -1,7 +1,6 @@
 import { serialize, serializeMessage, getDeserializer } from '../server/serverHelpers/contentTypes.ts';
 import { addAnalyticsListener, recordAction, recordActionBinary } from '../resources/analytics/write.ts';
 import * as harperLogger from '../utility/logging/harper_logger.js';
-import { ServerOptions } from 'http';
 import { ServerError, ClientError } from '../utility/errors/hdbError.js';
 import { Resources } from '../resources/Resources.ts';
 import { Resource, missingMethod, allowedMethods } from '../resources/Resource.ts';
