@@ -1,4 +1,4 @@
-import { dirname } from 'path';
+import { dirname, basename } from 'path';
 import { existsSync } from 'fs';
 import fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
@@ -46,7 +46,7 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 		}
 		const resolvedServer = await fastifyServer;
 		const routeFolder = dirname(entry.absolutePath);
-		let prefix = dirname(entry.urlPath);
+		let prefix = basename(scope.appName);
 		if (prefix.startsWith('/')) prefix = prefix.slice(1);
 		if (!routeFolders.has(routeFolder)) {
 			routeFolders.add(routeFolder);
@@ -60,6 +60,7 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 				else throw error;
 			}
 		}
+		await ready();
 	});
 }
 /**
