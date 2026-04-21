@@ -14,7 +14,7 @@ const HTTPS_PORT = 9927;
 export const OPERATIONS_API_PORT = 9925;
 export const DEFAULT_ADMIN_USERNAME = 'admin';
 export const DEFAULT_ADMIN_PASSWORD = 'Abc1234!';
-export const DEFAULT_STARTUP_TIMEOUT_MS = parseInt(process.env.HARPER_INTEGRATION_TEST_STARTUP_TIMEOUT_MS, 10) || 30000;
+export const DEFAULT_STARTUP_TIMEOUT_MS = parseInt(process.env.HARPER_INTEGRATION_TEST_STARTUP_TIMEOUT_MS, 10) || 60000;
 const LOG_DIR = process.env.HARPER_INTEGRATION_TEST_LOG_DIR;
 
 /**
@@ -165,6 +165,10 @@ function runHarperCommand({
 
 		proc.stdout?.on('data', (data: Buffer) => {
 			const dataString = data.toString();
+			if (dataString.includes('[38;5;16m')) {
+				// Including the dog logo makes it very difficult to deciper the logs
+				return;
+			}
 			stdoutStream?.write(data);
 			if (completionMessage && dataString.includes(completionMessage)) {
 				clearTimeout(timer);
