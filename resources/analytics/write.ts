@@ -220,15 +220,12 @@ export async function recordHostname() {
 	const nodeId = stableNodeId(hostname);
 	log.trace?.('recordHostname nodeId:', nodeId);
 	const hostnamesTable = getAnalyticsHostnameTable();
-	const record = await hostnamesTable.get(nodeId);
-	if (!record) {
-		const hostnameRecord = {
-			id: nodeId,
-			hostname,
-		};
-		log.trace?.(`recordHostname storing hostname: ${JSON.stringify(hostnameRecord)}`);
-		await hostnamesTable.put(hostnameRecord.id, hostnameRecord);
-	}
+	const hostnameRecord = {
+		id: nodeId,
+		hostname,
+	};
+	log.trace?.(`recordHostname storing hostname: ${JSON.stringify(hostnameRecord)}`);
+	await hostnamesTable.put(hostnameRecord.id, hostnameRecord);
 }
 
 export interface Metric {
@@ -515,7 +512,7 @@ async function aggregation(fromPeriod, toPeriod = 60000) {
 		await rest();
 	}
 	for (const entry of threadsToAverage) {
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars,prefer-const
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		let { path, method, type, metric, count, total, distribution, threads, ...measures } = entry;
 		threads = threads.filter((thread) => thread);
 		for (const measureName in measures) {

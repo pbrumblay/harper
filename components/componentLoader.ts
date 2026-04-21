@@ -273,7 +273,7 @@ export async function loadComponent(
 		autoReload,
 		appName,
 	} = options;
-	applicationScope.verifyPath ??= componentDirectory;
+	applicationScope.allowedPath ??= realpathSync(componentDirectory);
 	if (providedLoadedComponents) loadedComponents = providedLoadedComponents;
 	try {
 		let config;
@@ -325,8 +325,13 @@ export async function loadComponent(
 
 			let extensionModule: any;
 			const pkg = componentConfig.package;
+			const loadComponentOption = componentConfig.loadComponent ?? 'always';
 			try {
 				if (pkg) {
+					if (loadComponentOption === 'dev-only' && !process.env.DEV_MODE) {
+						componentLifecycle.loaded(componentStatusName, `Component '${componentStatusName}' skipped (dev-only)`);
+						continue;
+					}
 					let componentPath: string | null = null;
 					if (isRoot) {
 						componentPath = join(componentDirectory, 'components', componentName);
@@ -343,7 +348,7 @@ export async function loadComponent(
 						}
 					}
 					if (componentPath) {
-						subApplicationScope.verifyPath ??= componentPath;
+						subApplicationScope.allowedPath ??= realpathSync(componentPath);
 						if (!process.env.HARPER_SAFE_MODE) {
 							extensionModule = await loadComponent(componentPath, resources, origin, {
 								isRoot: false,
@@ -353,6 +358,12 @@ export async function loadComponent(
 							});
 							componentFunctionality[componentName] = true;
 						}
+					} else if (loadComponentOption === 'if-installed') {
+						componentLifecycle.loaded(
+							componentStatusName,
+							`Component '${componentStatusName}' skipped (not installed)`
+						);
+						continue;
 					} else {
 						throw new Error(`Unable to find package ${componentName}:${pkg}`);
 					}
