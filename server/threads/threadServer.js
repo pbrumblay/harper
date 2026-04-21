@@ -23,7 +23,7 @@ const httpComponent = require('../http.ts');
 const globals = require('../../globals.js');
 
 const debugThreads = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG);
-const sessionAffinity = env.get(terms.CONFIG_PARAMS.HTTP_SESSIONAFFINITY);
+const isWindows = process.platform === 'win32';
 server.socket = onSocket;
 
 if (!isBun) {
@@ -94,17 +94,9 @@ function startServers() {
 	let loaded = require('../loadRootComponents.js')
 		.loadRootComponents(true)
 		.then(() => {
-			parentPort
+				parentPort
 				?.on('message', (message) => {
-					const { port, fd, data } = message;
-					if (fd) {
-						// Create a socket from the file descriptor for the socket that was routed to us.
-						httpComponent.deliverSocket(fd, port, data);
-					} else if (message.requestId) {
-						// Windows doesn't support passing file descriptors, so we have to resort to manually proxying the socket
-						// data for each request
-						httpComponent.proxyRequest(message);
-					} else if (message.type === terms.ITC_EVENT_TYPES.SHUTDOWN) {
+					if (message.type === terms.ITC_EVENT_TYPES.SHUTDOWN) {
 						harperLogger.trace('received shutdown request', threadId);
 						// shutdown (for these threads) means stop listening for incoming requests (finish what we are working) and
 						// close connections as possible, then let the event loop complete
@@ -184,10 +176,7 @@ function startServers() {
 					}
 				})
 				.ref(); // use this to keep the thread running until we are ready to shutdown and clean up handles
-			let listening;
-			if (!sessionAffinity) {
-				listening = listenOnPorts();
-			}
+			const listening = listenOnPorts();
 
 			// notify that we are now ready to start receiving requests
 			Promise.resolve(listening).then(() => {
@@ -259,9 +248,9 @@ function listenOnPorts() {
 				listen_on = {
 					host: port.slice(0, lastColon).replace(/[[\]]/g, ''),
 					port: +port.slice(lastColon + 1),
-					reusePort: true,
+					reusePort: !isWindows,
 				};
-			else listen_on = { port: +port, host: '::', reusePort: true };
+			else listen_on = { port: +port, host: '::', reusePort: !isWindows };
 			if (isNaN(listen_on.port)) continue;
 		} catch (error) {
 			harperLogger.error(`Unable to bind to port ${port}`, error);
@@ -306,7 +295,7 @@ async function listenOnPortsBun() {
 			}
 			const serveOptions = {
 				port: portNumber,
-				reusePort: true,
+				reusePort: !isWindows,
 				fetch: config.fetch,
 			};
 			if (portHostname) serveOptions.hostname = portHostname;

@@ -4,9 +4,8 @@
  */
 import { currentThreadId } from '@harperfast/rocksdb-js';
 import { Scope } from '../components/Scope.ts';
-import { Socket } from 'node:net';
 import harperLogger from '../utility/logging/harper_logger.js';
-import { parentPort, threadId as workerThreadId } from 'node:worker_threads';
+import { threadId as workerThreadId } from 'node:worker_threads';
 import env from '../utility/environment/environmentManager.js';
 import * as terms from '../utility/hdbTerms.ts';
 import { getConfigPath } from '../config/configUtils.js';
@@ -126,92 +125,6 @@ export function getHttpOptions() {
 	return httpOptions;
 }
 
-export function deliverSocket(fdOrSocket, port, data) {
-	// Create a socket and deliver it to the HTTP server
-	// HTTP server likes to allow half open sockets
-	const socket = fdOrSocket?.read
-		? fdOrSocket
-		: new Socket({ fd: fdOrSocket, readable: true, writable: true, allowHalfOpen: true });
-	// for each socket, deliver the connection to the HTTP server handler/parser
-	const server = SERVERS[port];
-	if (server.isSecure) {
-		socket.startTime = performance.now();
-	}
-	if (server) {
-		if (typeof server === 'function') server(socket);
-		else server.emit('connection', socket);
-		if (data) socket.emit('data', data);
-	} else {
-		const retry = (retries) => {
-			// in case the server hasn't registered itself yet
-			setTimeout(() => {
-				const server = SERVERS[port];
-				if (server) {
-					if (typeof server === 'function') server(socket);
-					else server.emit('connection', socket);
-					if (data) socket.emit('data', data);
-				} else if (retries < 5) retry(retries + 1);
-				else {
-					harperLogger.error(`Server on port ${port} was not registered`);
-					socket.destroy();
-				}
-			}, 1000);
-		};
-		retry(1);
-	}
-	return socket;
-}
-
-const requestMap = new Map();
-export function proxyRequest(message) {
-	const { port, event, data, requestId } = message;
-	let socket;
-	socket = requestMap.get(requestId);
-	switch (event) {
-		case 'connection':
-			socket = deliverSocket(undefined, port);
-			requestMap.set(requestId, socket);
-			socket.write = (data, encoding, callback) => {
-				parentPort.postMessage({
-					requestId,
-					event: 'data',
-					data: data.toString('latin1'),
-				});
-				if (callback) callback();
-				return true;
-			};
-			socket.end = (data, encoding, callback) => {
-				parentPort.postMessage({
-					requestId,
-					event: 'end',
-					data: data?.toString('latin1'),
-				});
-				if (callback) callback();
-				return true;
-			};
-			const originalDestroy = socket.destroy;
-			socket.destroy = () => {
-				originalDestroy.call(socket);
-				parentPort.postMessage({
-					requestId,
-					event: 'destroy',
-				});
-			};
-			break;
-		case 'data':
-			if (!socket._readableState.destroyed) socket.emit('data', Buffer.from(data, 'latin1'));
-			break;
-		case 'drain':
-			if (!socket._readableState.destroyed) socket.emit('drain', {});
-			break;
-		case 'end':
-			if (!socket._readableState.destroyed) socket.emit('end', {});
-			break;
-		case 'error':
-			if (!socket._readableState.destroyed) socket.emit('error', {});
-			break;
-	}
-}
 
 export function registerServer(server, port, checkPort = true) {
 	if (!port) {
