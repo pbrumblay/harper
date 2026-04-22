@@ -95,12 +95,10 @@ type CpuInfo = Pick<
 		| 'currentLoadNice'
 		| 'currentLoadIdle'
 		| 'currentLoadIrq'
-		| 'currentLoadSteal'
-		| 'currentLoadGuest'
 	> & {
 		cpus: Pick<
 			si.Systeminformation.CurrentLoadCpuData,
-			'load' | 'loadUser' | 'loadSystem' | 'loadNice' | 'loadIdle' | 'loadIrq' | 'loadSteal' | 'loadGuest'
+			'load' | 'loadUser' | 'loadSystem' | 'loadNice' | 'loadIdle' | 'loadIrq'
 		>[];
 	};
 };
@@ -136,8 +134,6 @@ export async function getCPUInfo(): Promise<CpuInfo | null> {
 			currentLoadNice,
 			currentLoadIdle,
 			currentLoadIrq,
-			currentLoadSteal,
-			currentLoadGuest,
 		} = loadInfo;
 
 		return {
@@ -155,15 +151,13 @@ export async function getCPUInfo(): Promise<CpuInfo | null> {
 			cpu_speed,
 			current_load: {
 				avgLoad,
-				cpus: cpus.map(({ load, loadUser, loadSystem, loadNice, loadIdle, loadIrq, loadSteal, loadGuest }) => ({
+				cpus: cpus.map(({ load, loadUser, loadSystem, loadNice, loadIdle, loadIrq }) => ({
 					load,
 					loadUser,
 					loadSystem,
 					loadNice,
 					loadIdle,
 					loadIrq,
-					loadSteal,
-					loadGuest,
 				})),
 				currentLoad,
 				currentLoadUser,
@@ -171,8 +165,6 @@ export async function getCPUInfo(): Promise<CpuInfo | null> {
 				currentLoadNice,
 				currentLoadIdle,
 				currentLoadIrq,
-				currentLoadSteal,
-				currentLoadGuest,
 			},
 		};
 	} catch (e) {
@@ -433,15 +425,16 @@ export async function getSystemInformation(): Promise<SystemInfo> {
 function rocksdbGetTableSize(table: Table): TableSizeObject {
 	const rocksdb: RocksDatabase = table.primaryStore;
 	const stats = rocksdb.getStats();
-	const transactionLogSize = rocksdb.listLogs()
+	const transactionLogSize = rocksdb
+		.listLogs()
 		.reduce((sum, logName) => sum + rocksdb.useLog(logName).getLogFileSize(), 0);
 	return new TableSizeObject(
 		table.databaseName,
 		table.tableName,
-		stats['rocksdb.estimate-live-data-size'] as number ?? 0,
-		stats['rocksdb.estimate-num-keys'] as number ?? 0,
-		transactionLogSize,
-		// transactionLogRecordCount - not currently supported by `rocksdb-js`
+		(stats['rocksdb.estimate-live-data-size'] as number) ?? 0,
+		(stats['rocksdb.estimate-num-keys'] as number) ?? 0,
+		transactionLogSize
+		// transactionLogRecordCount - currently not supported by `rocksdb-js`
 	);
 }
 

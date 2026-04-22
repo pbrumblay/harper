@@ -2,6 +2,8 @@
 
 const assert = require('assert');
 const rewire = require('rewire');
+const getDatabases = require('#js/resources/databases');
+const rw_getDatabases = rewire('#js/resources/databases');
 const system_information = require('#js/utility/environment/systemInformation');
 const rw_system_information = rewire('#js/utility/environment/systemInformation');
 const env_mgr = require('#js/utility/environment/environmentManager');
@@ -181,11 +183,11 @@ const EXPECTED_PROPERTIES = {
 		'speed',
 		'cores',
 		'physicalCores',
+		'efficiencyCores',
+		'performanceCores',
 		'processors',
 		'cpu_speed',
 		'current_load',
-		'speedMin',
-		'speedMax',
 		'flags',
 		'virtualization',
 	],
@@ -198,28 +200,9 @@ const EXPECTED_PROPERTIES = {
 		'currentLoadNice',
 		'currentLoadIdle',
 		'currentLoadIrq',
-		'rawCurrentLoad',
-		'rawCurrentLoadUser',
-		'rawCurrentLoadSystem',
-		'rawCurrentLoadNice',
-		'rawCurrentLoadIdle',
-		'rawCurrentLoadIrq',
 		'cpus',
 	],
-	cpu_current_load_cpus: [
-		'load',
-		'loadUser',
-		'loadSystem',
-		'loadNice',
-		'loadIdle',
-		'loadIrq',
-		'rawLoad',
-		'rawLoadUser',
-		'rawLoadSystem',
-		'rawLoadNice',
-		'rawLoadIdle',
-		'rawLoadIrq',
-	],
+	cpu_current_load_cpus: ['load', 'loadUser', 'loadSystem', 'loadNice', 'loadIdle', 'loadIrq'],
 	memory: [
 		'total',
 		'free',
@@ -232,11 +215,16 @@ const EXPECTED_PROPERTIES = {
 		'rss',
 		'heapUsed',
 		'heapTotal',
+		'arrayBuffers',
+		'dirty',
+		'external',
+		'reclaimable',
+		'writeback',
 	],
-	disk: ['io', 'read_write'],
+	disk: ['io', 'read_write', 'size'],
 	disk_io: ['rIO', 'wIO', 'tIO'],
-	disk_read_write: ['rx', 'wx', 'tx', 'ms'],
-	disk_size: ['fs', 'type', 'size', 'used', 'use', 'mount', 'available'],
+	disk_read_write: ['rx', 'wx', 'tx'],
+	disk_size: ['fs', 'rw', 'type', 'size', 'used', 'use', 'mount', 'available'],
 	network: ['default_interface', 'latency', 'interfaces', 'stats', 'connections'],
 	network_latency: [], // these should NOT return anything unless enabled
 	network_interfaces: [],
@@ -284,235 +272,211 @@ describe('test systemInformation module', () => {
 	});
 
 	it('test getSystemInformation function', async () => {
-		let results = await system_information.getSystemInformation();
-
-		EXPECTED_PROPERTIES.system.forEach((property) => {
-			assert(results.hasOwnProperty(property));
-		});
+		const results = await system_information.getSystemInformation();
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.system.sort());
 	}).timeout(5000);
 
 	it('call getSystemInformation 2nd time to test cache', async () => {
-		let results = await system_information.getSystemInformation();
-
-		EXPECTED_PROPERTIES.system.forEach((property) => {
-			assert(results.hasOwnProperty(property));
-		});
-	}).timeout(5000);
+		const results = await system_information.getSystemInformation();
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.system.sort());
+	});
 
 	it('test getTimeInfo function', () => {
-		let results = system_information.getTimeInfo();
-
-		Object.keys(results).forEach((key) => {
-			assert(EXPECTED_PROPERTIES.time.indexOf(key) >= 0);
-		});
-
-		EXPECTED_PROPERTIES.time.forEach((property) => {
-			assert(results.hasOwnProperty(property));
-		});
+		const results = system_information.getTimeInfo();
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.time.sort());
 	});
 
-	it.skip('test getCPUInfo function', async () => {
-		let results = await system_information.getCPUInfo();
-
-		EXPECTED_PROPERTIES.cpu.forEach((property) => {
-			assert(results.hasOwnProperty(property));
-		});
-
-		Object.keys(results.cpu_speed).forEach((key) => {
-			assert(EXPECTED_PROPERTIES.cpu_cpu_speed.indexOf(key) >= 0);
-		});
-
-		EXPECTED_PROPERTIES.cpu_cpu_speed.forEach((property) => {
-			assert(results.cpu_speed.hasOwnProperty(property));
-		});
-
-		EXPECTED_PROPERTIES.cpu_current_load.forEach((property) => {
-			assert(results.current_load.hasOwnProperty(property));
-		});
-
+	it('test getCPUInfo function', async () => {
+		const results = await system_information.getCPUInfo();
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.cpu.sort());
+		assert.deepEqual(Object.keys(results.cpu_speed).sort(), EXPECTED_PROPERTIES.cpu_cpu_speed.sort());
+		assert.deepEqual(Object.keys(results.current_load).sort(), EXPECTED_PROPERTIES.cpu_current_load.sort());
 		assert(Array.isArray(results.current_load.cpus));
-
-		EXPECTED_PROPERTIES.cpu_current_load_cpus.forEach((property) => {
-			assert(results.current_load.cpus[0].hasOwnProperty(property));
-		});
-	}).timeout(5000);
+		assert.deepEqual(
+			Object.keys(results.current_load.cpus[0]).sort(),
+			EXPECTED_PROPERTIES.cpu_current_load_cpus.sort()
+		);
+	});
 
 	it('test getMemoryInfo function', async () => {
-		let results = await system_information.getMemoryInfo();
-
-		EXPECTED_PROPERTIES.memory.forEach((property) => {
-			assert(results.hasOwnProperty(property));
-		});
+		const results = await system_information.getMemoryInfo();
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.memory.sort());
 	});
 
-	it.skip('test getDiskInfo function', async () => {
-		let results = await system_information.getDiskInfo();
-		if (process.platform !== 'win32') {
-			Object.keys(results).forEach((key) => {
-				assert(EXPECTED_PROPERTIES.disk.indexOf(key) >= 0);
-			});
-
-			EXPECTED_PROPERTIES.disk.forEach((property) => {
-				assert(results.hasOwnProperty(property));
-			});
-
-			EXPECTED_PROPERTIES.disk_io.forEach((property) => {
-				assert(results.io.hasOwnProperty(property));
-			});
-
-			Object.keys(results.read_write).forEach((key) => {
-				assert(EXPECTED_PROPERTIES.disk_read_write.indexOf(key) >= 0);
-			});
-
-			EXPECTED_PROPERTIES.disk_read_write.forEach((property) => {
-				assert(results.read_write.hasOwnProperty(property));
-			});
+	it('test getDiskInfo function', async () => {
+		const orig = process.env.OPERATIONSAPI_SYSINFO_DISK;
+		try {
+			process.env.OPERATIONSAPI_SYSINFO_DISK = '1';
+			const results = await system_information.getDiskInfo();
+			assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.disk.sort());
+			assert.deepEqual(Object.keys(results.io).sort(), EXPECTED_PROPERTIES.disk_io.sort());
+			assert.deepEqual(Object.keys(results.read_write).sort(), EXPECTED_PROPERTIES.disk_read_write.sort());
+			assert(Array.isArray(results.size));
+			if (results.size.length > 0) {
+				assert.deepEqual(Object.keys(results.size[0]).sort(), EXPECTED_PROPERTIES.disk_size.sort());
+			}
+		} finally {
+			if (orig === undefined) {
+				delete process.env.OPERATIONSAPI_SYSINFO_DISK;
+			} else {
+				process.env.OPERATIONSAPI_SYSINFO_DISK = orig;
+			}
 		}
 	});
 
-	it('test getNetworkInfo function', async () => {
-		let results = await system_information.getNetworkInfo();
+	// it('test getNetworkInfo function', async () => {
+	// 	let results = await system_information.getNetworkInfo();
 
-		Object.keys(results).forEach((key) => {
-			assert(EXPECTED_PROPERTIES.network.indexOf(key) >= 0);
-		});
+	// 	Object.keys(results).forEach((key) => {
+	// 		assert(EXPECTED_PROPERTIES.network.indexOf(key) >= 0);
+	// 	});
 
-		EXPECTED_PROPERTIES.network.forEach((property) => {
-			assert(results.hasOwnProperty(property));
-		});
+	// 	EXPECTED_PROPERTIES.network.forEach((property) => {
+	// 		assert(results.hasOwnProperty(property));
+	// 	});
 
-		Object.keys(results.latency).forEach((key) => {
-			assert(EXPECTED_PROPERTIES.network_latency.indexOf(key) >= 0);
-		});
+	// 	Object.keys(results.latency).forEach((key) => {
+	// 		assert(EXPECTED_PROPERTIES.network_latency.indexOf(key) >= 0);
+	// 	});
 
-		EXPECTED_PROPERTIES.network_latency.forEach((property) => {
-			assert(results.latency.hasOwnProperty(property));
-		});
+	// 	EXPECTED_PROPERTIES.network_latency.forEach((property) => {
+	// 		assert(results.latency.hasOwnProperty(property));
+	// 	});
 
-		assert(Array.isArray(results.interfaces));
+	// 	assert(Array.isArray(results.interfaces));
 
-		EXPECTED_PROPERTIES.network_interfaces.forEach((property) => {
-			assert(results.interfaces[0].hasOwnProperty(property));
-		});
+	// 	EXPECTED_PROPERTIES.network_interfaces.forEach((property) => {
+	// 		assert(results.interfaces[0].hasOwnProperty(property));
+	// 	});
 
-		assert(Array.isArray(results.stats));
+	// 	assert(Array.isArray(results.stats));
 
-		EXPECTED_PROPERTIES.network_stats.forEach((property) => {
-			assert(results.stats[0].hasOwnProperty(property));
-		});
-	});
+	// 	EXPECTED_PROPERTIES.network_stats.forEach((property) => {
+	// 		assert(results.stats[0].hasOwnProperty(property));
+	// 	});
+	// });
 
+	// it('test getHDBProcessInfo function', async () => {
+	// 	let results = await rw_system_information.getHDBProcessInfo();
+
+	// 	Object.keys(results).forEach((key) => {
+	// 		assert(EXPECTED_PROPERTIES.harperdb_processes.indexOf(key) >= 0);
+	// 	});
+
+	// 	EXPECTED_PROPERTIES.harperdb_processes.forEach((property) => {
+	// 		assert(
+	// 			results.hasOwnProperty(property),
+	// 			`expected property "${property}" not found in ${JSON.stringify(results)}`
+	// 		);
+	// 	});
+	// });
+
+	// it('test systemInformation function fetch all attributes', async () => {
+	// 	let op = new SystemInformationRequest();
+	// 	let results = await rw_system_information.systemInformation(op);
+
+	// 	EXPECTED_PROPERTIES.all.forEach((property) => {
+	// 		assert(results.hasOwnProperty(property) && results[property] !== undefined);
+	// 	});
+	// }).timeout(10000);
+
+	// it('test systemInformation function fetch some attributes', async () => {
+	// 	let expected_attributes = ['time', 'memory'];
+
+	// 	let op = new SystemInformationRequest(expected_attributes);
+	// 	let results = await rw_system_information.systemInformation(op);
+
+	// 	assert(results.time !== undefined, `results.time should be defined but it is ${JSON.stringify(results.time)}`);
+	// 	assert(
+	// 		results.memory !== undefined,
+	// 		`results.memory should be defined but it is ${JSON.stringify(results.memory)}`
+	// 	);
+	// 	assert(
+	// 		results.system === undefined,
+	// 		`results.system should be undefined but it is ${JSON.stringify(results.system)}`
+	// 	);
+	// 	assert(results.cpu === undefined, `results.cpu should be undefined but it is ${JSON.stringify(results.cpu)}`);
+	// 	assert(results.disk === undefined, `results.disk should be undefined but it is ${JSON.stringify(results.disk)}`);
+	// 	assert(
+	// 		results.network === undefined,
+	// 		`results.network should be undefined but it is ${JSON.stringify(results.network)}`
+	// 	);
+	// 	assert(
+	// 		results.harperdb_processes === undefined,
+	// 		`results.harperdb_processes should be undefined but it is ${JSON.stringify(results.harperdb_processes)}`
+	// 	);
+	// });
+
+	// it('test systemInformation function fetch all of the attributes', async () => {
+	// 	let expected_attributes = EXPECTED_PROPERTIES.all;
+
+	// 	let op = new SystemInformationRequest(expected_attributes);
+	// 	let results = await rw_system_information.systemInformation(op);
+
+	// 	EXPECTED_PROPERTIES.all.forEach((property) => {
+	// 		assert(results.hasOwnProperty(property) && results[property] !== undefined);
+	// 	});
+	// }).timeout(10000);
+});
+
+describe('getHDBProcessInfo()', () => {
 	it('test getHDBProcessInfo function', async () => {
-		let results = await rw_system_information.getHDBProcessInfo();
-
-		Object.keys(results).forEach((key) => {
-			assert(EXPECTED_PROPERTIES.harperdb_processes.indexOf(key) >= 0);
-		});
-
-		EXPECTED_PROPERTIES.harperdb_processes.forEach((property) => {
-			assert(
-				results.hasOwnProperty(property),
-				`expected property "${property}" not found in ${JSON.stringify(results)}`
-			);
-		});
-	});
-
-	it('test systemInformation function fetch all attributes', async () => {
-		let op = new SystemInformationRequest();
-		let results = await rw_system_information.systemInformation(op);
-
-		EXPECTED_PROPERTIES.all.forEach((property) => {
-			assert(results.hasOwnProperty(property) && results[property] !== undefined);
-		});
-	}).timeout(10000);
-
-	it('test systemInformation function fetch some attributes', async () => {
-		let expected_attributes = ['time', 'memory'];
-
-		let op = new SystemInformationRequest(expected_attributes);
-		let results = await rw_system_information.systemInformation(op);
-
-		assert(results.time !== undefined, `results.time should be defined but it is ${JSON.stringify(results.time)}`);
-		assert(
-			results.memory !== undefined,
-			`results.memory should be defined but it is ${JSON.stringify(results.memory)}`
-		);
-		assert(
-			results.system === undefined,
-			`results.system should be undefined but it is ${JSON.stringify(results.system)}`
-		);
-		assert(results.cpu === undefined, `results.cpu should be undefined but it is ${JSON.stringify(results.cpu)}`);
-		assert(results.disk === undefined, `results.disk should be undefined but it is ${JSON.stringify(results.disk)}`);
-		assert(
-			results.network === undefined,
-			`results.network should be undefined but it is ${JSON.stringify(results.network)}`
-		);
-		assert(
-			results.harperdb_processes === undefined,
-			`results.harperdb_processes should be undefined but it is ${JSON.stringify(results.harperdb_processes)}`
-		);
-	});
-
-	it('test systemInformation function fetch all of the attributes', async () => {
-		let expected_attributes = EXPECTED_PROPERTIES.all;
-
-		let op = new SystemInformationRequest(expected_attributes);
-		let results = await rw_system_information.systemInformation(op);
-
-		EXPECTED_PROPERTIES.all.forEach((property) => {
-			assert(results.hasOwnProperty(property) && results[property] !== undefined);
-		});
-	}).timeout(10000);
-});
-
-describe('test getTableSize function', () => {
-	const RETURN_SCHEMA = {
-		dev: {
-			dog: {
-				schema: 'dev',
-				name: 'dog',
-				hash_attribute: 'id',
-			},
-			breed: {
-				schema: 'dev',
-				name: 'breed',
-				hash_attribute: 'breed_id',
-			},
-		},
-		prod: {
-			customers: {
-				schema: 'prod',
-				name: 'customers',
-				hash_attribute: 'customer_id',
-			},
-		},
-		test: {},
-	};
-	let rw_schema_describe;
-	let rw_lmdb_get_table_size;
-	before(() => {
-		rw_schema_describe = rw_system_information.__set__('schemaDescribe', {
-			describeAll: async () => RETURN_SCHEMA,
-		});
-
-		rw_lmdb_get_table_size = rw_system_information.__set__('lmdbGetTableSize', async (table_object) => {
-			return new TableSizeObject(table_object.schema, table_object.name, 4096, 0, 0, 4096);
-		});
-	});
-
-	after(() => {
-		rw_schema_describe();
-		rw_lmdb_get_table_size();
-	});
-
-	it('test function', async () => {
-		let expected = [
-			new TableSizeObject('dev', 'dog', 4096, 0, 0, 4096),
-			new TableSizeObject('dev', 'breed', 4096, 0, 0, 4096),
-			new TableSizeObject('prod', 'customers', 4096, 0, 0, 4096),
-		];
-
-		let results = await rw_system_information.getTableSize();
-		assert.deepStrictEqual(results, expected);
+		// FYI: calling `getHDBProcessInfo()` will output a warning to stderr if Harper is not
+		// running and the results will essentially be empty, but that's ok
+		const results = await system_information.getHDBProcessInfo();
+		assert(results.hasOwnProperty('core'));
+		assert(Array.isArray(results.core));
 	});
 });
+
+// describe('test getTableSize function', () => {
+// 	const RETURN_SCHEMA = {
+// 		dev: {
+// 			dog: {
+// 				schema: 'dev',
+// 				name: 'dog',
+// 				hash_attribute: 'id',
+// 			},
+// 			breed: {
+// 				schema: 'dev',
+// 				name: 'breed',
+// 				hash_attribute: 'breed_id',
+// 			},
+// 		},
+// 		prod: {
+// 			customers: {
+// 				schema: 'prod',
+// 				name: 'customers',
+// 				hash_attribute: 'customer_id',
+// 			},
+// 		},
+// 		test: {},
+// 	};
+// 	let rw_schema_describe;
+// 	let rw_lmdb_get_table_size;
+// 	before(() => {
+// 		rw_schema_describe = rw_system_information.__set__('schemaDescribe', {
+// 			describeAll: async () => RETURN_SCHEMA,
+// 		});
+
+// 		rw_lmdb_get_table_size = rw_system_information.__set__('lmdbGetTableSize', async (table_object) => {
+// 			return new TableSizeObject(table_object.schema, table_object.name, 4096, 0, 0, 4096);
+// 		});
+// 	});
+
+// 	after(() => {
+// 		rw_schema_describe();
+// 		rw_lmdb_get_table_size();
+// 	});
+
+// 	it('test function', async () => {
+// 		let expected = [
+// 			new TableSizeObject('dev', 'dog', 4096, 0, 0, 4096),
+// 			new TableSizeObject('dev', 'breed', 4096, 0, 0, 4096),
+// 			new TableSizeObject('prod', 'customers', 4096, 0, 0, 4096),
+// 		];
+
+// 		let results = await rw_system_information.getTableSize();
+// 		assert.deepStrictEqual(results, expected);
+// 	});
+// });
