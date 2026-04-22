@@ -47,9 +47,9 @@ describe('Test getLMDBStats function', function () {
 		let results = await get_table_size(table);
 		assert(results.schema === table.schema);
 		assert(results.table === table.name);
-		assert(results.table_size !== undefined);
-		assert(results.record_count === 0);
-		assert(results.transaction_log_size !== undefined);
-		assert(results.transaction_log_record_count === 0);
+		assert(results.tableSize !== undefined);
+		assert(results.recordCount === 0);
+		assert(results.transactionLogSize !== undefined);
+		assert(results.transactionLogRecordCount === 0);
 	});
 });
