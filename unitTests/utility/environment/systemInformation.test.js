@@ -1,80 +1,35 @@
 'use strict';
 
 const assert = require('assert');
-const rewire = require('rewire');
-const getDatabases = require('#js/resources/databases');
-const rw_getDatabases = rewire('#js/resources/databases');
+const sinon = require('sinon');
 const system_information = require('#js/utility/environment/systemInformation');
-const rw_system_information = rewire('#js/utility/environment/systemInformation');
 const env_mgr = require('#js/utility/environment/environmentManager');
 
 const { SystemInformationRequest } = system_information;
 
 const TableSizeObject = require('#js/dataLayer/harperBridge/lmdbBridge/lmdbUtility/TableSizeObject');
 
-let rw_getHDBProcessInfo;
-
 const PROCESS_INFO = {
 	core: [
 		{
 			pid: 30980,
 			parentPid: 1866,
-			name: 'node',
-			pcpu: 0,
-			pcpuu: 0,
-			pcpus: 0,
-			pmem: 0.5,
-			priority: 19,
-			mem_vsz: 734698316,
-			mem_rss: 85236,
+			name: 'harper.js',
+			cpu: 0,
+			cpuu: 0,
+			cpus: 0,
+			mem: 1,
+			priority: 31,
+			memVsz: 443722320,
+			memRss: 385216,
 			nice: 0,
-			started: '2020-04-15 13:41:25',
+			started: '2026-04-22 22:35:40',
 			state: 'sleeping',
-			tty: '',
-			user: 'kyle',
-			command: 'node',
-			params: '/home/kyle/WebstormProjects/harperdb/server/operationsServer.js',
-			path: '/usr/bin',
-		},
-		{
-			pid: 30991,
-			parentPid: 30980,
-			name: 'node',
-			pcpu: 0,
-			pcpuu: 0,
-			pcpus: 0,
-			pmem: 0.5,
-			priority: 19,
-			mem_vsz: 630040924,
-			mem_rss: 85304,
-			nice: 0,
-			started: '2020-04-15 13:41:25',
-			state: 'sleeping',
-			tty: '',
-			user: 'kyle',
-			command: 'node',
-			params: '/home/kyle/WebstormProjects/harperdb/server/operationsServer.js',
-			path: '/usr/bin',
-		},
-		{
-			pid: 30997,
-			parentPid: 30980,
-			name: 'node',
-			pcpu: 4.183266932270916,
-			pcpuu: 2.589641434262948,
-			pcpus: 1.593625498007968,
-			pmem: 0.5,
-			priority: 19,
-			mem_vsz: 629976800,
-			mem_rss: 92576,
-			nice: 0,
-			started: '2020-04-15 13:41:25',
-			state: 'sleeping',
-			tty: '',
-			user: 'kyle',
-			command: 'node',
-			params: '/home/kyle/WebstormProjects/harperdb/server/operationsServer.js',
-			path: '/usr/bin',
+			tty: 'ttys002',
+			user: 'lincoln',
+			command: 'harper.js',
+			params: '',
+			path: 'node dist/bin'
 		},
 	],
 	clustering: [
@@ -226,21 +181,21 @@ const EXPECTED_PROPERTIES = {
 	disk_read_write: ['rx', 'wx', 'tx'],
 	disk_size: ['fs', 'rw', 'type', 'size', 'used', 'use', 'mount', 'available'],
 	network: ['default_interface', 'latency', 'interfaces', 'stats', 'connections'],
-	network_latency: [], // these should NOT return anything unless enabled
-	network_interfaces: [],
-	network_stats: [],
+	network_latency: ['ms', 'ok', 'status', 'url'],
+	network_interfaces: ['iface', 'ifaceName', 'default', 'ip4', 'ip4subnet', 'ip6', 'ip6subnet', 'mac', 'operstate', 'type', 'duplex', 'speed'],
+	network_stats: ['iface', 'operstate', 'rx_bytes', 'rx_dropped', 'rx_errors', 'tx_bytes', 'tx_dropped', 'tx_errors'],
 	harperdb_processes: ['core'],
 	harperdb_processes_core: [
 		'pid',
 		'parentPid',
 		'name',
-		'pcpu',
-		'pcpuu',
-		'pcpus',
-		'pmem',
+		'cpu',
+		'cpuu',
+		'cpus',
+		'mem',
 		'priority',
-		'mem_vsz',
-		'mem_rss',
+		'memVsz',
+		'memRss',
 		'nice',
 		'started',
 		'state',
@@ -250,25 +205,24 @@ const EXPECTED_PROPERTIES = {
 		'params',
 		'path',
 	],
-	all: ['system', 'time', 'cpu', 'memory', 'disk', 'network', 'harperdb_processes', 'table_size'],
+	all: ['system', 'time', 'cpu', 'memory', 'disk', 'network', 'harperdb_processes', 'table_size', 'metrics', 'threads'],
 };
 
 describe('test systemInformation module', () => {
-	let rw_getTableSize;
-	before(() => {
-		rw_getHDBProcessInfo = rw_system_information.__set__('getHDBProcessInfo', async () => {
-			return PROCESS_INFO;
-		});
-		rw_getTableSize = rw_system_information.__set__('getTableSize', async () => {
-			return [];
-		});
+	let getHDBProcessInfoStub;
 
+	before(() => {
+		getHDBProcessInfoStub = sinon.stub(system_information, 'getHDBProcessInfo').resolves(PROCESS_INFO);
+		sinon.stub(system_information, 'getTableSize').returns([
+			new TableSizeObject('dev', 'dog', 4096, 0, 0, 4096),
+			new TableSizeObject('dev', 'breed', 4096, 0, 0, 4096),
+			new TableSizeObject('prod', 'customers', 4096, 0, 0, 4096),
+		]);
 		env_mgr.setProperty('clustering_enabled', false);
 	});
 
 	after(() => {
-		rw_getHDBProcessInfo();
-		rw_getTableSize();
+		sinon.restore();
 	});
 
 	it('test getSystemInformation function', async () => {
@@ -304,179 +258,68 @@ describe('test systemInformation module', () => {
 	});
 
 	it('test getDiskInfo function', async () => {
-		const orig = process.env.OPERATIONSAPI_SYSINFO_DISK;
-		try {
-			process.env.OPERATIONSAPI_SYSINFO_DISK = '1';
-			const results = await system_information.getDiskInfo();
-			assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.disk.sort());
-			assert.deepEqual(Object.keys(results.io).sort(), EXPECTED_PROPERTIES.disk_io.sort());
-			assert.deepEqual(Object.keys(results.read_write).sort(), EXPECTED_PROPERTIES.disk_read_write.sort());
-			assert(Array.isArray(results.size));
-			if (results.size.length > 0) {
-				assert.deepEqual(Object.keys(results.size[0]).sort(), EXPECTED_PROPERTIES.disk_size.sort());
-			}
-		} finally {
-			if (orig === undefined) {
-				delete process.env.OPERATIONSAPI_SYSINFO_DISK;
-			} else {
-				process.env.OPERATIONSAPI_SYSINFO_DISK = orig;
-			}
+		const results = await system_information.getDiskInfo();
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.disk.sort());
+		assert.deepEqual(Object.keys(results.io).sort(), EXPECTED_PROPERTIES.disk_io.sort());
+		assert.deepEqual(Object.keys(results.read_write).sort(), EXPECTED_PROPERTIES.disk_read_write.sort());
+		assert(Array.isArray(results.size));
+		if (results.size.length > 0) {
+			assert.deepEqual(Object.keys(results.size[0]).sort(), EXPECTED_PROPERTIES.disk_size.sort());
 		}
 	});
 
-	// it('test getNetworkInfo function', async () => {
-	// 	let results = await system_information.getNetworkInfo();
+	it('test getNetworkInfo function', async () => {
+		const results = await system_information.getNetworkInfo();
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.network.sort());
+		assert.deepEqual(Object.keys(results.latency).sort(), EXPECTED_PROPERTIES.network_latency.sort());
+		assert(Array.isArray(results.interfaces));
+		assert.deepEqual(Object.keys(results.interfaces[0]).sort(), EXPECTED_PROPERTIES.network_interfaces.sort());
+		assert(Array.isArray(results.stats));
+		assert.deepEqual(Object.keys(results.stats[0]).sort(), EXPECTED_PROPERTIES.network_stats.sort());
+		assert(Array.isArray(results.connections));
+	});
 
-	// 	Object.keys(results).forEach((key) => {
-	// 		assert(EXPECTED_PROPERTIES.network.indexOf(key) >= 0);
-	// 	});
-
-	// 	EXPECTED_PROPERTIES.network.forEach((property) => {
-	// 		assert(results.hasOwnProperty(property));
-	// 	});
-
-	// 	Object.keys(results.latency).forEach((key) => {
-	// 		assert(EXPECTED_PROPERTIES.network_latency.indexOf(key) >= 0);
-	// 	});
-
-	// 	EXPECTED_PROPERTIES.network_latency.forEach((property) => {
-	// 		assert(results.latency.hasOwnProperty(property));
-	// 	});
-
-	// 	assert(Array.isArray(results.interfaces));
-
-	// 	EXPECTED_PROPERTIES.network_interfaces.forEach((property) => {
-	// 		assert(results.interfaces[0].hasOwnProperty(property));
-	// 	});
-
-	// 	assert(Array.isArray(results.stats));
-
-	// 	EXPECTED_PROPERTIES.network_stats.forEach((property) => {
-	// 		assert(results.stats[0].hasOwnProperty(property));
-	// 	});
-	// });
-
-	// it('test getHDBProcessInfo function', async () => {
-	// 	let results = await rw_system_information.getHDBProcessInfo();
-
-	// 	Object.keys(results).forEach((key) => {
-	// 		assert(EXPECTED_PROPERTIES.harperdb_processes.indexOf(key) >= 0);
-	// 	});
-
-	// 	EXPECTED_PROPERTIES.harperdb_processes.forEach((property) => {
-	// 		assert(
-	// 			results.hasOwnProperty(property),
-	// 			`expected property "${property}" not found in ${JSON.stringify(results)}`
-	// 		);
-	// 	});
-	// });
-
-	// it('test systemInformation function fetch all attributes', async () => {
-	// 	let op = new SystemInformationRequest();
-	// 	let results = await rw_system_information.systemInformation(op);
-
-	// 	EXPECTED_PROPERTIES.all.forEach((property) => {
-	// 		assert(results.hasOwnProperty(property) && results[property] !== undefined);
-	// 	});
-	// }).timeout(10000);
-
-	// it('test systemInformation function fetch some attributes', async () => {
-	// 	let expected_attributes = ['time', 'memory'];
-
-	// 	let op = new SystemInformationRequest(expected_attributes);
-	// 	let results = await rw_system_information.systemInformation(op);
-
-	// 	assert(results.time !== undefined, `results.time should be defined but it is ${JSON.stringify(results.time)}`);
-	// 	assert(
-	// 		results.memory !== undefined,
-	// 		`results.memory should be defined but it is ${JSON.stringify(results.memory)}`
-	// 	);
-	// 	assert(
-	// 		results.system === undefined,
-	// 		`results.system should be undefined but it is ${JSON.stringify(results.system)}`
-	// 	);
-	// 	assert(results.cpu === undefined, `results.cpu should be undefined but it is ${JSON.stringify(results.cpu)}`);
-	// 	assert(results.disk === undefined, `results.disk should be undefined but it is ${JSON.stringify(results.disk)}`);
-	// 	assert(
-	// 		results.network === undefined,
-	// 		`results.network should be undefined but it is ${JSON.stringify(results.network)}`
-	// 	);
-	// 	assert(
-	// 		results.harperdb_processes === undefined,
-	// 		`results.harperdb_processes should be undefined but it is ${JSON.stringify(results.harperdb_processes)}`
-	// 	);
-	// });
-
-	// it('test systemInformation function fetch all of the attributes', async () => {
-	// 	let expected_attributes = EXPECTED_PROPERTIES.all;
-
-	// 	let op = new SystemInformationRequest(expected_attributes);
-	// 	let results = await rw_system_information.systemInformation(op);
-
-	// 	EXPECTED_PROPERTIES.all.forEach((property) => {
-	// 		assert(results.hasOwnProperty(property) && results[property] !== undefined);
-	// 	});
-	// }).timeout(10000);
-});
-
-describe('getHDBProcessInfo()', () => {
 	it('test getHDBProcessInfo function', async () => {
-		// FYI: calling `getHDBProcessInfo()` will output a warning to stderr if Harper is not
-		// running and the results will essentially be empty, but that's ok
+		// restore stub to exercise the real implementation
+		getHDBProcessInfoStub.restore();
 		const results = await system_information.getHDBProcessInfo();
-		assert(results.hasOwnProperty('core'));
+		getHDBProcessInfoStub = sinon.stub(system_information, 'getHDBProcessInfo').resolves(PROCESS_INFO);
+
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.harperdb_processes.sort());
 		assert(Array.isArray(results.core));
+		if (results.core.length > 0) {
+			assert.deepEqual(Object.keys(results.core[0]).sort(), EXPECTED_PROPERTIES.harperdb_processes_core.sort());
+		}
+	});
+
+	it('test systemInformation function fetch all attributes', async () => {
+		const op = new SystemInformationRequest();
+		const results = await system_information.systemInformation(op);
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.all.sort());
+	}).timeout(10000);
+
+	it('test systemInformation function fetch some attributes', async () => {
+		const expected_attributes = ['time', 'memory'];
+		const op = new SystemInformationRequest(expected_attributes);
+		const results = await system_information.systemInformation(op);
+		const defined = Object.keys(results).filter((key) => results[key] !== undefined);
+		assert.deepEqual(defined.sort(), expected_attributes.sort());
+	});
+
+	it('test systemInformation function fetch all of the attributes', async () => {
+		const op = new SystemInformationRequest(EXPECTED_PROPERTIES.all);
+		const results = await system_information.systemInformation(op);
+		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.all.sort());
+	}).timeout(10000);
+
+	it('test getTableSize function', async () => {
+		const expected = [
+			new TableSizeObject('dev', 'dog', 4096, 0, 0, 4096),
+			new TableSizeObject('dev', 'breed', 4096, 0, 0, 4096),
+			new TableSizeObject('prod', 'customers', 4096, 0, 0, 4096),
+		];
+
+		const results = await system_information.getTableSize();
+		assert.deepStrictEqual(results, expected);
 	});
 });
-
-// describe('test getTableSize function', () => {
-// 	const RETURN_SCHEMA = {
-// 		dev: {
-// 			dog: {
-// 				schema: 'dev',
-// 				name: 'dog',
-// 				hash_attribute: 'id',
-// 			},
-// 			breed: {
-// 				schema: 'dev',
-// 				name: 'breed',
-// 				hash_attribute: 'breed_id',
-// 			},
-// 		},
-// 		prod: {
-// 			customers: {
-// 				schema: 'prod',
-// 				name: 'customers',
-// 				hash_attribute: 'customer_id',
-// 			},
-// 		},
-// 		test: {},
-// 	};
-// 	let rw_schema_describe;
-// 	let rw_lmdb_get_table_size;
-// 	before(() => {
-// 		rw_schema_describe = rw_system_information.__set__('schemaDescribe', {
-// 			describeAll: async () => RETURN_SCHEMA,
-// 		});
-
-// 		rw_lmdb_get_table_size = rw_system_information.__set__('lmdbGetTableSize', async (table_object) => {
-// 			return new TableSizeObject(table_object.schema, table_object.name, 4096, 0, 0, 4096);
-// 		});
-// 	});
-
-// 	after(() => {
-// 		rw_schema_describe();
-// 		rw_lmdb_get_table_size();
-// 	});
-
-// 	it('test function', async () => {
-// 		let expected = [
-// 			new TableSizeObject('dev', 'dog', 4096, 0, 0, 4096),
-// 			new TableSizeObject('dev', 'breed', 4096, 0, 0, 4096),
-// 			new TableSizeObject('prod', 'customers', 4096, 0, 0, 4096),
-// 		];
-
-// 		let results = await rw_system_information.getTableSize();
-// 		assert.deepStrictEqual(results, expected);
-// 	});
-// });

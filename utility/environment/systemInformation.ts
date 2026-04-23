@@ -440,9 +440,9 @@ function rocksdbGetTableSize(table: Table): TableSizeObject {
 
 /**
  * Retrieves table size information.
- * @returns {Promise<TableSizeObject[]>}
+ * @returns {TableSizeObject[]}
  */
-export async function getTableSize(): Promise<TableSizeObject[]> {
+export function getTableSize(): TableSizeObject[] {
 	const results: TableSizeObject[] = [];
 	const databases = getDatabases();
 
@@ -566,8 +566,9 @@ const attributeMap: Record<string, () => Promise<any> | any> = {
  * @returns {Promise<SystemInformationResponse>}
  */
 export async function systemInformation(systemInfoReq: SystemInformationRequest): Promise<SystemInformationResponse> {
-	const all = !Array.isArray(systemInfoReq.attributes) || systemInfoReq.attributes.length === 0;
-	const attributes = all ? Object.keys(attributeMap) : systemInfoReq.attributes;
+	const attributes = Array.isArray(systemInfoReq.attributes) && systemInfoReq.attributes.length > 0
+		? systemInfoReq.attributes
+		: Object.keys(attributeMap);
 	const response = new SystemInformationResponse();
 	await Promise.all(
 		attributes
