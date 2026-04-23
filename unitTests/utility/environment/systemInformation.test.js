@@ -7,7 +7,7 @@ const env_mgr = require('#js/utility/environment/environmentManager');
 
 const { SystemInformationRequest } = system_information;
 
-const TableSizeObject = require('#js/dataLayer/harperBridge/lmdbBridge/lmdbUtility/TableSizeObject');
+const TableSizeObject = require('#js/dataLayer/harperBridge/TableSizeObject');
 
 const PROCESS_INFO = {
 	core: [
