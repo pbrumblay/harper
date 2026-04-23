@@ -1424,23 +1424,35 @@ export function makeTable(options) {
 		 */
 		static evict(id, existingRecord, existingVersion) {
 			let entry;
-			if (hasSourceGet || audit) {
-				if (!existingRecord) return;
-				entry = primaryStore.getEntry(id);
-				if (!entry || !existingRecord) return;
-				if (entry.version !== existingVersion) return;
+			let transaction = txnForContext({ transaction: new DatabaseTransaction() }).getReadTxn();
+			let options = { transaction };
+			try {
+				if (hasSourceGet || audit) {
+					if (!existingRecord) return;
+					entry = primaryStore.getEntry(id, options);
+					if (!entry || !existingRecord) return;
+					if (entry.version !== existingVersion) return;
+				}
+				if (hasSourceGet) {
+					// if there is a resolution in-progress, abandon the eviction
+					if (primaryStore.hasLock(id, entry.version)) return;
+				}
+				// evictions never go in the audit log, so we can not record a deletion entry for the eviction
+				// as there is no corresponding audit entry and it would never get cleaned up. So we must simply
+				// removed the entry entirely, but first cleanup indices
+				if (primaryStore.ifVersion) {
+					// lmdb
+					primaryStore.ifVersion?.(id, existingVersion, () => {
+						updateIndices(id, existingRecord, null);
+					});
+					return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), existingVersion);
+				} else {
+					updateIndices(id, existingRecord, null, options);
+					return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), options);
+				}
+			} finally {
+				return transaction.commit();
 			}
-			if (hasSourceGet) {
-				// if there is a resolution in-progress, abandon the eviction
-				if (primaryStore.hasLock(id, entry.version)) return;
-			}
-			primaryStore.ifVersion?.(id, existingVersion, () => {
-				updateIndices(id, existingRecord, null);
-			});
-			// evictions never go in the audit log, so we can not record a deletion entry for the eviction
-			// as there is no corresponding audit entry and it would never get cleaned up. So we must simply
-			// removed the entry entirely
-			return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), existingVersion);
 		}
 		/**
 		 * This is intended to acquire a lock on a record from the whole cluster.
@@ -1951,9 +1963,10 @@ export function makeTable(options) {
 							context.lastModified = existingEntry.version;
 						TableResource._updateResource(this, existingEntry);
 					}
-					if (precedesExistingVersion(txnTime, existingEntry, options?.nodeId) <= 0) return; // a newer record exists locally
-					updateIndices(id, existingRecord);
-					logger.trace?.(`Deleting record with id: ${id}, txn timestamp: ${new Date(txnTime).toISOString()}`);
+					if (precedesExistingVersion(txnTime, existingEntry, options?.nodeId) < 0) {
+						return;
+					} // a newer record exists locally
+					updateIndices(id, existingRecord, null, transaction && { transaction });
 					if (audit || trackDeletes) {
 						updateRecord(
 							id,
@@ -3511,6 +3524,7 @@ export function makeTable(options) {
 			// determine what index values need to be removed and added
 			let valuesToAdd = getIndexedValues(value, indexNulls) as any[];
 			let valuesToRemove = getIndexedValues(existingValue, indexNulls) as any[];
+			let isLMDB = !!index.prefetch;
 			if (valuesToRemove?.length > 0) {
 				// put this in a conditional so we can do a faster version for new records
 				// determine the changes/diff from new values and old values
@@ -3527,18 +3541,18 @@ export function makeTable(options) {
 						})
 					: [];
 				valuesToRemove = Array.from(setToRemove);
-				if ((valuesToRemove.length > 0 || valuesToAdd.length > 0) && LMDB_PREFETCH_WRITES) {
+				if (isLMDB && (valuesToRemove.length > 0 || valuesToAdd.length > 0) && LMDB_PREFETCH_WRITES) {
 					// prefetch any values that have been removed or added
 					const valuesToPrefetch = valuesToRemove.concat(valuesToAdd).map((v) => ({ key: v, value: id }));
-					index.prefetch?.(valuesToPrefetch, noop);
+					index.prefetch(valuesToPrefetch, noop);
 				}
 				//if the update cleared out the attribute value we need to delete it from the index
 				for (let i = 0, l = valuesToRemove.length; i < l; i++) {
 					index.remove(valuesToRemove[i], id, options);
 				}
-			} else if (valuesToAdd?.length > 0 && LMDB_PREFETCH_WRITES) {
+			} else if (isLMDB && valuesToAdd?.length > 0 && LMDB_PREFETCH_WRITES) {
 				// no old values, just new
-				index.prefetch?.(
+				index.prefetch(
 					valuesToAdd.map((v) => ({ key: v, value: id })),
 					noop
 				);
@@ -4124,7 +4138,7 @@ export function makeTable(options) {
 								// don't do anything if the version has changed
 								return;
 							}
-							updateIndices(id, existingRecord, updatedRecord);
+							updateIndices(id, existingRecord, updatedRecord, transaction && { transaction });
 							if (updatedRecord) {
 								if (existingEntry) {
 									context.previousResidency = TableResource.getResidencyRecord(existingEntry.residencyId);
