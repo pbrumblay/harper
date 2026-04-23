@@ -566,9 +566,10 @@ const attributeMap: Record<string, () => Promise<any> | any> = {
  * @returns {Promise<SystemInformationResponse>}
  */
 export async function systemInformation(systemInfoReq: SystemInformationRequest): Promise<SystemInformationResponse> {
-	const attributes = Array.isArray(systemInfoReq.attributes) && systemInfoReq.attributes.length > 0
-		? systemInfoReq.attributes
-		: Object.keys(attributeMap);
+	const attributes =
+		Array.isArray(systemInfoReq.attributes) && systemInfoReq.attributes.length > 0
+			? systemInfoReq.attributes
+			: Object.keys(attributeMap);
 	const response = new SystemInformationResponse();
 	await Promise.all(
 		attributes
