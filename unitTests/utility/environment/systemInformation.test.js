@@ -273,7 +273,8 @@ describe('test systemInformation module', () => {
 	});
 
 	it('test getDiskInfo function', async () => {
-		const results = await system_information.getDiskInfo();
+		env_mgr.setProperty('operationsApi_sysInfo_disk', true);
+		let results = await system_information.getDiskInfo();
 		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.disk.sort());
 		assert.deepEqual(Object.keys(results.io).sort(), EXPECTED_PROPERTIES.disk_io.sort());
 		assert.deepEqual(Object.keys(results.read_write).sort(), EXPECTED_PROPERTIES.disk_read_write.sort());
@@ -281,10 +282,15 @@ describe('test systemInformation module', () => {
 		if (results.size.length > 0) {
 			assert.deepEqual(Object.keys(results.size[0]).sort(), EXPECTED_PROPERTIES.disk_size.sort());
 		}
+
+		env_mgr.setProperty('operationsApi_sysInfo_disk', false);
+		results = await system_information.getDiskInfo();
+		assert.deepEqual(results, {});
 	});
 
 	it('test getNetworkInfo function', async () => {
-		const results = await system_information.getNetworkInfo();
+		env_mgr.setProperty('operationsApi_sysInfo_network', true);
+		let results = await system_information.getNetworkInfo();
 		assert.deepEqual(Object.keys(results).sort(), EXPECTED_PROPERTIES.network.sort());
 		assert.deepEqual(Object.keys(results.latency).sort(), EXPECTED_PROPERTIES.network_latency.sort());
 		assert(Array.isArray(results.interfaces));
@@ -292,6 +298,16 @@ describe('test systemInformation module', () => {
 		assert(Array.isArray(results.stats));
 		assert.deepEqual(Object.keys(results.stats[0]).sort(), EXPECTED_PROPERTIES.network_stats.sort());
 		assert(Array.isArray(results.connections));
+
+		env_mgr.setProperty('operationsApi_sysInfo_network', false);
+		results = await system_information.getNetworkInfo();
+		assert.deepEqual(results, {
+			default_interface: null,
+			latency: {},
+			interfaces: [],
+			stats: [],
+			connections: [],
+		});
 	});
 
 	it('test getHDBProcessInfo function', async () => {
