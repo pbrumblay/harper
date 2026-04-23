@@ -29,7 +29,7 @@ const PROCESS_INFO = {
 			user: 'lincoln',
 			command: 'harper.js',
 			params: '',
-			path: 'node dist/bin'
+			path: 'node dist/bin',
 		},
 	],
 	clustering: [
@@ -182,7 +182,20 @@ const EXPECTED_PROPERTIES = {
 	disk_size: ['fs', 'rw', 'type', 'size', 'used', 'use', 'mount', 'available'],
 	network: ['default_interface', 'latency', 'interfaces', 'stats', 'connections'],
 	network_latency: ['ms', 'ok', 'status', 'url'],
-	network_interfaces: ['iface', 'ifaceName', 'default', 'ip4', 'ip4subnet', 'ip6', 'ip6subnet', 'mac', 'operstate', 'type', 'duplex', 'speed'],
+	network_interfaces: [
+		'iface',
+		'ifaceName',
+		'default',
+		'ip4',
+		'ip4subnet',
+		'ip6',
+		'ip6subnet',
+		'mac',
+		'operstate',
+		'type',
+		'duplex',
+		'speed',
+	],
 	network_stats: ['iface', 'operstate', 'rx_bytes', 'rx_dropped', 'rx_errors', 'tx_bytes', 'tx_dropped', 'tx_errors'],
 	harperdb_processes: ['core'],
 	harperdb_processes_core: [
@@ -213,11 +226,13 @@ describe('test systemInformation module', () => {
 
 	before(() => {
 		getHDBProcessInfoStub = sinon.stub(system_information, 'getHDBProcessInfo').resolves(PROCESS_INFO);
-		sinon.stub(system_information, 'getTableSize').returns([
-			new TableSizeObject('dev', 'dog', 4096, 0, 0, 4096),
-			new TableSizeObject('dev', 'breed', 4096, 0, 0, 4096),
-			new TableSizeObject('prod', 'customers', 4096, 0, 0, 4096),
-		]);
+		sinon
+			.stub(system_information, 'getTableSize')
+			.returns([
+				new TableSizeObject('dev', 'dog', 4096, 0, 0, 4096),
+				new TableSizeObject('dev', 'breed', 4096, 0, 0, 4096),
+				new TableSizeObject('prod', 'customers', 4096, 0, 0, 4096),
+			]);
 		env_mgr.setProperty('clustering_enabled', false);
 	});
 
