@@ -1,5 +1,5 @@
 /**
- * Represents the table size entry for a table
+ * Represents the table size entry for a RocksDB or LMDB table.
  */
 export class TableSizeObject {
 	schema: string;
