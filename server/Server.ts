@@ -70,7 +70,14 @@ export interface UpgradeOptions {
 }
 
 export interface HttpOptions extends ServerOptions {
+	/** @deprecated Use `before` or `after` for explicit ordering instead */
 	runFirst?: boolean;
+	/** Name for this middleware entry, used by `before`/`after` in other entries. Defaults to the registering component's name. */
+	name?: string;
+	/** This middleware must run before the named middleware */
+	before?: string;
+	/** This middleware must run after the named middleware */
+	after?: string;
 }
 export interface ContentTypeHandler {
 	serialize(data: any): Buffer | string;

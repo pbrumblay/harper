@@ -33,7 +33,7 @@ server.upgrade = onUpgrade;
 const websocketServers = {};
 const httpServers = {},
 	httpChain = {},
-	httpResponders = [];
+	httpResponders: { listener: Function; port: number | string; name?: string; before?: string; after?: string }[] = [];
 let httpOptions: HttpOptions = {};
 export const universalHeaders: [string, string][] = [];
 
@@ -194,7 +194,14 @@ export function httpServer(listener, options) {
 	for (const { port, secure } of getPorts(options)) {
 		servers.push(getHTTPServer(port, secure, options));
 		if (typeof listener === 'function') {
-			httpResponders[options?.runFirst ? 'unshift' : 'push']({ listener, port: options?.port || port });
+			const entry = {
+				listener,
+				port: options?.port || port,
+				name: options?.name ?? getComponentName(),
+				before: options?.before,
+				after: options?.after,
+			};
+			httpResponders[options?.runFirst ? 'unshift' : 'push'](entry);
 		} else {
 			listener.isSecure = secure;
 			registerServer(listener, port, false);
@@ -447,19 +454,85 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 	return httpServers[port];
 }
 
-function makeCallbackChain(responders, portNum) {
-	let nextCallback = unhandled;
-	// go through the listeners in reverse order so each callback can be passed to the one before
-	// and then each middleware layer can call the next middleware layer
-	for (let i = responders.length; i > 0; ) {
-		const { listener, port } = responders[--i];
-		if (port === portNum || port === 'all') {
-			const callback = nextCallback;
-			nextCallback = (...args) => {
-				// for listener only layers, the response through
-				return listener(...args, callback);
-			};
+function topoSort(entries: { listener: Function; port: number | string; name?: string; before?: string; after?: string }[]) {
+	const n = entries.length;
+	if (n <= 1) return entries;
+
+	// Map name → first and last index (for before/after semantics)
+	const nameToFirst = new Map<string, number>();
+	const nameToLast = new Map<string, number>();
+	for (let i = 0; i < n; i++) {
+		const name = entries[i].name;
+		if (name) {
+			if (!nameToFirst.has(name)) nameToFirst.set(name, i);
+			nameToLast.set(name, i);
 		}
+	}
+
+	// successors[i] = list of indices that must come after i
+	const successors: number[][] = Array.from({ length: n }, () => []);
+	const inDegree = new Int32Array(n);
+	const addEdge = (from: number, to: number) => {
+		successors[from].push(to);
+		inDegree[to]++;
+	};
+
+	for (let i = 0; i < n; i++) {
+		const { before, after } = entries[i];
+		if (before) {
+			// must run before the first entry with this name
+			const j = nameToFirst.get(before);
+			if (j !== undefined && j !== i) addEdge(i, j);
+		}
+		if (after) {
+			// must run after the last entry with this name
+			const j = nameToLast.get(after);
+			if (j !== undefined && j !== i) addEdge(j, i);
+		}
+	}
+
+	// Kahn's algorithm; use original index as tiebreaker to preserve registration/config order
+	const ready: number[] = [];
+	for (let i = 0; i < n; i++) {
+		if (inDegree[i] === 0) ready.push(i); // already sorted 0..n-1
+	}
+
+	const sorted: typeof entries = [];
+	while (ready.length > 0) {
+		const i = ready.shift()!;
+		sorted.push(entries[i]);
+		for (const j of successors[i]) {
+			if (--inDegree[j] === 0) {
+				// Binary-insert to keep ready sorted by original index
+				let lo = 0, hi = ready.length;
+				while (lo < hi) {
+					const mid = (lo + hi) >> 1;
+					if (ready[mid] < j) lo = mid + 1;
+					else hi = mid;
+				}
+				ready.splice(lo, 0, j);
+			}
+		}
+	}
+
+	if (sorted.length !== n) {
+		harperLogger.warn('Circular dependency detected in middleware ordering, using registration order');
+		return entries;
+	}
+	return sorted;
+}
+
+function makeCallbackChain(responders: typeof httpResponders, portNum: number | string) {
+	// Filter to entries relevant to this port, then sort by declared constraints
+	const portEntries = responders.filter(({ port }) => port === portNum || port === 'all');
+	const sorted = topoSort(portEntries);
+
+	// Build chain: iterate in reverse so the first sorted entry becomes the outermost (first called)
+	let nextCallback = unhandled;
+	for (let i = sorted.length; i > 0; ) {
+		const { listener } = sorted[--i];
+		const callback = nextCallback;
+		nextCallback = (...args) => listener(...args, callback);
 	}
 	return nextCallback;
 }

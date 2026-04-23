@@ -290,7 +290,7 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 	scope.server.http(async (request: Request, nextHandler) => {
 		if (request.isWebSocket) return;
 		return http(request, nextHandler);
-	}, httpOptions);
+	}, { after: 'authentication', ...httpOptions });
 	if ((httpOptions as any).webSocket === false) return;
 	scope.server.ws(async (ws, request, chainCompletion) => {
 		connectionCount++;
