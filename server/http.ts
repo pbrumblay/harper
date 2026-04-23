@@ -62,7 +62,7 @@ export function cleanupUdsFiles() {
 /** Write YAML metadata for a UDS mirror socket, describing the TLS certs from the corresponding secure server. */
 export function writeUdsMetadata(yamlPath: string, port: number | string, secureServer: any) {
 	const contexts = secureServer.secureContexts;
-	let yaml = `pid: ${process.pid}\ntid: ${currentThreadId?.() ?? workerThreadId}\nport: ${port}\n`;
+	let yaml = `pid: ${process.pid}\ntid: ${currentThreadId()}\nport: ${port}\n`;
 	yaml += `certificates:\n`;
 	if (contexts?.size > 0) {
 		const seen = new Set();
@@ -124,7 +124,6 @@ export function handleApplication(scope: Scope) {
 export function getHttpOptions() {
 	return httpOptions;
 }
-
 
 export function registerServer(server, port, checkPort = true) {
 	if (!port) {
