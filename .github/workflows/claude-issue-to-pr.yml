@@ -25,8 +25,11 @@ jobs:
     # opened by a HarperFast org member or collaborator. Labels added
     # to issues opened by outside contributors are ignored to keep
     # the trigger surface tight during calibration.
+    # Explicit whitelist of allowed labels — `startsWith('claude-fix:')`
+    # would match typoed variants (`claude-fix:typos`, `claude-fix:foo`)
+    # and the agent would waste turns trying to interpret them.
     if: >-
-      startsWith(github.event.label.name, 'claude-fix:') &&
+      contains(fromJSON('["claude-fix:typo","claude-fix:docs","claude-fix:deps","claude-fix:bug"]'), github.event.label.name) &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
       github.event.issue.author_association)
     runs-on: ubuntu-latest
@@ -73,8 +76,13 @@ jobs:
             --model claude-sonnet-4-6
             --max-turns 72
             # Tool allowlist is a security boundary — see the allowlist
-            # comment in claude-mention.yml for why `Bash(npx:*)` is absent
-            # and why `Bash(npm install)` is intentionally no-arg.
+            # comment in claude-mention.yml for why `Bash(npx:*)` is
+            # absent and why `Bash(npm install)` (no-arg) is still
+            # partial mitigation only: the agent has `Write`/`Edit` on
+            # package.json, so an injected `postinstall` script + bare
+            # `npm install` is a viable RCE chain. Branch protection and
+            # the author_association gate are what actually bound blast
+            # radius here.
             --allowedTools "Read,Write,Edit,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr create:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(git:*),Bash(npm install),Bash(npm ci:*),Bash(npm run:*),Bash(npm test:*)"
           prompt: |
             You were invoked because issue #${{ github.event.issue.number }}
@@ -149,11 +157,11 @@ jobs:
             3. Validate, scaling to the kind of change you made.
 
                - `claude-fix:typo` / `claude-fix:docs` (doc-only changes
-                 to `*.md`, `documentation/**`, or `package.json`
-                 keyword/description fields): run
-                 `npm run format:check` and `npm run lint`. Skip
-                 `npm run build` / `npm run test:unit` — they are not
-                 affected and waste turns.
+                 to `*.md` — e.g. `README.md`, `CLAUDE.md`, `AGENTS.md`,
+                 `dependencies.md` — or `package.json` keyword/description
+                 fields): run `npm run format:check` and `npm run lint`.
+                 Skip `npm run build` / `npm run test:unit` — they are
+                 not affected and waste turns.
                - `claude-fix:deps` / `claude-fix:bug` or any change that
                  touches code: run
                  `npm run build && npm run lint && npm run format:check && npm run test:unit`.
