@@ -11,6 +11,8 @@ import { equal } from 'node:assert';
 // Constants
 const HTTP_PORT = 9926;
 const HTTPS_PORT = 9927;
+const MQTT_PORT = 1883;
+const MQTTS_PORT = 8883;
 export const OPERATIONS_API_PORT = 9925;
 export const DEFAULT_ADMIN_USERNAME = 'admin';
 export const DEFAULT_ADMIN_PASSWORD = 'Abc1234!';
@@ -310,6 +312,8 @@ export async function startHarper(ctx: ContextWithHarper, options?: StartHarperO
 		`--NODE_HOSTNAME=${loopbackAddress}`,
 		`--HTTP_PORT=${loopbackAddress}:${HTTP_PORT}`,
 		`--OPERATIONSAPI_NETWORK_PORT=${loopbackAddress}:${OPERATIONS_API_PORT}`,
+		`--MQTT_NETWORK_PORT=${loopbackAddress}:${MQTT_PORT}`,
+		`--MQTT_NETWORK_SECUREPORT=${loopbackAddress}:${MQTTS_PORT}`,
 		'--LOGGING_LEVEL=debug',
 		'--LOGGING_STDSTREAMS=false',
 	];
