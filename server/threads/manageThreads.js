@@ -546,7 +546,7 @@ function removePort(port, deadThreadId) {
 		for (let remainingPort of connectedPorts) {
 			try {
 				remainingPort.postMessage({ type: REMOVE_PORT, threadId: deadThreadId });
-			} catch (e) {
+			} catch {
 				// port may already be dead; ignore
 			}
 		}
