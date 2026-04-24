@@ -8,7 +8,7 @@ import { getThreadInfo } from '../../server/threads/manageThreads.js';
 import env from './environmentManager.js';
 import { getDatabases, type Table } from '../../resources/databases.ts';
 import { TableSizeObject } from '../../dataLayer/harperBridge/TableSizeObject.ts';
-import { RocksDatabase, type RocksDBStats } from '@harperfast/rocksdb-js';
+import { RocksDatabase, StatsHistogramData, type RocksDBStat } from '@harperfast/rocksdb-js';
 
 env.initSync();
 
@@ -477,11 +477,114 @@ type LMDBStats = LMDBEnvStats & {
 	root: LMDBEnvStats;
 };
 
+const rocksDBDatabaseLevelStats = new Set<string>([
+	'blockCacheCapacity',
+	'blockCacheDataHit',
+	'blockCacheDataMiss',
+	'blockCacheFilterHit',
+	'blockCacheFilterMiss',
+	'blockCacheHit',
+	'blockCacheIndexHit',
+	'blockCacheIndexMiss',
+	'blockCacheMiss',
+	'blockCachePinnedUsage',
+	'blockCacheUsage',
+	'bytesRead',
+	'bytesWritten',
+	'dbFlushMicros',
+	'dbGetMicros',
+	'dbSeekMicros',
+	'dbWriteMicros',
+	'noFileErrors',
+	'numberKeysRead',
+	'numberKeysWritten',
+	'numberReseeksIteration',
+	'numRunningFlushes',
+	'oldestSnapshotTime',
+	'stallMicros',
+	'txnOverheadMutexOldCommitMap',
+	'txnOverheadMutexPrepare',
+	'txnOverheadMutexSnapshot',
+]);
+
+type RocksDBStats = {
+	blockCacheCapacity: number;
+	blockCacheDataHit: number;
+	blockCacheDataMiss: number;
+	blockCacheFilterHit: number;
+	blockCacheFilterMiss: number;
+	blockCacheHit: number;
+	blockCacheIndexHit: number;
+	blockCacheIndexMiss: number;
+	blockCacheMiss: number;
+	blockCachePinnedUsage: number;
+	blockCacheUsage: number;
+	bytesRead: number;
+	bytesWritten: number;
+	dbFlushMicros: StatsHistogramData;
+	dbGetMicros: StatsHistogramData;
+	dbSeekMicros: StatsHistogramData;
+	dbWriteMicros: StatsHistogramData;
+	noFileErrors: number;
+	numberKeysRead: number;
+	numberKeysWritten: number;
+	numberReseeksIteration: number;
+	numRunningFlushes: number;
+	oldestSnapshotTime: number;
+	stallMicros: number;
+	txnOverheadMutexOldCommitMap: number;
+	txnOverheadMutexPrepare: number;
+	txnOverheadMutexSnapshot: number;
+};
+
+type RocksDBTableStats = {
+	blobdbValueSize: StatsHistogramData;
+	bloomFilterFullPositive: number;
+	bloomFilterFullTruePositive: number;
+	bloomFilterUseful: number;
+	compactReadBytes: number;
+	compactWriteBytes: number;
+	compactionCancelled: number;
+	compactionPending: number;
+	compactionTimesMicros: StatsHistogramData;
+	curSizeActiveMemTable: number;
+	curSizeAllMemTables: number;
+	currentSuperVersionNumber: number;
+	dbIterBytesRead: number;
+	dbWriteStall: StatsHistogramData;
+	estimateLiveDataSize: number;
+	estimateNumKeys: number;
+	estimatePendingCompactionBytes: number;
+	liveBlobFileSize: number;
+	liveSstFilesSize: number;
+	memTableFlushPending: number;
+	memtableHit: number;
+	memtableMiss: number;
+	numBlobFiles: number;
+	numDeletesActiveMemTable: number;
+	numEntriesActiveMemTable: number;
+	numImmutableMemTable: number;
+	numImmutableMemTableFlushed: number;
+	numLiveVersions: number;
+	numRunningCompactions: number;
+	readAmpEstimateUsefulBytes: number;
+	readAmpTotalReadBytes: number;
+	sizeAllMemTables: number;
+	sstReadMicros: StatsHistogramData;
+	totalBlobFileSize: number;
+	totalSstFilesSize: number;
+};
+
 type TableStats =
-	| RocksDBStats
+	| RocksDBTableStats
 	| Pick<LMDBStats, 'entryCount' | 'overflowPages' | 'treeBranchPageCount' | 'treeDepth' | 'treeLeafPageCount'>;
 
-type DBStats = {
+// Strips the "rocksdb." prefix and converts kebab-case to camelCase
+function toRocksDBCamelCase(key: string): string {
+	return key.replace(/^rocksdb\./, '').replace(/[-.]([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+
+type DBStats = RocksDBStats & {
 	audit?: Pick<LMDBStats, 'treeDepth' | 'treeBranchPageCount' | 'treeLeafPageCount' | 'entryCount' | 'overflowPages'>;
 	readers?: { pid: string; thread: string; txnid: string }[];
 	tables: Record<string, TableStats>;
@@ -492,7 +595,17 @@ type DatabaseMetrics = {
 };
 
 function getRocksDBStats(table: Table, dbStats: DBStats): void {
-	dbStats.tables[table.tableName] = table.primaryStore.getStats();
+	const stats = table.primaryStore.getStats();
+	const tableStats = (dbStats.tables[table.tableName] = {} as RocksDBTableStats);
+
+	for (const [key, value] of Object.entries(stats)) {
+		const name = toRocksDBCamelCase(key);
+		if (rocksDBDatabaseLevelStats.has(name)) {
+			dbStats[name] = value;
+		} else {
+			tableStats[name] = value;
+		}
+	}
 }
 
 function getLMDBStats(table: Table, dbStats: DBStats): void {
