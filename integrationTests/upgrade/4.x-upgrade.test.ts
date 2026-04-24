@@ -81,7 +81,7 @@ suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 				CONFIRM_DOWNGRADE: 'yes',
 			},
 			harperBinPath: join(legacyPath, 'bin', 'harperdb.js'),
-		}); // start on v5
+		}); // start on 4.x again
 		let response = await sendOperation(ctx.harper, {
 			operation: 'search_by_conditions',
 			table: 'test',
@@ -114,6 +114,7 @@ suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 			conditions: [{ attribute: 'id', comparator: 'greater_than', value: 'id-4' }],
 		});
 		ok(response.length > 4);
-		existsSync(join(ctx.harper.dataRootDir, 'database', 'system', 'CURRENT')); // marker for rocksdb
+		ok(existsSync(join(ctx.harper.dataRootDir, 'database', 'data', 'CURRENT')));
+		ok(existsSync(join(ctx.harper.dataRootDir, 'database', 'system', 'CURRENT'))); // marker for rocksdb
 	});
 });
