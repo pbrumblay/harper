@@ -8,7 +8,7 @@ import { getThreadInfo } from '../../server/threads/manageThreads.js';
 import env from './environmentManager.js';
 import { getDatabases, type Table } from '../../resources/databases.ts';
 import { TableSizeObject } from '../../dataLayer/harperBridge/TableSizeObject.ts';
-import { RocksDatabase, StatsHistogramData, type RocksDBStat } from '@harperfast/rocksdb-js';
+import { RocksDatabase, StatsHistogramData } from '@harperfast/rocksdb-js';
 
 env.initSync();
 
