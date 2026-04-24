@@ -16,7 +16,7 @@ const testsBun = process.env.HARPER_RUNTIME === 'bun';
 
 suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 	const legacyPath = process.env.HARPER_LEGACY_VERSION_PATH;
-	if (!legacyPath || testsBun) return;
+	if (!legacyPath || testsBun || process.platform === 'win32') return;
 	before(async () => {
 		await startHarper(ctx, {
 			config: {},
