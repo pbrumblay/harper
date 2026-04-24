@@ -401,10 +401,13 @@ async function listenOnPortsBun() {
 					})
 				);
 			} else {
+				const lastColon = String(port).lastIndexOf(':');
+				const rawHostname = lastColon > 0 ? String(port).slice(0, lastColon).replace(/[[\]]/g, '') : null;
+				const portNum = lastColon > 0 ? +String(port).slice(lastColon + 1) : +port;
 				listening.push(
 					new Promise((resolve, reject) => {
 						server
-							.listen({ port: +port, host: '::', reusePort: true }, () => {
+							.listen({ port: portNum, host: rawHostname || '::', reusePort: !isWindows }, () => {
 								resolve({ port });
 								harperLogger.trace('Listening on port ' + port, threadId);
 							})
