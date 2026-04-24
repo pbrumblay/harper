@@ -94,7 +94,7 @@ function startServers() {
 	let loaded = require('../loadRootComponents.js')
 		.loadRootComponents(true)
 		.then(() => {
-				parentPort
+			parentPort
 				?.on('message', (message) => {
 					if (message.type === terms.ITC_EVENT_TYPES.SHUTDOWN) {
 						harperLogger.trace('received shutdown request', threadId);

@@ -1,9 +1,4 @@
-import {
-	startWorker,
-	setMonitorListener,
-	setMainIsWorker,
-	threadsHaveStarted,
-} from './manageThreads.js';
+import { startWorker, setMonitorListener, setMainIsWorker, threadsHaveStarted } from './manageThreads.js';
 import * as hdbTerms from '../../utility/hdbTerms.ts';
 import * as harperLogger from '../../utility/logging/harper_logger.js';
 import { recordHostname } from '../../resources/analytics/write.ts';

@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import type { Component } from './Component.js';
 import type { ComponentV1 } from './ComponentV1.js';
 

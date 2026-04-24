@@ -5,7 +5,6 @@
 import { currentThreadId } from '@harperfast/rocksdb-js';
 import { Scope } from '../components/Scope.ts';
 import harperLogger from '../utility/logging/harper_logger.js';
-import { threadId as workerThreadId } from 'node:worker_threads';
 import env from '../utility/environment/environmentManager.js';
 import * as terms from '../utility/hdbTerms.ts';
 import { getConfigPath } from '../config/configUtils.js';
@@ -18,7 +17,7 @@ import { Request, BunRequest, isBun } from './serverHelpers/Request.ts';
 import { appendHeader, Headers } from './serverHelpers/Headers.ts';
 import { Blob } from '../resources/blob.ts';
 import { recordAction, recordActionBinary } from '../resources/analytics/write.ts';
-import { Readable, PassThrough, Writable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import { mkdirSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { server, type ServerOptions, type HttpOptions, type UpgradeOptions, UpgradeListener } from './Server.ts';

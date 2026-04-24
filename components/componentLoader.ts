@@ -110,7 +110,6 @@ for (const { name, packageIdentifier } of getEnvBuiltInComponents()) {
 
 const BUILT_INS = Object.keys(TRUSTED_RESOURCE_PLUGINS);
 
-const portsStarted = [];
 export const loadedPaths = new Map();
 let errorReporter;
 export function setErrorReporter(reporter) {
