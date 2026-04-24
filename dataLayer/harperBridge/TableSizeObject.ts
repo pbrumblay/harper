@@ -7,7 +7,7 @@ export class TableSizeObject {
 	tableSize: number;
 	recordCount: number;
 	transactionLogSize: number;
-	transactionLogRecordCount: number;
+	transactionLogRecordCount?: number;
 
 	/**
 	 * @param schema - The schema of the table
@@ -23,7 +23,7 @@ export class TableSizeObject {
 		tableSize: number = 0,
 		recordCount: number = 0,
 		transactionLogSize: number = 0,
-		transactionLogRecordCount: number = 0
+		transactionLogRecordCount?: number
 	) {
 		this.schema = schema;
 		this.table = table;

@@ -722,6 +722,7 @@ export function database({ database: databaseName, table: tableName }) {
 		if (!rootStore || rootStore.status === 'closed') {
 			rootStore = openRocksDatabase(path, {
 				disableWAL: false,
+				enableStats: true,
 			});
 			rocksdbDatabaseEnvs.set(path, rootStore);
 		}
