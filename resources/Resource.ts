@@ -529,6 +529,10 @@ function transactional(
 					data = idOrQuery;
 					id = data[this.primaryKey] ?? null;
 					context = (dataOrContext as any).getContext?.() || dataOrContext;
+					if (context instanceof DatabaseTransaction) context = { transaction: context };
+				} else if (dataOrContext instanceof DatabaseTransaction) {
+					// (id, txn) form
+					context = { transaction: dataOrContext };
 				} else if (dataOrContext?.transaction instanceof DatabaseTransaction) {
 					// (id, context) form
 					context = dataOrContext;
@@ -541,6 +545,10 @@ function transactional(
 				data = idOrQuery;
 				idOrQuery = undefined;
 				id = data.getId?.() ?? data[this.primaryKey];
+			} else if (idOrQuery != null && typeof idOrQuery !== 'object') {
+				// single argument form, just id
+				id = idOrQuery;
+				data = undefined;
 			} else {
 				throw new ClientError(`Invalid argument for data, must be an object, but got ${idOrQuery}`);
 			}
