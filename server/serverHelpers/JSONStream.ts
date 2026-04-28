@@ -16,7 +16,7 @@ export function streamAsJSON(value) {
 class JSONStream extends Readable {
 	buffer: (string | Buffer)[];
 	bufferSize: number;
-	iterator: Iterator<string | Buffer> | AsyncIterator<string | Buffer>;
+	jsonIterator: Iterator<string | Buffer> | AsyncIterator<string | Buffer>;
 	activeIterators: (Iterator<any> | AsyncIterator<any>)[];
 	_amReading?: boolean;
 	done?: boolean;
@@ -26,7 +26,7 @@ class JSONStream extends Readable {
 		super(options);
 		this.buffer = [];
 		this.bufferSize = 0;
-		this.iterator = this.serialize(options.value, true);
+		this.jsonIterator = this.serialize(options.value, true);
 		this.activeIterators = [];
 	}
 
