@@ -51,11 +51,28 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		this.#context = context !== undefined ? context : source || null;
 	}
 
+	doesExist(): boolean {
+		return true; // Subclasses should override if needed
+	}
+
+	wasLoadedFromSource(): boolean | void {
+		// Subclasses should override if needed
+	}
+
+	addTo(property: keyof Record, value: Record[keyof Record]): void {
+		throw new Error('Not implemented');
+	}
+
+	subtractFrom(property: keyof Record, value: Record[keyof Record]): void {
+		throw new Error('Not implemented');
+	}
+
+
 	/**
 	 * The get methods are for directly getting a resource, and called for HTTP GET requests.
 	 */
 	static get = transactional(
-		function (resource: Resource, query: RequestTarget, _request: Context, _data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, _data: any) {
 			const result = resource.get?.(query);
 			// for the new API we always apply select in the instance method
 			if (!resource.constructor.loadAsInstance) return result;
@@ -89,7 +106,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	 * Store the provided record by the provided id. If no id is provided, it is auto-generated.
 	 */
 	static put = transactional(
-		function (resource: Resource, query: RequestTarget, request: Context, data: any) {
+		function (resource: any, query: RequestTarget, request: Context, data: any) {
 			if (Array.isArray(data) && resource.#isCollection && resource.constructor.loadAsInstance !== false) {
 				const results = [];
 				for (const element of data) {
@@ -115,7 +132,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	);
 
 	static patch = transactional(
-		function (resource: Resource, query: RequestTarget, _request: Context, data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			// TODO: Allow array like put?
 			return resource.patch
 				? resource.constructor.loadAsInstance === false
@@ -127,7 +144,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	);
 
 	static delete = transactional(
-		function (resource: Resource, query: RequestTarget, _request: Context, _data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, _data: any) {
 			return resource.delete ? resource.delete(query) : missingMethod(resource, 'delete');
 		},
 		{ hasContent: false, type: 'delete', method: 'delete' }
@@ -150,7 +167,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	static create(idPrefix: Id, record: any, context: Context): Promise<Id>;
 	static create(record: any, context: Context): Promise<Id>;
 	static create(idPrefix: any, record: any, context?: Context): Promise<Id> {
-		let id: Id;
+		let id: any;
 		if (this.loadAsInstance === false) {
 			if (typeof idPrefix === 'object' && idPrefix && !context) {
 				// two argument form (record, context), shift the arguments
@@ -160,44 +177,45 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 				id.isCollection = true;
 			} else id = idPrefix;
 		} else {
-			if (idPrefix == null) id = record?.[this.primaryKey] ?? this.getNewId();
+			const primaryKey = (this as any).primaryKey;
+			if (idPrefix == null) id = record?.[primaryKey] ?? this.getNewId();
 			else if (Array.isArray(idPrefix) && typeof idPrefix[0] !== 'object')
-				id = record?.[this.primaryKey] ?? [...idPrefix, this.getNewId()];
-			else if (typeof idPrefix !== 'object') id = record?.[this.primaryKey] ?? [idPrefix, this.getNewId()];
+				id = record?.[primaryKey] ?? [...idPrefix, this.getNewId()];
+			else if (typeof idPrefix !== 'object') id = record?.[primaryKey] ?? [idPrefix, this.getNewId()];
 			else {
 				// two argument form, shift the arguments
-				id = idPrefix?.[this.primaryKey] ?? this.getNewId();
+				id = idPrefix?.[primaryKey] ?? this.getNewId();
 				context = record || {};
 				record = idPrefix;
 			}
 		}
 		if (context) {
-			if (context.getContext) context = context.getContext();
+			if ((context as any).getContext) context = (context as any).getContext();
 		} else {
 			// try to get the context from the async context if possible
 			context = contextStorage.getStore() ?? {};
 		}
 		return transaction(context, async () => {
-			context.transaction.startedFrom ??= {
+			(context as any).transaction.startedFrom ??= {
 				resourceName: this.name,
 				method: 'create',
 			};
-			const resource = new this(id, context);
+			const resource = new (this as any)(id, context);
 			const results = resource.create ? await resource.create(id, record) : missingMethod(resource, 'create');
-			context.newLocation = id ?? results?.[this.primaryKey];
-			context.createdResource = true;
+			(context as any).newLocation = id ?? results?.[(this as any).primaryKey];
+			(context as any).createdResource = true;
 			return this.loadAsInstance === false ? results : resource;
 		});
 	}
 	static invalidate = transactional(
-		function (resource: Resource, query: RequestTarget, _request: Context, _data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, _data: any) {
 			return resource.invalidate ? resource.invalidate(query) : missingMethod(resource, 'invalidate');
 		},
 		{ hasContent: false, type: 'update', method: 'invalidate' }
 	);
 
 	static post = transactional(
-		function (resource: Resource, query: RequestTarget, _request: Context, data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			if (resource.#id != null) resource.update?.(); // save any changes made during post
 			return resource.constructor.loadAsInstance === false ? resource.post(query, data) : resource.post(data, query);
 		},
@@ -205,14 +223,14 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	);
 
 	static update = transactional(
-		function (resource: Resource, query: RequestTarget, _request: Context, data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			return resource.update(query, data);
 		},
-		{ type: 'update', method: 'update' }
+		{ hasContent: true, type: 'update', method: 'update' }
 	);
 
 	static connect = transactional(
-		function (resource: Resource, query: RequestTarget, _request: Context, data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			return resource.connect
 				? resource.constructor.loadAsInstance === false
 					? resource.connect(query, data)
@@ -223,14 +241,14 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	);
 
 	static subscribe = transactional(
-		function (resource: Resource, query: RequestTarget, _request: Context, _data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, _data: any) {
 			return resource.subscribe ? resource.subscribe(query) : missingMethod(resource, 'subscribe');
 		},
-		{ type: 'read', method: 'subscribe', syncAllowed: true }
+		{ hasContent: false, type: 'read', method: 'subscribe', syncAllowed: true }
 	);
 
 	static publish = transactional(
-		function (resource: Resource, query: Map, _request: Context, data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			if (resource.#id != null) resource.update?.(); // save any changes made during publish
 			return resource.publish
 				? resource.constructor.loadAsInstance === false
@@ -242,20 +260,20 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	);
 
 	static search = transactional(
-		function (resource: Resource, query: Query, request: Context) {
+		function (resource: any, query: Query, request: Context) {
 			const result = resource.search ? resource.search(query) : missingMethod(resource, 'search');
-			const select = request.select;
+			const select = (request as any).select;
 			if (select && request.hasOwnProperty('select') && result != null && !result.selectApplied) {
 				const transform = transformForSelect(select, resource.constructor);
 				return result.map(transform);
 			}
 			return result;
 		},
-		{ type: 'read', method: 'search', hasContent: false, syncAllowed: true }
+		{ hasContent: false, type: 'read', method: 'search', syncAllowed: true }
 	);
 
 	static query = transactional(
-		function (resource: Resource, query: Map, _request: Context, data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			return resource.search
 				? resource.constructor.loadAsInstance === false
 					? resource.search(query, data)
@@ -266,7 +284,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	);
 
 	static copy = transactional(
-		function (resource: Resource, query: Map, _request: Context, data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			return resource.copy
 				? resource.constructor.loadAsInstance === false
 					? resource.copy(query, data)
@@ -277,7 +295,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	);
 
 	static move = transactional(
-		function (resource: Resource, query: Map, _request: Context, data: any) {
+		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			return resource.move
 				? resource.constructor.loadAsInstance === false
 					? resource.move(query, data)
@@ -291,14 +309,14 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		target: RequestTargetOrId,
 		newRecord: Partial<Record & RecordObject>
 	): Promise<Record & Partial<RecordObject>> {
-		if (this.constructor.loadAsInstance === false) {
-			if (target.isCollection && this.create) {
-				newRecord = await this.create(target, newRecord);
-				return newRecord?.[this.constructor.primaryKey];
+		if ((this.constructor as any).loadAsInstance === false) {
+			if ((target as any).isCollection && this.create) {
+				newRecord = await this.create(newRecord, (target as any)) as any;
+				return newRecord?.[(this.constructor as any).primaryKey as keyof typeof newRecord] as any;
 			}
 		} else {
 			if (this.#isCollection) {
-				const resource = await this.constructor.create(this.#id, target, this.#context);
+				const resource = await (this.constructor as any).create(this.#id, target, this.#context);
 				return resource.#id;
 			}
 		}
@@ -327,7 +345,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 				// handle path.json, path.cbor, etc. for requesting a specific content type using just the URL
 				context.requestedContentType = requestedContentType;
 				path = path.slice(0, dotIndex); // remove the property from the path
-			} else if (this.attributes?.find((attribute) => attribute.name === property)) {
+			} else if ((this as any).attributes?.find((attribute) => attribute.name === property)) {
 				// handle path.attribute for requesting a specific attribute using just the URL
 				path = path.slice(0, dotIndex); // remove the property from the path
 				if (query) query.property = property;
@@ -355,13 +373,13 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	): Resource | Promise<Resource> {
 		let resource;
 		const id = target.id;
-		let context = request.getContext?.();
+		let context = (request as any).getContext?.();
 		let isCollection;
-		if (typeof request.isCollection === 'boolean' && request.hasOwnProperty('isCollection'))
-			isCollection = request.isCollection;
+		if (typeof (request as any).isCollection === 'boolean' && request.hasOwnProperty('isCollection'))
+			isCollection = (request as any).isCollection;
 		else isCollection = options?.isCollection;
 		// if it is a collection and we have a collection class defined, use it
-		const constructor = (isCollection && this.Collection) || this;
+		const constructor = (isCollection && (this as any).Collection) || this;
 		if (!context) context = context === undefined ? request : {};
 		resource = new constructor(id, context); // outside of a transaction, just create an instance
 		if (isCollection) resource.#isCollection = true;
@@ -380,10 +398,10 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 
 	connect(target: RequestTarget, incomingMessages: IterableEventQueue<Record>): AsyncIterable<Record> {
 		// convert subscription to an (async) iterator
-		const query = this.constructor.loadAsInstance === false ? target : incomingMessages;
-		if (query?.subscribe !== false) {
+		const query = (this.constructor as any).loadAsInstance === false ? target : incomingMessages;
+		if ((query as any)?.subscribe !== false) {
 			// subscribing is the default action, but can be turned off
-			return this.subscribe?.(query);
+			return this.subscribe?.((query as any));
 		}
 		return new IterableEventQueue();
 	}
@@ -452,7 +470,9 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	): void | (Record & Partial<RecordObject>) | Promise<void | (Record & Partial<RecordObject>)>;
 
 	delete?(target: RequestTargetOrId): boolean | Promise<boolean>;
-	invalidate?(target: RequestTargetOrId): void | Promise<void>;
+	invalidate(target: RequestTargetOrId): void | Promise<void> {
+		throw new Error('Not implemented');
+	}
 
 	publish?(target: RequestTargetOrId, record: Record, options?: any): void;
 }
@@ -473,12 +493,15 @@ export function snakeCase(camelCase: string) {
  * @returns
  */
 function transactional(
-	action: (resource: ResourceInterface, query: RequestTarget, context: Context, data: any) => any,
+	action: (resource: any, query: RequestTarget, context: Context, data: any) => any,
 	options: {
 		hasContent: boolean;
 		type: 'read' | 'update' | 'create' | 'delete';
 		async?: boolean;
 		ensureLoaded?: boolean;
+		letItLinger?: boolean;
+		method?: string;
+		syncAllowed?: boolean;
 	}
 ) {
 	applyContext.reliesOnPrototype = true;
@@ -493,7 +516,7 @@ function transactional(
 			if (context) {
 				// if there are three arguments, it is id, data, context
 				data = dataOrContext;
-				context = context.getContext?.() || context;
+				context = (context as any).getContext?.() || context;
 			} else if (dataOrContext) {
 				// two arguments, more possibilities:
 				if (
@@ -504,7 +527,7 @@ function transactional(
 					// (data, context) form
 					data = idOrQuery;
 					id = data[this.primaryKey] ?? null;
-					context = dataOrContext.getContext?.() || dataOrContext;
+					context = (dataOrContext as any).getContext?.() || dataOrContext;
 				} else if (dataOrContext?.transaction instanceof DatabaseTransaction) {
 					// (id, context) form
 					context = dataOrContext;
@@ -527,13 +550,13 @@ function transactional(
 			if (context) {
 				// (id, data, context), this a method that doesn't normally have a body/data, but with the three arguments, we have explicit data
 				data = dataOrContext;
-				context = context.getContext?.() || context;
+				context = (context as any).getContext?.() || context;
 			} else if (hasContent === false) {
 				// (id, context), preferred form used for methods that are explicitly without a body
-				context = dataOrContext.getContext?.() || dataOrContext;
+				context = (dataOrContext as any).getContext?.() || dataOrContext;
 			} else if (dataOrContext.transaction || dataOrContext.getContext) {
 				// or if it looks like a context
-				context = dataOrContext.getContext?.() || dataOrContext;
+				context = (dataOrContext as any).getContext?.() || dataOrContext;
 			} else {
 				data = dataOrContext;
 			}
@@ -582,7 +605,7 @@ function transactional(
 						}
 					}
 				} else if (id === undefined) {
-					id = idOrQuery.id ?? null;
+					id = (idOrQuery as any).id ?? null;
 					if (id == null) query.isCollection = true;
 				}
 			} else {
@@ -660,8 +683,8 @@ function transactional(
 								: options.type === 'create'
 									? resource.allowCreate(context.user, data, context)
 									: resource.allowDelete(context.user, query, context);
-					if (allowed?.then) {
-						return allowed.then((allowed) => {
+					if ((allowed as any)?.then) {
+						return (allowed as any).then((allowed) => {
 							query.checkPermission = false;
 							if (!allowed) {
 								throw new AccessViolation(context.user);

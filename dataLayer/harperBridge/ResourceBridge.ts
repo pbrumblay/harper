@@ -83,14 +83,14 @@ export class ResourceBridge extends BridgeMethods {
 			{
 				conditions: searchObject.conditions,
 				//set the operator to always be lowercase for later evaluations
-				operator: searchObject.operator ? searchObject.operator.toLowerCase() : undefined,
+				operator: searchObject.operator ? (searchObject.operator as any).toLowerCase() : undefined,
 				limit: searchObject.limit,
 				offset: searchObject.offset,
 				reverse: searchObject.reverse,
 				select: getSelect(searchObject, table),
 				sort: searchObject.sort,
 				allowFullScan: true, // operations API can do full scans by default, but REST is more cautious about what it allows
-			},
+			} as any,
 			{
 				onlyIfCached: searchObject.onlyIfCached,
 				noCacheStore: searchObject.noCacheStore,
@@ -143,7 +143,7 @@ export class ResourceBridge extends BridgeMethods {
 			{
 				name: createAttributeObj.attribute,
 				indexed: createAttributeObj.indexed ?? true,
-			},
+			} as any,
 		]);
 		return `attribute ${createAttributeObj.schema}.${createAttributeObj.table}.${createAttributeObj.attribute} successfully created.`;
 	}
@@ -198,8 +198,9 @@ export class ResourceBridge extends BridgeMethods {
 		return this.upsertRecords(updateObj);
 	}
 
+	// @ts-expect-error property is not assignable to base type
 	async upsertRecords(upsertObj) {
-		const { attributes } = insertUpdateValidate(upsertObj);
+		const { attributes } = await insertUpdateValidate(upsertObj);
 
 		let new_attributes;
 		const Table = getDatabases()[upsertObj.schema][upsertObj.table];
@@ -266,7 +267,7 @@ export class ResourceBridge extends BridgeMethods {
 				keys.push(record[Table.primaryKey]);
 			}
 			return {
-				txn_time: transaction.timestamp,
+				txn_time: (transaction as any).timestamp,
 				written_hashes: keys,
 				new_attributes,
 				skipped_hashes: skipped,
@@ -288,7 +289,7 @@ export class ResourceBridge extends BridgeMethods {
 				if (await Table.delete(id, context)) deleted.push(id);
 				else skipped.push(id);
 			}
-			return createDeleteResponse(deleted, skipped, transaction.timestamp);
+			return createDeleteResponse(deleted, skipped, (transaction as any).timestamp);
 		});
 	}
 
@@ -303,6 +304,7 @@ export class ResourceBridge extends BridgeMethods {
 	 * }
 	 * @returns {undefined}
 	 */
+	// @ts-expect-error property is not assignable to base type
 	async deleteRecordsBefore(deleteObj) {
 		const Table = getDatabases()[deleteObj.schema][deleteObj.table];
 		if (!Table.createdTimeProperty) {
@@ -319,7 +321,7 @@ export class ResourceBridge extends BridgeMethods {
 					comparator: VALUE_SEARCH_COMPARATORS.LESS,
 				},
 			],
-		});
+		} as any);
 
 		let deleteCalled = false;
 		const deletedIds = [];
@@ -376,7 +378,7 @@ export class ResourceBridge extends BridgeMethods {
 	async getDataByHash(searchObject) {
 		const map = new Map();
 		searchObject._returnKeyValue = true;
-		for await (const { key, value } of getRecords(searchObject, true)) {
+		for await (const { key, value } of getRecords(searchObject, true) as any) {
 			map.set(key, value);
 		}
 		return map;
@@ -386,9 +388,10 @@ export class ResourceBridge extends BridgeMethods {
 		if (comparator && VALUE_SEARCH_COMPARATORS_REVERSE_LOOKUP[comparator] === undefined) {
 			throw new Error(`Value search comparator - ${comparator} - is not valid`);
 		}
-		if (searchObject.select !== undefined) searchObject.get_attributes = searchObject.select;
-		if (searchObject.search_attribute !== undefined) searchObject.attribute = searchObject.search_attribute;
-		if (searchObject.search_value !== undefined) searchObject.value = searchObject.search_value;
+		const obj = searchObject as any;
+		if (obj.select !== undefined) obj.get_attributes = obj.select;
+		if (obj.search_attribute !== undefined) obj.attribute = obj.search_attribute;
+		if (obj.search_value !== undefined) obj.value = obj.search_value;
 
 		const validationError = searchValidator(searchObject, 'value');
 		if (validationError) {
@@ -399,7 +402,7 @@ export class ResourceBridge extends BridgeMethods {
 		if (!table) {
 			throw new ClientError(`Table ${searchObject.table} not found`);
 		}
-		let value = searchObject.value;
+		let value: any = searchObject.value;
 		if (value.includes?.('*')) {
 			if (value.startsWith('*')) {
 				if (value.endsWith('*')) {
@@ -435,18 +438,19 @@ export class ResourceBridge extends BridgeMethods {
 				limit: searchObject.limit,
 				offset: searchObject.offset,
 				reverse: searchObject.reverse,
-				sort: searchObject.sort,
+				sort: (searchObject as any).sort,
 				select: getSelect(searchObject, table),
-			},
+			} as any,
 			{
-				onlyIfCached: searchObject.onlyIfCached,
-				noCacheStore: searchObject.noCacheStore,
-				noCache: searchObject.noCache,
-				replicateFrom: searchObject.replicateFrom,
+				onlyIfCached: (searchObject as any).onlyIfCached,
+				noCacheStore: (searchObject as any).noCacheStore,
+				noCache: (searchObject as any).noCache,
+				replicateFrom: (searchObject as any).replicateFrom,
 			}
 		);
 	}
 
+	// @ts-expect-error property is not assignable to base type
 	async getDataByValue(searchObject: SearchObject, comparator?: string) {
 		const map = new Map();
 		const table = getTable(searchObject);
@@ -469,6 +473,7 @@ export class ResourceBridge extends BridgeMethods {
 	 * @param deleteObj The request body
 	 * @returns
 	 */
+	// @ts-expect-error property is not assignable to base type
 	async deleteTransactionLogsBefore(deleteObj: {
 		schema?: string; // deprecated in favor of `database`
 		database?: string;
@@ -506,6 +511,7 @@ export class ResourceBridge extends BridgeMethods {
 		return totalResults;
 	}
 
+	// @ts-expect-error property is not assignable to base type
 	async readAuditLog(readAuditLogObj) {
 		const table = getTable(readAuditLogObj);
 		const histories = {};
@@ -599,7 +605,7 @@ function getRecords(searchObject, returnKeyValue?) {
 						const id = ids[i++];
 						let record;
 						try {
-							record = await table.get({ id, lazy, select }, context);
+							record = await table.get({ id, lazy, select } as any, context);
 							record = record && collapseData(record);
 						} catch (error) {
 							record = {

@@ -163,8 +163,8 @@ export class DatabaseTransaction implements Transaction {
 		transaction ??= this.transaction;
 		let immediateCommit = false;
 		if (!transaction) {
-			transaction = new RocksTransaction(operation.store.store as RocksStore);
-			if (operation.store.rootStore !== this.db.rootStore) {
+			transaction = new RocksTransaction((operation.store as any).store as RocksStore);
+			if ((operation.store as any).rootStore !== (this.db as any).rootStore) {
 				harperLogger.warn?.('Created new transaction in save, but the store does match existing store', transaction.id);
 			}
 			if (this.open === TRANSACTION_STATE.OPEN) {
@@ -180,7 +180,7 @@ export class DatabaseTransaction implements Transaction {
 		}
 		if (this.retries > 0) {
 			// This marks the Rocks transaction as a retry so we don't write the transaction log again
-			transaction.isRetry = true;
+			(transaction as any).isRetry = true;
 		}
 		if (!txnTime) txnTime = this.timestamp = transaction.getTimestamp();
 		if (reloadEntry || operation.entry === undefined) {
@@ -189,7 +189,7 @@ export class DatabaseTransaction implements Transaction {
 		if (!operation.saved) {
 			operation.saved = true;
 			// immediately execute in this transaction
-			if (operation.validate?.(txnTime) === false) {
+			if ((operation.validate?.(txnTime) as any) === false) {
 				operation.commit = () => {}; // noop if we try again
 				return;
 			}
@@ -369,10 +369,11 @@ export class ImmediateTransaction extends DatabaseTransaction {
 		super();
 		this.db = db;
 	}
-	save(transaction: ImmediateTransaction) {
+	save(...args: any[]): any {
+		const transaction = args[0];
 		if (this.isCommitting) {
 			// if we are in the commit, do the save and force a reload so we get a read within the transaction
-			super.save(transaction, null, true);
+			super.save(transaction, null as any, true);
 		} else {
 			this.isCommitting = true;
 			return when(this.commit(), () => {

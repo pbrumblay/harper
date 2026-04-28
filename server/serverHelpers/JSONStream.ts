@@ -5,7 +5,7 @@ import JSONbig from 'json-bigint-fixes';
 const JSONbigint = JSONbig({ useNativeBigInt: true });
 const BUFFER_SIZE = 10000;
 const BIGINT_SERIALIZATION = { message: 'Cannot serialize BigInt to JSON' };
-BigInt.prototype.toJSON = function () {
+(BigInt.prototype as any).toJSON = function () {
 	throw BIGINT_SERIALIZATION;
 };
 const { errorToString } = harperLogger;
@@ -14,6 +14,13 @@ export function streamAsJSON(value) {
 }
 // a readable stream for serializing a set of variables to a JSON stream
 class JSONStream extends Readable {
+	buffer: any[];
+	bufferSize: number;
+	iterator: any;
+	activeIterators: any[];
+	_amReading?: boolean;
+	done?: boolean;
+
 	constructor(options) {
 		// Calls the stream.Readable(options) constructor
 		super(options);
@@ -23,7 +30,7 @@ class JSONStream extends Readable {
 		this.activeIterators = [];
 	}
 
-	*serialize(object) {
+	*serialize(object: any, topLevel?: boolean): any {
 		// using a generator to serialize JSON for convenience of recursive pause and resume functionality
 		// serialize a value to an iterator that can be consumed by streaming API
 		if (object && typeof object === 'object') {

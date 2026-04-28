@@ -36,33 +36,33 @@ export class LMDBTransaction extends DatabaseTransaction {
 	_timestamp = 0;
 	declare next: DatabaseTransaction;
 	declare stale: boolean;
-	overloadChecked: boolean;
+	declare overloadChecked: boolean;
 	open = TRANSACTION_STATE.OPEN;
 
-	getReadTxn(): ReadTransaction {
+	getReadTxn(): any {
 		// used optimistically
 		this.readTxnRefCount = (this.readTxnRefCount || 0) + 1;
 		this.timeout = txnExpiration; // reset the timeout
 		if (this.stale) this.stale = false;
 		if (this.readTxn) {
-			if (this.readTxn.openTimer) this.readTxn.openTimer = 0;
+			if ((this.readTxn as any).openTimer) (this.readTxn as any).openTimer = 0;
 			return this.readTxn;
 		}
 		if (this.open !== TRANSACTION_STATE.OPEN) return; // can not start a new read transaction as there is no future commit that will take place, just have to allow the read to latest database state
 
 		// Get a read transaction from lmdb-js; make sure we do this first, as it can fail, we don't want to leave the transaction in a bad state with readTxnsUsed > 0
-		this.readTxn = this.db.useReadTransaction();
+		this.readTxn = (this.db as any).useReadTransaction();
 
 		this.readTxnsUsed = 1;
-		if (this.readTxn.openTimer) this.readTxn.openTimer = 0;
-		trackedTxns.add(this);
+		if ((this.readTxn as any).openTimer) (this.readTxn as any).openTimer = 0;
+		trackedTxns.add(this as any);
 		return this.readTxn;
 	}
 
 	useReadTxn() {
 		this.getReadTxn();
 		if (this.readTxn) {
-			(this.readTxn as LMDBTransaction).use();
+			(this.readTxn as any).use();
 			this.readTxnsUsed++;
 		}
 		return this.readTxn;
@@ -73,10 +73,10 @@ export class LMDBTransaction extends DatabaseTransaction {
 		if (this.readTxn instanceof RocksTransaction) {
 			// TODO: Implement this for RocksDB
 		} else {
-			(this.readTxn as LMDBTransaction).done();
+			(this.readTxn as any).done();
 		}
 		if (--this.readTxnsUsed === 0) {
-			trackedTxns.delete(this);
+			trackedTxns.delete(this as any);
 			this.readTxn = null;
 		}
 	}
@@ -87,7 +87,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 		}
 	}
 
-	addWrite(operation: TransactionWrite) {
+	addWrite(operation: TransactionWrite): any {
 		if (this.open === TRANSACTION_STATE.CLOSED) {
 			throw new Error('Can not use a transaction that is no longer open');
 		}
@@ -110,7 +110,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 	/**
 	 * Resolves with information on the timestamp and success of the commit
 	 */
-	commit(options: CommitOptions = {}): Promise<CommitResolution> {
+	commit(options?: CommitOptions): any {
 		let txnTime = this.timestamp;
 		if (!txnTime) txnTime = this.timestamp = options.timestamp || getNextMonotonicTime();
 		if (!options.timestamp) options.timestamp = txnTime;
@@ -189,7 +189,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 						write.entry = write.store.getEntry(write.key);
 					}
 
-					const conditionResolution = write.store.ifVersion(write.key, write.entry?.version ?? null, nextCondition);
+					const conditionResolution = (write.store as any).ifVersion(write.key, write.entry?.version ?? null, nextCondition);
 					resolution = resolution || conditionResolution;
 				} else {
 					nextCondition();
@@ -207,9 +207,8 @@ export class LMDBTransaction extends DatabaseTransaction {
 			// we also maintain a retry risk for the transaction, which is a measure of how likely it is that the transaction
 			// will fail and retry due to contention. This is used to determine when to give up on optimistic writes and
 			// use a real (async) transaction to get exclusive access to the data
-			if (db?.retryRisk) db.retryRisk *= 0.99; // gradually decay the retry risk
-			if (this.writes.length + (db?.retryRisk || 0) < MAX_OPTIMISTIC_SIZE >> retries) nextCondition();
-			else {
+			if ((db as any)?.retryRisk) (db as any).retryRisk *= 0.99; // gradually decay the retry risk
+			if (this.writes.length + ((db as any)?.retryRisk || 0) < MAX_OPTIMISTIC_SIZE >> retries) nextCondition();			else {
 				// if it is too big to expect optimistic writes to work, or we have done too many retries we use
 				// a real LMDB transaction to get exclusive access to reading and writing
 				resolution = this.writes[0].store.transaction(() => {
@@ -237,18 +236,17 @@ export class LMDBTransaction extends DatabaseTransaction {
 						completions.push(this.next.commit(options));
 					}
 					if (options?.flush) {
-						completions.push(this.writes[0].store.flushed);
-					}
-					if (this.replicatedConfirmation) {
+						completions.push((this.writes[0].store as any).flushed);
+						}
+						if (this.replicatedConfirmation) {
 						// if we want to wait for replication confirmation, we need to track the transaction times
 						// and when replication notifications come in, we count the number of confirms until we reach the desired number
-						const databaseName = this.writes[0].store.rootStore.databaseName;
-						const lastWrite = this.writes[this.writes.length - 1];
+						const databaseName = (this.writes[0].store as any).rootStore.databaseName;						const lastWrite = this.writes[this.writes.length - 1];
 						if (confirmReplication && lastWrite)
 							completions.push(
 								confirmReplication(
 									databaseName,
-									lastWrite.store.getEntry(lastWrite.key).localTime,
+									(lastWrite.store.getEntry(lastWrite.key) as any).localTime,
 									this.replicatedConfirmation
 								)
 							);
@@ -266,7 +264,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 					// if the transaction failed, we need to retry. First record this as an increased risk of contention/retry
 					// for future transactions
 					if (db) {
-						db.retryRisk = (db.retryRisk || 0) + MAX_OPTIMISTIC_SIZE / 2;
+						(db as any).retryRisk = ((db as any).retryRisk || 0) + MAX_OPTIMISTIC_SIZE / 2;
 					}
 					if (options) options.retries = retries + 1;
 					else options = { retries: 1 };
@@ -280,12 +278,12 @@ export class LMDBTransaction extends DatabaseTransaction {
 		if (this.next) {
 			// now run any other transactions
 			const nextResolution = this.next?.commit(options);
-			if (nextResolution?.then)
-				return nextResolution?.then((nextResolution) => ({
+			if ((nextResolution as any)?.then)
+				return (nextResolution as any)?.then((nextResolution) => ({
 					txnTime,
 					next: nextResolution,
 				}));
-			txnResolution.next = nextResolution;
+			txnResolution.next = nextResolution as any;
 		}
 		return txnResolution;
 	}
@@ -295,7 +293,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 		// reset the transaction
 		this.writes = [];
 	}
-	save() {
+	save(...args: any[]): any {
 		// noop for LMDB
 	}
 }
@@ -305,11 +303,15 @@ export class ImmediateTransaction extends LMDBTransaction {
 		super();
 		this.db = db;
 	}
-	save(_transaction: ImmediateTransaction, _isRetry = false) {
+	save(...args: any[]): any {
 		return this.commit();
 	}
+	// @ts-expect-error accessor overriding property
 	get timestamp() {
 		return this._timestamp || (this._timestamp = getNextMonotonicTime());
+	}
+	set timestamp(value: number) {
+		this._timestamp = value;
 	}
 	getReadTxn() {
 		return; // no transaction means read latest
@@ -323,10 +325,10 @@ function startMonitoringTxns() {
 	timer = setInterval(function () {
 		for (const txn of trackedTxns) {
 			if (txn.timeout <= 0) {
-				const url = txn.getContext()?.url;
+				const url = (txn.getContext() as any)?.url;
 				harperLogger.error(
 					`Transaction was open too long and has been committed, from table: ${
-						txn.db?.name + (url ? ' path: ' + url : '')
+						(txn.db as any)?.name + (url ? ' path: ' + url : '')
 					}`
 				);
 				// reset the transaction
