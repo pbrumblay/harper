@@ -460,7 +460,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	create?(
 		target: RequestTargetOrId,
 		newRecord: Partial<Record & RecordObject>
-	): Promise<Record & Partial<RecordObject>>;
+	): void | (Record & Partial<RecordObject>) | Promise<Record & Partial<RecordObject>>;
 	put?(
 		record: Record & RecordObject,
 		target: RequestTargetOrId

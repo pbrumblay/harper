@@ -20,7 +20,7 @@ let httpOptions = {};
 
 const OPENAPI_DOMAIN = 'openapi';
 
-async function http(request: any, nextHandler) {
+async function http(request: Request, nextHandler) {
 	const headersObject = request.headers.asObject;
 	const isSse = headersObject.accept === 'text/event-stream';
 	const method = isSse ? 'CONNECT' : request.method;
@@ -156,7 +156,7 @@ async function http(request: any, nextHandler) {
 		if (responseData == undefined) {
 			status ??= method === 'GET' || method === 'HEAD' ? 404 : 204;
 			// deleted entries can have a timestamp of when they were deleted
-			if ((httpOptions as any).lastModified && isFinite(lastModification))
+			if (httpOptions.lastModified && isFinite(lastModification))
 				headers.setIfNone('Last-Modified', new Date(lastModification).toUTCString());
 		} else if (responseData.headers) {
 			// if response is a Response object, use it as the response
@@ -213,7 +213,7 @@ async function http(request: any, nextHandler) {
 			} else {
 				headers.setIfNone('ETag', etag);
 			}
-			if ((httpOptions as any).lastModified) headers.setIfNone('Last-Modified', new Date(lastModification).toUTCString());
+			if (httpOptions.lastModified) headers.setIfNone('Last-Modified', new Date(lastModification).toUTCString());
 		}
 		if (request.createdResource) status = 201;
 		if (request.newLocation) headers.setIfNone('Location', request.newLocation);

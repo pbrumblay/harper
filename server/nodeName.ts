@@ -3,6 +3,7 @@ import { X509Certificate } from 'node:crypto';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
 import env from '../utility/environment/environmentManager.js';
 import { logger } from '../utility/logging/logger.ts';
+import { server } from './Server.ts';
 
 Object.defineProperty(server, 'hostname', {
 	get() {

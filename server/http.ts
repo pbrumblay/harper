@@ -26,10 +26,10 @@ import { throttle } from './throttle.ts';
 import { WebSocketServer } from 'ws';
 
 const { errorToString } = harperLogger;
-server.http = httpServer;
-server.request = onRequest;
-server.ws = onWebSocket;
-server.upgrade = onUpgrade;
+server.http = httpServer as any;
+server.request = onRequest as any;
+server.ws = onWebSocket as any;
+server.upgrade = onUpgrade as any;
 const websocketServers = {};
 const httpServers = {},
 	httpChain = {},
@@ -91,7 +91,7 @@ export function proxyRequest(message) {
 	socket = requestMap.get(requestId);
 	switch (event) {
 		case 'connection':
-			socket = deliverSocket(undefined, port);
+			socket = deliverSocket(undefined, port, undefined);
 			requestMap.set(requestId, socket);
 			socket.write = (data, encoding, callback) => {
 				parentPort.postMessage({
@@ -254,8 +254,8 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 			let requestId = 0;
 			try {
 				const request = new Request(nodeRequest, nodeResponse);
-				if (isOperationsServer) request.isOperationsServer = true;
-				if (httpOptions.logging?.id) request.requestId = requestId = getRequestId();
+				if (isOperationsServer) (request as any).isOperationsServer = true;
+				if ((httpOptions as any).logging?.id) (request as any).requestId = requestId = getRequestId();
 				// assign a more WHATWG compliant headers object, this is our real standard interface
 				let response = await httpChain[port](request);
 				if (!response) {
@@ -280,8 +280,8 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 					for (const headerPair of response.headers || []) {
 						nodeResponse.setHeader(headerPair[0], headerPair[1]);
 					}
-					nodeRequest.baseRequest = request;
-					nodeResponse.baseResponse = response;
+					(nodeRequest as any).baseRequest = request;
+					(nodeResponse as any).baseResponse = response;
 					return httpServers[port].emit('unhandled', nodeRequest, nodeResponse);
 				}
 				const status = response.status || 200;
@@ -305,9 +305,9 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 					} else if (body instanceof Blob) {
 						// if the size is available now, immediately set it
 						if (body.size) headers.set('Content-Length', body.size);
-						else if (body.on) {
+						else if ((body as any).on) {
 							deferWriteHead = true;
-							body.on('size', (size) => {
+							(body as any).on('size', (size) => {
 								// we can also try to set the Content-Length once the header is read and
 								// the size available. but if writeHead is called, this will have no effect. So we
 								// need to defer writeHead if we are going to set this
@@ -342,7 +342,7 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 					}
 					if (sentBody) nodeResponse.end(body);
 				}
-				const handlerPath = request.handlerPath;
+				const handlerPath = (request as any).handlerPath;
 				const method = request.method;
 				recordAction(
 					executionTime,
@@ -406,12 +406,12 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 				// if the request queue is taking too long, we want to return an error
 				nodeResponse.statusCode = 503;
 				nodeResponse.end('Service unavailable, exceeded request queue limit');
-				recordAction(true, 'service-unavailable', port);
+				recordAction(true, 'service-unavailable', String(port));
 			},
 			env.get(serverPrefix + '_requestQueueLimit')
 		);
 		const server = (httpServers[port] = (
-			secure ? (http2 ? createSecureServer : createSecureServerHttp1) : createServer
+			(secure ? (http2 ? createSecureServer : createSecureServerHttp1) : createServer) as any
 		)(options, (nodeRequest: IncomingMessage, nodeResponse: any) => {
 			// throttle the requests that can make data modifications because they are more likely to be slow and we don't
 			// want to block or slow down other activity
@@ -434,11 +434,11 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 		if (secure) {
 			if (!server.ports) server.ports = [];
 			server.ports.push(port);
-			options.SNICallback.initialize(server);
+			(options as any).SNICallback.initialize(server);
 			if (mtls) server.mtlsConfig = mtls;
 			server.on('secureConnection', (socket) => {
-				if (socket._parent.startTime) recordAction(performance.now() - socket._parent.startTime, 'tls-handshake', port);
-				recordAction(socket.isSessionReused(), 'tls-reused', port);
+				if (socket._parent.startTime) recordAction(performance.now() - socket._parent.startTime, 'tls-handshake', String(port));
+				recordAction(socket.isSessionReused(), 'tls-reused', String(port));
 			});
 			server.isSecure = true;
 		}
@@ -535,7 +535,7 @@ function onWebSocket(listener: (ws: WebSocket) => void, options: OnWebSocketOpti
 
 			websocketServers[port].on('connection', (ws, incomingMessage) => {
 				try {
-					const request = new Request(incomingMessage);
+					const request = new Request(incomingMessage, undefined);
 					request.isWebSocket = true;
 					const chainCompletion = httpChain[port](request);
 					harperLogger.debug('Received WS connection, calling listeners', websocketListeners);
@@ -574,7 +574,7 @@ function onWebSocket(listener: (ws: WebSocket) => void, options: OnWebSocketOpti
 
 		servers.push(server);
 
-		websocketListeners[options?.runFirst ? 'unshift' : 'push']({ listener, port });
+		websocketListeners[(options as any)?.runFirst ? 'unshift' : 'push']({ listener, port });
 		websocketChains[port] = makeCallbackChain(websocketListeners, port);
 
 		// mqtt doesn't invoke the http handler so this needs to be here to load up the http chains.
@@ -600,7 +600,7 @@ export function logRequest(nodeRequest: IncomingMessage, status: number, request
 		}
 		const level = status < 400 ? 'info' : status === 500 ? 'error' : 'warn';
 		httpLogger[level]?.(
-			`${nodeRequest.method} ${nodeRequest.url} ${nodeRequest.socket.encrypted ? 'HTTPS' : 'HTTP'}/${nodeRequest.httpVersion}${
+			`${nodeRequest.method} ${nodeRequest.url} ${(nodeRequest.socket as any).encrypted ? 'HTTPS' : 'HTTP'}/${nodeRequest.httpVersion}${
 				logging.headers ? ' ' + headersToString(nodeRequest.headers) : ''
 			} ${status}${logging.timing && executionTime ? ' ' + executionTime.toFixed(2) + 'ms' : ''}${requestId ? ' id: ' + requestId : ''}`
 		);

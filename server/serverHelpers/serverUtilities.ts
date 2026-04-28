@@ -186,7 +186,7 @@ export function chooseOperation(json: OperationRequestBody) {
 			}
 		}
 	} catch (err) {
-		throw handleHDBError(err, `There was an error when trying to choose an operation path`);
+		throw handleHDBError(err, `There was an error when trying to choose an operation path`, 500);
 	}
 	return operation_function;
 }

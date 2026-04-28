@@ -29,13 +29,19 @@ export class Request {
 	public method: string;
 	public url: string;
 	public headers: Headers;
+	public requestId?: number;
+	public isOperationsServer?: boolean;
+	public handlerPath?: string;
+	public __harperdbRequestUpgraded?: boolean;
+	public __harperRequestUpgraded?: boolean;
+	public createdResource?: boolean;
+	public newLocation?: string;
 	public isWebSocket?: boolean;
 	public user?: any; // User object can be attached during authentication
 	public response: {
 		status?: number;
 		headers: ResponseHeaders;
 	};
-	public __harperRequestUpgraded: boolean;
 
 	constructor(nodeRequest: IncomingMessage, nodeResponse: NodeServerResponse) {
 		this.method = nodeRequest.method;

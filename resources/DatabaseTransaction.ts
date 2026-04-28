@@ -54,7 +54,7 @@ export type TransactionWrite = {
 	entry?: Partial<Entry>;
 	before?: () => void | Promise<void>;
 	beforeIntermediate?: () => void | Promise<void>;
-	commit?: (txnTime: number, existingEntry: Entry, retry: boolean, transaction: RocksTransaction) => void;
+	commit?: (txnTime: number, existingEntry: Partial<Entry>, retry: boolean, transaction: RocksTransaction) => void;
 	validate?: (txnTime: number) => void;
 	fullUpdate?: boolean;
 	saved?: boolean;
@@ -91,7 +91,7 @@ export class DatabaseTransaction implements Transaction {
 		this.readTxnRefCount = (this.readTxnRefCount || 0) + 1;
 		this.timeout = txnExpiration; // reset the timeout
 		if (this.transaction) {
-			if (this.transaction.openTimer) this.transaction.openTimer = 0;
+			if ((this.transaction as any).openTimer) (this.transaction as any).openTimer = 0;
 			return this.transaction;
 		}
 		if (this.open !== TRANSACTION_STATE.OPEN) return; // can not start a new read transaction as there is no future commit that will take place, just have to allow the read to latest database state
@@ -106,7 +106,7 @@ export class DatabaseTransaction implements Transaction {
 		if (DEBUG_LONG_TXNS) {
 			this.stackTraces = [new StartedTransaction()];
 		}
-		if (this.transaction.openTimer) this.transaction.openTimer = 0;
+		if ((this.transaction as any).openTimer) (this.transaction as any).openTimer = 0;
 		trackedTxns.add(this);
 		return this.transaction;
 	}
@@ -265,7 +265,7 @@ export class DatabaseTransaction implements Transaction {
 				const completions = [];
 				return commitResolution.then(
 					() => {
-						transaction.onCommit?.();
+						(transaction as any).onCommit?.();
 						if (this.next) {
 							completions.push(this.next.commit(options));
 						}
@@ -281,7 +281,7 @@ export class DatabaseTransaction implements Transaction {
 								completions.push(
 									confirmReplication(
 										databaseName,
-										lastWrite.store.getEntry(lastWrite.key).version,
+										(lastWrite.store.getEntry(lastWrite.key) as any).version,
 										this.replicatedConfirmation
 									)
 								);
@@ -326,12 +326,12 @@ export class DatabaseTransaction implements Transaction {
 				// now run any other transactions
 				options.timestamp = this.timestamp;
 				const nextResolution = this.next?.commit(options);
-				if (nextResolution?.then)
-					return nextResolution?.then((nextResolution) => ({
+				if ((nextResolution as any)?.then)
+					return (nextResolution as any)?.then((nextResolution) => ({
 						txnTime: this.timestamp,
 						next: nextResolution,
 					}));
-				txnResolution.next = nextResolution;
+				txnResolution.next = nextResolution as any;
 			}
 			return txnResolution;
 		});
@@ -382,10 +382,15 @@ export class ImmediateTransaction extends DatabaseTransaction {
 		}
 	}
 
+	declare _timestamp: number;
+	// @ts-expect-error accessor overriding property
 	get timestamp() {
 		return this._timestamp || (this._timestamp = getNextMonotonicTime());
 	}
-	getReadTxn() {
+	set timestamp(value: number) {
+		this._timestamp = value;
+	}
+	getReadTxn(): any {
 		return; // no transaction means read latest
 	}
 }
@@ -396,10 +401,10 @@ function startMonitoringTxns() {
 	timer = setInterval(function () {
 		for (const txn of trackedTxns) {
 			if (txn.timeout <= 0) {
-				const url = txn.getContext()?.url;
+				const url = (txn.getContext() as any)?.url;
 				harperLogger.error(
 					`Transaction was open too long and has been committed, from table: ${
-						txn.db?.name + (url ? ' path: ' + url : '')
+						(txn.db as any)?.name + (url ? ' path: ' + url : '')
 					}`,
 					...(txn.startedFrom ? [`was started from ${txn.startedFrom.resourceName}.${txn.startedFrom.method}`] : []),
 					...(DEBUG_LONG_TXNS ? ['starting stack trace', txn.stackTraces] : [])
@@ -407,8 +412,8 @@ function startMonitoringTxns() {
 				// reset the transaction
 				try {
 					const result = txn.commit();
-					if (result?.then) {
-						result.catch((error) => {
+					if ((result as any)?.then) {
+						(result as any).catch((error) => {
 							harperLogger.debug?.(`Error committing timed out transaction: ${error.message}`);
 						});
 					}

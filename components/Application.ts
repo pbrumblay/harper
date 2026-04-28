@@ -134,7 +134,7 @@ export async function extractApplication(application: Application) {
 	if (application.payload) {
 		// Given a payload, create a Readable from the Buffer or string
 		tarball = Readable.from(
-			application.payload instanceof Buffer ? application.payload : Buffer.from(application.payload, 'base64')
+			application.payload instanceof Buffer ? application.payload : Buffer.from((application as any).payload, 'base64')
 		);
 	} else {
 		// Given a package, there are a a couple options

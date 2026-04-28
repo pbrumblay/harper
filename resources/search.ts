@@ -126,13 +126,13 @@ export function searchByIndex(
 	reverse: boolean,
 	Table: any,
 	allowFullScan?: boolean,
-	filtered?: boolean,
+	filtered?: any,
 	context?: any
 ): AsyncIterable<Id | { key: Id; value: any }> {
 	let attribute_name = searchCondition[0] ?? searchCondition.attribute;
 	let value = searchCondition[1] ?? searchCondition.value;
 	const comparator = searchCondition.comparator;
-	if (value === undefined && comparator !== 'sort') {
+	if (value === undefined && (comparator as any) !== 'sort') {
 		throw new ClientError(`Search condition for ${attribute_name} must have a value`);
 	}
 	if (Array.isArray(attribute_name)) {
@@ -185,7 +185,7 @@ export function searchByIndex(
 					results = joinFrom(results, attribute, relatedTable.primaryStore, joined, searchEntry);
 				} else {
 					// many-to-one relationship, need to flatten the ids that point back to potentially many instances of this
-					results = results.flatMap(searchEntry);
+					results = (results as any).flatMap(searchEntry);
 				}
 			}
 			return results;
@@ -240,8 +240,8 @@ export function searchByIndex(
 			if (start instanceof Date) start = start.getTime();
 			end = value[1];
 			if (end instanceof Date) end = end.getTime();
-			inclusiveEnd = comparator === 'gele' || comparator === 'gtle' || comparator === 'between';
-			exclusiveStart = comparator === 'gtlt' || comparator === 'gtle';
+			inclusiveEnd = (comparator as any) === 'gele' || (comparator as any) === 'gtle' || (comparator as any) === 'between';
+			exclusiveStart = (comparator as any) === 'gtlt' || (comparator as any) === 'gtle';
 			break;
 		case 'equals':
 		case undefined:
@@ -446,7 +446,7 @@ function joinTo(rightIterable, attribute, store, isManyToMany, joined: Map<any, 
 	return new rightIterable.constructor({
 		[Symbol.iterator]() {
 			let joinedIterator;
-			joined.hasMappings = true;
+			(joined as any).hasMappings = true;
 			return {
 				next() {
 					if (!joinedIterator) {
@@ -462,7 +462,7 @@ function joinTo(rightIterable, attribute, store, isManyToMany, joined: Map<any, 
 							const record = entry.value ?? store.getSync(entry.key ?? entry);
 							const leftKey = record?.[rightProperty];
 							if (leftKey == null) continue;
-							if (joined.filters?.some((filter) => !filter(record))) continue;
+							if ((joined as any).filters?.some((filter) => !filter(record))) continue;
 							if (isManyToMany) {
 								for (let i = 0; i < leftKey.length; i++) {
 									addEntry(leftKey[i], entry);
@@ -530,17 +530,17 @@ function joinFrom(rightIterable, attribute, store, joined: Map<any, any[]>, sear
 						const ids = new Set();
 						// Define the fromRecord function so that we can use it to filter the related records
 						// that are in the select(), to only those that are in this set of ids
-						joined.fromRecord = (record) => {
+						(joined as any).fromRecord = (record) => {
 							// TODO: Sort based on order ids
 							return record[attribute.relationship.from]?.filter?.((id) => ids.has(id));
 						};
 						//let i = 0;
 						// get all the ids of the related records
 						for (const id of rightIterable) {
-							if (joined.filters) {
+							if ((joined as any).filters) {
 								// if additional filters are defined, we need to check them
 								const record = store.getSync(id);
-								if (joined.filters.some((filter) => !filter(record))) continue;
+								if ((joined as any).filters.some((filter) => !filter(record))) continue;
 							}
 							ids.add(id);
 							// TODO: Re-enable this when async iteration is used, and do so with manually iterating so that we don't need to do an await on every iteration
@@ -685,7 +685,7 @@ export function filterByType(searchCondition, Table, context, filtered, isPrimar
 								subIdFilter = attributeComparator(resolver.from ?? Table.primaryKey, nextFilter.idFilter, false, true);
 						}
 						const matches = subIdFilter(record);
-						if (subIdFilter.idFilter) recordFilter.idFilter = subIdFilter.idFilter;
+						if ((subIdFilter as any).idFilter) (recordFilter as any).idFilter = (subIdFilter as any).idFilter;
 						return matches;
 					}
 				}
@@ -698,7 +698,7 @@ export function filterByType(searchCondition, Table, context, filtered, isPrimar
 					filtered[firstAttributeName] = {
 						fromRecord(record) {
 							// this is called when selecting the fields to include in results
-							const value = getSubObject(record).subObject;
+							const value = getSubObject(record, undefined).subObject;
 							if (Array.isArray(value)) return value.filter(nextFilter).map((value) => value[relatedTable.primaryKey]);
 							return value;
 						},
@@ -806,17 +806,17 @@ export function filterByType(searchCondition, Table, context, filtered, isPrimar
 					// if we have missed too many times, we need to switch to indexed retrieval
 					const searchResults = searchByIndex(searchCondition, Table._readTxnForContext(context), false, Table);
 					let matchingIds: Iterable<Id>;
-					if (recordFilter.to) {
+					if ((recordFilter as any).to) {
 						// the values could be an array of keys, so we flatten the mapping
-						matchingIds = searchResults.flatMap((id) => Table.primaryStore.getSync(id)[recordFilter.to]);
+						matchingIds = (searchResults as any).flatMap((id) => Table.primaryStore.getSync(id)[(recordFilter as any).to]);
 					} else {
-						matchingIds = searchResults.map(flattenKey);
+						matchingIds = (searchResults as any).map(flattenKey);
 					}
 					// now generate a hash set that we can efficiently check primary keys against
 					// TODO: Do this asynchronously
 					const idSet = new Set(matchingIds);
 					recordFilter.idFilter = (id) => idSet.has(flattenKey(id));
-					recordFilter.idFilter.idSet = idSet;
+					(recordFilter.idFilter as any).idSet = idSet;
 				}
 			}
 			return matches;
@@ -938,15 +938,15 @@ export function parseQuery(queryToParse: string, query: RequestTarget) {
 			currentQuery = query ?? new Query();
 			parseBlock(currentQuery, '');
 			if (lastIndex !== queryString.length) recordError(`Unable to parse query, unexpected end of query`);
-			if (currentQuery.parseErrorMessage) {
-				currentQuery.parseError = new SyntaxViolation(query.parseErrorMessage);
-				if (!query) throw currentQuery.parseError;
+			if ((currentQuery as any).parseErrorMessage) {
+				(currentQuery as any).parseError = new SyntaxViolation((query as any).parseErrorMessage);
+				if (!query) throw (currentQuery as any).parseError;
 			}
 			return currentQuery;
 		} catch (error) {
 			error.statusCode = 400;
 			error.message = `Unable to parse query, ${error.message} at position ${lastIndex} in '${queryString}'`;
-			if (currentQuery.parseErrorMessage) error.message += ', ' + currentQuery.parseErrorMessage;
+			if ((currentQuery as any).parseErrorMessage) error.message += ', ' + (currentQuery as any).parseErrorMessage;
 			if (query) {
 				query.parseError = error;
 			} else {
@@ -967,7 +967,7 @@ function parseBlock(query, expectedEnd) {
 	let parser = QUERY_PARSER;
 	let match;
 	let attribute, comparator, expectingDelimiter, expectingValue;
-	let valueDecoder = decodeURIComponent;
+	let valueDecoder: any = decodeURIComponent;
 	let lastBinaryOperator;
 	while ((match = parser.exec(queryString))) {
 		lastIndex = parser.lastIndex;
@@ -1086,7 +1086,7 @@ function parseBlock(query, expectedEnd) {
 						}
 						break;
 					case 'select':
-						if (Array.isArray(args[0]) && args.length === 1 && !args[0].name) {
+						if (Array.isArray(args[0]) && args.length === 1 && !(args[0] as any).name) {
 							query.select = args[0];
 							query.select.asArray = true;
 						} else if (args.length === 1) query.select = args[0];

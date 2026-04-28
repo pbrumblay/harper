@@ -82,7 +82,7 @@ export function loadComponentDirectories(loadedPluginModules?: Map<any, any>, lo
 	});
 }
 
-export const TRUSTED_RESOURCE_PLUGINS = {
+export const TRUSTED_RESOURCE_PLUGINS: any = {
 	REST, // for backwards compatibility with older configs
 	rest: REST,
 	graphql: graphqlQueryHandler,

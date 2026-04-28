@@ -213,7 +213,7 @@ function onSocket(socket, send, request, user, mqttSettings) {
 		}
 		const command = packet.cmd;
 		if (session) {
-			if (session.then) await session;
+			if ((session as any).then) await session;
 		} else if (command !== 'connect') {
 			mqttLog.info?.('Received packet before connection was established, closing connection');
 			if (socket?.destroy) socket.destroy();
@@ -279,14 +279,14 @@ function onSocket(socket, send, request, user, mqttSettings) {
 						// TODO: Handle the will & testament, and possibly use the will's content type as a hint for expected content
 						if (packet.will) {
 							const deserialize =
-								socket.deserialize || (socket.deserialize = getDeserializer(request?.headers.get?.('content-type')));
-							packet.will.data = packet.will.payload?.length > 0 ? deserialize(packet.will.payload) : undefined;
+								socket.deserialize || (socket.deserialize = getDeserializer(request?.headers.get?.('content-type') as string, false));
+							(packet.will as any).data = packet.will.payload?.length > 0 ? deserialize(packet.will.payload) : undefined;
 							delete packet.will.payload;
 						}
 						session = getSession({
 							user,
 							...packet,
-						});
+						} as any) as any;
 						session = await session;
 						// the session is used in the context, and we want to make sure we can access this
 						session.socket = socket;
@@ -343,7 +343,7 @@ function onSocket(socket, send, request, user, mqttSettings) {
 							return false;
 						}
 					};
-					session.setListener(listener);
+					session.setListener(listener as any);
 					if (session.sessionWasPresent) await session.resume();
 					break;
 				case 'subscribe':
@@ -407,7 +407,7 @@ function onSocket(socket, send, request, user, mqttSettings) {
 					const responseCmd = packet.qos === 2 ? 'pubrec' : 'puback';
 					// deserialize
 					const deserialize =
-						socket.deserialize || (socket.deserialize = getDeserializer(request?.headers.get?.('content-type')));
+						socket.deserialize || (socket.deserialize = getDeserializer(request?.headers.get?.('content-type') as string, false));
 					const messageLength = packet.payload?.length || 0;
 					const data = messageLength > 0 ? deserialize(packet.payload) : undefined; // zero payload length maps to a delete
 					let published;

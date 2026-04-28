@@ -28,7 +28,7 @@ type StatusWriteRequestBody<T extends StatusId = StatusId> = {
 // Lazy-initialize the Status table to avoid initialization issues during module import
 let _statusTable: ReturnType<typeof table>;
 
-function getStatusTable() {
+function getStatusTable(): any {
 	if (!_statusTable) {
 		_statusTable = table({
 			database: 'system',

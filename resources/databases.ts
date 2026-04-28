@@ -80,9 +80,9 @@ interface LMDBRootDatabase extends RootDatabase {
 	needsDeletion?: boolean;
 	path?: string;
 	status?: 'open' | 'closed';
-	store?: any;
+	store: any;
 	retryRisk?: number;
-	flushed?: Promise<void>;
+	flushed: Promise<boolean>;
 	rootStore?: LMDBRootDatabase;
 }
 
@@ -99,9 +99,9 @@ interface RocksRootDatabase extends RocksDatabaseEx {
 	auditStore?: RocksDatabaseEx;
 	databaseName?: string;
 	dbisDb?: RocksDatabaseEx;
-	store?: any;
+	store: any;
 	retryRisk?: number;
-	flushed?: Promise<void>;
+	flushed: Promise<boolean>;
 	rootStore?: RocksRootDatabase;
 }
 
@@ -128,21 +128,21 @@ function openRocksDatabase(path: string, options: RocksDatabaseOptions & { dupSo
 	}
 	let db: RocksRootDatabase;
 	if (options.dupSort) {
-		db = new RocksIndexStore(path, options).open() as RocksDatabaseEx;
+		db = new RocksIndexStore(path, options).open() as any;
 	} else {
-		db = RocksDatabase.open(path, options) as RocksDatabaseEx;
+		db = RocksDatabase.open(path, options) as any;
 		// the RocksDB put and remove return promises, which masks thrown errors in non-awaiting calls to put/remove,
 		// making them unsafe to replace LMDB methods, which will synchronously throw errors if there is a problem
-		db.put = db.putSync;
-		db.remove = db.removeSync;
-		db.encoder.name = options.name;
+		db.put = db.putSync as any;
+		db.remove = db.removeSync as any;
+		(db.encoder as any).name = options.name;
 	}
 	db.env = {};
 	return db;
 }
 
 const lmdbDatabaseEnvs = new Map<string, LMDBRootDatabase>();
-const rocksdbDatabaseEnvs = new Map<string, RocksDatabaseEx>();
+const rocksdbDatabaseEnvs = new Map<string, RocksRootDatabase>();
 
 // set the following in both global and exports
 _assignPackageExport('databases', databases);
@@ -350,7 +350,7 @@ export function readMetaDb(
 		if (rootStore) {
 			rootStore.needsDeletion = false;
 		} else {
-			rootStore = open(envInit);
+			rootStore = open(envInit) as any;
 			lmdbDatabaseEnvs.set(path, rootStore);
 		}
 
@@ -372,11 +372,11 @@ function readRocksMetaDb(path: string, defaultTable?: string, databaseName: stri
 			}
 		}
 
-		let rootStore: RocksDatabaseEx | undefined = rocksdbDatabaseEnvs.get(path);
+		let rootStore: RocksRootDatabase | undefined = rocksdbDatabaseEnvs.get(path);
 		if (rootStore) {
 			initStores(path, rootStore, databaseName, defaultTable);
 		} else {
-			rootStore = openRocksDatabase(path, { disableWAL: false }) as RocksDatabaseEx;
+			rootStore = openRocksDatabase(path, { disableWAL: false }) as RocksRootDatabase;
 			rocksdbDatabaseEnvs.set(path, rootStore);
 			initStores(path, rootStore, databaseName, defaultTable);
 			replayLogs(rootStore, databases[databaseName]);
@@ -405,9 +405,9 @@ function initStores(
 				...internalDbiInit,
 				disableWAL: false,
 				name: INTERNAL_DBIS_NAME,
-			}) as RocksDatabaseEx;
+			} as any) as RocksDatabaseEx;
 		} else {
-			attributesDbi = rootStore.openDB(INTERNAL_DBIS_NAME, internalDbiInit);
+			attributesDbi = rootStore.openDB(INTERNAL_DBIS_NAME, internalDbiInit as any);
 		}
 		rootStore.dbisDb = attributesDbi;
 	}
@@ -426,7 +426,7 @@ function initStores(
 							encode: (auditRecord: AuditRecord) => createAuditEntry(auditRecord),
 							decode: (encoding: Buffer) => readAuditEntry(encoding),
 						},
-					});
+					}) as any;
 				}
 				auditStore.isLegacy = true;
 			}
@@ -437,7 +437,7 @@ function initStores(
 
 	const tables = ensureDB(databaseName);
 	const definedTables = tables[DEFINED_TABLES];
-	definedTables.rootStore = rootStore;
+	(definedTables as any).rootStore = rootStore;
 	const tablesToLoad = new Map<string, any>();
 
 	for (const result of attributesDbi.getRange({ start: false })) {
@@ -501,16 +501,16 @@ function initStores(
 		} else {
 			tableId = primaryAttribute.tableId;
 			if (tableId) {
-				if (tableId >= (attributesDbi.getSync(NEXT_TABLE_ID) || 0)) {
-					attributesDbi.putSync(NEXT_TABLE_ID, tableId + 1);
+				if (tableId >= ((attributesDbi as any).getSync(NEXT_TABLE_ID) || 0)) {
+					(attributesDbi as any).putSync(NEXT_TABLE_ID, tableId + 1);
 					logger.info(`Updating next table id (it was out of sync) to ${tableId + 1} for ${tableName}`);
 				}
 			} else {
-				primaryAttribute.tableId = tableId = attributesDbi.getSync(NEXT_TABLE_ID);
+				primaryAttribute.tableId = tableId = (attributesDbi as any).getSync(NEXT_TABLE_ID);
 				if (!tableId) tableId = 1;
 				logger.debug(`Table {tableName} missing an id, assigning {tableId}`);
-				attributesDbi.putSync(NEXT_TABLE_ID, tableId + 1);
-				attributesDbi.putSync(primaryAttribute.key, primaryAttribute);
+				(attributesDbi as any).putSync(NEXT_TABLE_ID, tableId + 1);
+				(attributesDbi as any).putSync(primaryAttribute.key, primaryAttribute);
 			}
 			const dbiInit = createOpenDBIObject(!primaryAttribute.isPrimaryKey, primaryAttribute.isPrimaryKey);
 			dbiInit.compression = primaryAttribute.compression;
@@ -521,11 +521,11 @@ function initStores(
 			}
 			if (rootStore instanceof RocksDatabase) {
 				primaryStore = handleLocalTimeForGets(
-					openRocksDatabase(rootStore.path, { ...dbiInit, name: primaryAttribute.key }),
+					openRocksDatabase(rootStore.path, { ...dbiInit, name: primaryAttribute.key } as any),
 					rootStore
 				);
 			} else {
-				primaryStore = handleLocalTimeForGets(rootStore.openDB(primaryAttribute.key, dbiInit), rootStore);
+				primaryStore = handleLocalTimeForGets((rootStore as any).openDB(primaryAttribute.key, dbiInit as any), rootStore);
 			}
 			rootStore.databaseName = databaseName;
 			primaryStore.tableId = tableId;
@@ -703,8 +703,8 @@ export function database({ database: databaseName, table: tableName }) {
 	getDatabases();
 	ensureDB(databaseName);
 	const definedDatabase = definedDatabases.get(databaseName);
-	if (definedDatabase?.rootStore) {
-		return definedDatabase.rootStore;
+	if ((definedDatabase as any)?.rootStore) {
+		return (definedDatabase as any).rootStore;
 	}
 	const databaseConfig = envGet(CONFIG_PARAMS.DATABASES) || {};
 	if (process.env.SCHEMAS_DATA_PATH) {
@@ -731,8 +731,8 @@ export function database({ database: databaseName, table: tableName }) {
 		if (!rootStore || rootStore.status === 'closed') {
 			rootStore = openRocksDatabase(path, {
 				disableWAL: false,
-			});
-			rocksdbDatabaseEnvs.set(path, rootStore);
+			}) as any;
+			rocksdbDatabaseEnvs.set(path, rootStore as any);
 		}
 	} else {
 		const path = join(databasePath, `${tablePath ? tableName : databaseName}.mdb`);
@@ -740,14 +740,14 @@ export function database({ database: databaseName, table: tableName }) {
 		if (!rootStore || rootStore.status === 'closed') {
 			// TODO: validate database name
 			const envInit = new OpenEnvironmentObject(path, false);
-			rootStore = open(envInit);
-			lmdbDatabaseEnvs.set(path, rootStore);
+			rootStore = open(envInit) as any;
+			lmdbDatabaseEnvs.set(path, rootStore as any);
 		}
 	}
 	if (!rootStore.auditStore) {
-		rootStore.auditStore = openAuditStore(rootStore);
+		rootStore.auditStore = openAuditStore(rootStore as any);
 	}
-	if (definedDatabase) definedDatabase.rootStore = rootStore;
+	if (definedDatabase) (definedDatabase as any).rootStore = rootStore;
 	return rootStore;
 }
 /**
@@ -817,10 +817,10 @@ function openIndex(dbiKey: string, rootStore: RootDatabaseKind, attribute: any) 
 				rootStore?: RocksRootDatabase;
 		  });
 	if (rootStore instanceof RocksDatabase) {
-		dbi = openRocksDatabase(rootStore.path, { ...dbiInit, name: dbiKey });
-		dbi.rootStore = rootStore;
+		dbi = openRocksDatabase(rootStore.path, { ...dbiInit, name: dbiKey } as any) as any;
+		(dbi as any).rootStore = rootStore;
 	} else {
-		dbi = rootStore.openDB(dbiKey, dbiInit);
+		dbi = (rootStore as any).openDB(dbiKey, dbiInit as any);
 	}
 	if (attribute.indexed.type) {
 		const CustomIndex = CUSTOM_INDEXES[attribute.indexed.type];
@@ -921,17 +921,17 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 		const dbiName = tableName + '/';
 
 		if (rootStore instanceof RocksDatabase) {
-			attributesDbi = rootStore.dbisDb = openRocksDatabase(rootStore.path, {
+			attributesDbi = (rootStore as any).dbisDb = openRocksDatabase(rootStore.path, {
 				...internalDbiInit,
 				disableWAL: false,
 				name: INTERNAL_DBIS_NAME,
-			});
+			} as any);
 		} else {
-			attributesDbi = rootStore.dbisDb = rootStore.openDB(INTERNAL_DBIS_NAME, internalDbiInit);
+			attributesDbi = (rootStore as any).dbisDb = (rootStore as any).openDB(INTERNAL_DBIS_NAME, internalDbiInit as any);
 		}
 
 		exclusiveLock(); // get an exclusive lock on the database so we can verify that we are the only thread creating the table (and assigning the table id)
-		if (attributesDbi.getSync(dbiName)) {
+		if ((attributesDbi as any).getSync(dbiName)) {
 			// table was created while we were setting up
 			if (releaseExclusiveLock) releaseExclusiveLock();
 			resetDatabases();
@@ -940,9 +940,9 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 
 		let primaryStore;
 		if (rootStore instanceof RocksDatabase) {
-			primaryStore = openRocksDatabase(rootStore.path, { ...dbiInit, name: dbiName });
+			primaryStore = openRocksDatabase(rootStore.path, { ...dbiInit, name: dbiName } as any);
 		} else {
-			primaryStore = rootStore.openDB(dbiName, dbiInit);
+			primaryStore = (rootStore as any).openDB(dbiName, dbiInit as any);
 		}
 		primaryStore = handleLocalTimeForGets(primaryStore, rootStore);
 		rootStore.databaseName = databaseName;
@@ -984,15 +984,15 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 	const indices = Table.indices;
 	if (!attributesDbi) {
 		if (rootStore instanceof RocksDatabase) {
-			rootStore.dbisDb = openRocksDatabase(rootStore.path, {
+			(rootStore as any).dbisDb = openRocksDatabase(rootStore.path, {
 				...internalDbiInit,
 				disableWAL: false,
 				name: INTERNAL_DBIS_NAME,
-			});
+			} as any);
 		} else {
-			rootStore.dbisDb = rootStore.openDB(INTERNAL_DBIS_NAME, internalDbiInit);
+			(rootStore as any).dbisDb = (rootStore as any).openDB(INTERNAL_DBIS_NAME, internalDbiInit as any);
 		}
-		attributesDbi = rootStore.dbisDb;
+		attributesDbi = (rootStore as any).dbisDb;
 	}
 	Table.dbisDB = attributesDbi;
 	const indicesToRemove = [];
@@ -1042,7 +1042,7 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 				) {
 					const updatedPrimaryAttribute = { ...attributeDescriptor };
 					if (typeof audit === 'boolean') {
-						if (audit) Table.enableAuditing(audit);
+						if (audit) Table.enableAuditing();
 						updatedPrimaryAttribute.audit = audit;
 					}
 					if (expiration) updatedPrimaryAttribute.expiration = +expiration;

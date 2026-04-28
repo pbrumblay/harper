@@ -186,7 +186,7 @@ async function buildServer(isHttps) {
 	});
 
 	app.register(requestTimePlugin);
-	await app.register(hdbCore);
+	await app.register(hdbCore as any);
 	await app.after();
 	registerContentHandlers(app);
 
