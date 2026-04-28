@@ -216,7 +216,6 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 
 	static post = transactional(
 		function (resource: any, query: RequestTarget, _request: Context, data: any) {
-			console.log('DEBUG static post', { resourcePost: !!resource.post, loadAsInstance: resource.constructor.loadAsInstance });
 			if (resource.#id != null) resource.update?.(); // save any changes made during post
 			return resource.constructor.loadAsInstance === false ? resource.post(query, data) : resource.post(data, query);
 		},
