@@ -47,7 +47,7 @@ async function http(request: Request, nextHandler) {
 		if ((resource as any)?.isCaching) {
 			const cacheControl = headersObject['cache-control'];
 			if (cacheControl) {
-				const cacheControlParts = parseHeaderValue(cacheControl);
+				const cacheControlParts = parseHeaderValue(cacheControl as any);
 				for (const part of cacheControlParts) {
 					switch (part.name) {
 						case 'max-age':
@@ -74,7 +74,7 @@ async function http(request: Request, nextHandler) {
 		}
 		const replicateTo = headersObject['x-replicate-to'];
 		if (replicateTo) {
-			const parsed = parseHeaderValue(replicateTo).map((node: any) => {
+			const parsed = parseHeaderValue(replicateTo as any).map((node: any) => {
 				// we can use a component argument to indicate that number that should be confirmed
 				// for example, to replicate to three nodes and wait for confirmation from two: X-Replicate-To: 3;confirm=2
 				// or to specify nodes with confirm: X-Replicate-To: node-1, node-2, node-3;confirm=2
@@ -156,7 +156,7 @@ async function http(request: Request, nextHandler) {
 		if (responseData == undefined) {
 			status ??= method === 'GET' || method === 'HEAD' ? 404 : 204;
 			// deleted entries can have a timestamp of when they were deleted
-			if (httpOptions.lastModified && isFinite(lastModification))
+			if ((httpOptions as any).lastModified && isFinite(lastModification))
 				headers.setIfNone('Last-Modified', new Date(lastModification).toUTCString());
 		} else if (responseData.headers) {
 			// if response is a Response object, use it as the response
@@ -213,7 +213,7 @@ async function http(request: Request, nextHandler) {
 			} else {
 				headers.setIfNone('ETag', etag);
 			}
-			if (httpOptions.lastModified) headers.setIfNone('Last-Modified', new Date(lastModification).toUTCString());
+			if ((httpOptions as any).lastModified) headers.setIfNone('Last-Modified', new Date(lastModification).toUTCString());
 		}
 		if (request.createdResource) status = 201;
 		if (request.newLocation) headers.setIfNone('Location', request.newLocation);
@@ -423,3 +423,4 @@ export function parseHeaderValue(value: string) {
 			return parsed;
 		});
 }
+

@@ -42,6 +42,20 @@ export class Request {
 		status?: number;
 		headers: ResponseHeaders;
 	};
+	public responseHeaders?: any;
+	public expiresAt?: number;
+	public onlyIfCached?: boolean;
+	public noCache?: boolean;
+	public noCacheStore?: boolean;
+	public staleIfError?: boolean;
+	public mustRevalidate?: boolean;
+	public replicatedConfirmation?: number;
+	public replicateTo?: any;
+	public replicateFrom?: any;
+	public data?: any;
+	public authorize?: boolean;
+	public lastModified?: number;
+	public lastRefreshed?: number;
 
 	constructor(nodeRequest: IncomingMessage, nodeResponse: NodeServerResponse) {
 		this.method = nodeRequest.method;
@@ -129,7 +143,7 @@ class RequestBody {
 }
 
 class Headers {
-	private asObject: Record<string, string | string[]>;
+	public asObject: Record<string, string | string[]>;
 
 	constructor(asObject: Record<string, string | string[]>) {
 		this.asObject = asObject;
