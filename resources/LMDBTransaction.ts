@@ -110,7 +110,8 @@ export class LMDBTransaction extends DatabaseTransaction {
 	/**
 	 * Resolves with information on the timestamp and success of the commit
 	 */
-	commit(options?: CommitOptions): any {
+	commit(options: CommitOptions = {}): any {
+		options = options || {};
 		let txnTime = this.timestamp;
 		if (!txnTime) txnTime = this.timestamp = options.timestamp || getNextMonotonicTime();
 		if (!options.timestamp) options.timestamp = txnTime;
