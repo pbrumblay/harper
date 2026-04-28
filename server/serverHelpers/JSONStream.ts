@@ -14,10 +14,10 @@ export function streamAsJSON(value) {
 }
 // a readable stream for serializing a set of variables to a JSON stream
 class JSONStream extends Readable {
-	buffer: any[];
+	buffer: (string | Buffer)[];
 	bufferSize: number;
-	iterator: any;
-	activeIterators: any[];
+	iterator: Iterator<string | Buffer> | AsyncIterator<string | Buffer>;
+	activeIterators: (Iterator<any> | AsyncIterator<any>)[];
 	_amReading?: boolean;
 	done?: boolean;
 
@@ -30,7 +30,7 @@ class JSONStream extends Readable {
 		this.activeIterators = [];
 	}
 
-	*serialize(object: any, topLevel?: boolean): any {
+	*serialize(object: any, topLevel?: boolean): Generator<string | Buffer, string | Buffer | void, unknown> {
 		// using a generator to serialize JSON for convenience of recursive pause and resume functionality
 		// serialize a value to an iterator that can be consumed by streaming API
 		if (object && typeof object === 'object') {

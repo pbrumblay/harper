@@ -163,8 +163,8 @@ export class DatabaseTransaction implements Transaction {
 		transaction ??= this.transaction;
 		let immediateCommit = false;
 		if (!transaction) {
-			transaction = new RocksTransaction((operation.store as any).store as RocksStore);
-			if ((operation.store as any).rootStore !== (this.db as any).rootStore) {
+			transaction = new RocksTransaction(operation.store.store as RocksStore);
+			if (operation.store.rootStore !== this.db.rootStore) {
 				harperLogger.warn?.('Created new transaction in save, but the store does match existing store', transaction.id);
 			}
 			if (this.open === TRANSACTION_STATE.OPEN) {

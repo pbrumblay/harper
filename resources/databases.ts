@@ -80,6 +80,10 @@ interface LMDBRootDatabase extends RootDatabase {
 	needsDeletion?: boolean;
 	path?: string;
 	status?: 'open' | 'closed';
+	store?: any;
+	retryRisk?: number;
+	flushed?: Promise<void>;
+	rootStore?: LMDBRootDatabase;
 }
 
 interface RocksDatabaseEx extends RocksDatabase {
@@ -95,6 +99,10 @@ interface RocksRootDatabase extends RocksDatabaseEx {
 	auditStore?: RocksDatabaseEx;
 	databaseName?: string;
 	dbisDb?: RocksDatabaseEx;
+	store?: any;
+	retryRisk?: number;
+	flushed?: Promise<void>;
+	rootStore?: RocksRootDatabase;
 }
 
 export type RootDatabaseKind = LMDBRootDatabase | RocksRootDatabase;

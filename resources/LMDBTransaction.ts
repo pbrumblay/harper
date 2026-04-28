@@ -189,7 +189,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 						write.entry = write.store.getEntry(write.key);
 					}
 
-					const conditionResolution = (write.store as any).ifVersion(write.key, write.entry?.version ?? null, nextCondition);
+					const conditionResolution = write.store.ifVersion(write.key, write.entry?.version ?? null, nextCondition);
 					resolution = resolution || conditionResolution;
 				} else {
 					nextCondition();
@@ -207,8 +207,8 @@ export class LMDBTransaction extends DatabaseTransaction {
 			// we also maintain a retry risk for the transaction, which is a measure of how likely it is that the transaction
 			// will fail and retry due to contention. This is used to determine when to give up on optimistic writes and
 			// use a real (async) transaction to get exclusive access to the data
-			if ((db as any)?.retryRisk) (db as any).retryRisk *= 0.99; // gradually decay the retry risk
-			if (this.writes.length + ((db as any)?.retryRisk || 0) < MAX_OPTIMISTIC_SIZE >> retries) nextCondition();			else {
+			if (db?.retryRisk) db.retryRisk *= 0.99; // gradually decay the retry risk
+			if (this.writes.length + (db?.retryRisk || 0) < MAX_OPTIMISTIC_SIZE >> retries) nextCondition();			else {
 				// if it is too big to expect optimistic writes to work, or we have done too many retries we use
 				// a real LMDB transaction to get exclusive access to reading and writing
 				resolution = this.writes[0].store.transaction(() => {
@@ -236,12 +236,12 @@ export class LMDBTransaction extends DatabaseTransaction {
 						completions.push(this.next.commit(options));
 					}
 					if (options?.flush) {
-						completions.push((this.writes[0].store as any).flushed);
+						completions.push(this.writes[0].store.flushed);
 						}
 						if (this.replicatedConfirmation) {
 						// if we want to wait for replication confirmation, we need to track the transaction times
 						// and when replication notifications come in, we count the number of confirms until we reach the desired number
-						const databaseName = (this.writes[0].store as any).rootStore.databaseName;						const lastWrite = this.writes[this.writes.length - 1];
+						const databaseName = this.writes[0].store.rootStore.databaseName;						const lastWrite = this.writes[this.writes.length - 1];
 						if (confirmReplication && lastWrite)
 							completions.push(
 								confirmReplication(
@@ -264,7 +264,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 					// if the transaction failed, we need to retry. First record this as an increased risk of contention/retry
 					// for future transactions
 					if (db) {
-						(db as any).retryRisk = ((db as any).retryRisk || 0) + MAX_OPTIMISTIC_SIZE / 2;
+						db.retryRisk = (db.retryRisk || 0) + MAX_OPTIMISTIC_SIZE / 2;
 					}
 					if (options) options.retries = retries + 1;
 					else options = { retries: 1 };

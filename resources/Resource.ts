@@ -216,6 +216,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 
 	static post = transactional(
 		function (resource: any, query: RequestTarget, _request: Context, data: any) {
+			console.log('DEBUG static post', { resourcePost: !!resource.post, loadAsInstance: resource.constructor.loadAsInstance });
 			if (resource.#id != null) resource.update?.(); // save any changes made during post
 			return resource.constructor.loadAsInstance === false ? resource.post(query, data) : resource.post(data, query);
 		},
@@ -311,7 +312,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	): Promise<Record & Partial<RecordObject>> {
 		if ((this.constructor as any).loadAsInstance === false) {
 			if ((target as any).isCollection && this.create) {
-				newRecord = await this.create(newRecord, (target as any)) as any;
+				newRecord = await this.create((target as any), newRecord) as any;
 				return newRecord?.[(this.constructor as any).primaryKey as keyof typeof newRecord] as any;
 			}
 		} else {
@@ -457,8 +458,8 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	search?(target: RequestTargetOrId): AsyncIterable<Record & Partial<RecordObject>>;
 
 	create?(
-		newRecord: Partial<Record & RecordObject>,
-		target: RequestTargetOrId
+		target: RequestTargetOrId,
+		newRecord: Partial<Record & RecordObject>
 	): Promise<Record & Partial<RecordObject>>;
 	put?(
 		record: Record & RecordObject,

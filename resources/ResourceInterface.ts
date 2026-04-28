@@ -19,8 +19,8 @@ export interface ResourceInterface<Record extends object = any>
 
 	allowCreate(user: User, record: Promise<Record & RecordObject>, context: Context): boolean | Promise<boolean>;
 	create?(
-		newRecord: Partial<Record & RecordObject>,
-		target: RequestTargetOrId
+		target: RequestTargetOrId,
+		newRecord: Partial<Record & RecordObject>
 	): void | (Record & Partial<RecordObject>) | Promise<Record & Partial<RecordObject>>;
 	post?(
 		target: RequestTargetOrId,
