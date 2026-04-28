@@ -471,7 +471,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 
 	delete?(target: RequestTargetOrId): boolean | Promise<boolean>;
 	invalidate(target: RequestTargetOrId): void | Promise<void> {
-		throw new Error('Not implemented');
+		missingMethod(this, 'invalidate');
 	}
 
 	publish?(target: RequestTargetOrId, record: Record, options?: any): void;
