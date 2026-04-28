@@ -43,6 +43,8 @@ export type CommitOptions = {
 type ReadTransaction = (LMDBTransaction | RocksTransaction) & {
 	openTimer?: number;
 	retryRisk?: number;
+	isDone?: boolean;
+	isCommitted?: boolean;
 };
 
 export type TransactionWrite = {

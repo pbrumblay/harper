@@ -5,79 +5,98 @@
  */
 
 class BridgeMethods {
-	createSchema() {
+	/** @param {...any} args */
+	createSchema(...args) {
 		throw new Error('createSchema bridge method is not defined');
 	}
 
-	dropSchema() {
+	/** @param {...any} args */
+	dropSchema(...args) {
 		throw new Error('dropSchema bridge method is not defined');
 	}
 
-	createTable() {
+	/** @param {...any} args */
+	createTable(...args) {
 		throw new Error('createTable bridge method is not defined');
 	}
 
-	dropTable() {
+	/** @param {...any} args */
+	dropTable(...args) {
 		throw new Error('dropTable bridge method is not defined');
 	}
 
-	createRecords() {
+	/** @param {...any} args */
+	createRecords(...args) {
 		throw new Error('createRecords bridge method is not defined');
 	}
 
-	updateRecords() {
+	/** @param {...any} args */
+	updateRecords(...args) {
 		throw new Error('updateRecords bridge method is not defined');
 	}
 
-	async upsertRecords() {
+	/** @param {...any} args */
+	async upsertRecords(...args) {
 		throw new Error('upsertRecords bridge method is not defined');
 	}
 
-	deleteRecords() {
+	/** @param {...any} args */
+	deleteRecords(...args) {
 		throw new Error('deleteRecords bridge method is not defined');
 	}
 
-	createAttribute() {
+	/** @param {...any} args */
+	createAttribute(...args) {
 		throw new Error('createAttribute bridge method is not defined');
 	}
 
-	dropAttribute() {
+	/** @param {...any} args */
+	dropAttribute(...args) {
 		throw new Error('dropAttribute bridge method is not defined');
 	}
 
-	searchByConditions() {
+	/** @param {...any} args */
+	searchByConditions(...args) {
 		throw new Error('searchByConditions bridge method is not defined');
 	}
 
-	searchByHash() {
+	/** @param {...any} args */
+	searchByHash(...args) {
 		throw new Error('searchByHash bridge method is not defined');
 	}
 
-	searchByValue() {
+	/** @param {...any} args */
+	searchByValue(...args) {
 		throw new Error('searchByValue bridge method is not defined');
 	}
 
-	getDataByHash() {
+	/** @param {...any} args */
+	getDataByHash(...args) {
 		throw new Error('getDataByHash bridge method is not defined');
 	}
 
-	async getDataByValue(_searchObject, _comparator) {
+	/** @param {...any} args */
+	async getDataByValue(...args) {
 		throw new Error('getDataByValue bridge method is not defined');
 	}
 
-	async deleteRecordsBefore(_deleteObj) {
+	/** @param {...any} args */
+	async deleteRecordsBefore(...args) {
 		throw new Error('deleteRecordsBefore bridge method is not defined');
 	}
 
-	async deleteAuditLogsBefore(_deleteObj) {
+	/** @param {...any} args */
+	async deleteAuditLogsBefore(...args) {
 		throw new Error('deleteAuditLogsBefore bridge method is not defined');
 	}
 
-	async deleteTransactionLogsBefore(_deleteObj) {
+	/** @param {...any} args */
+	async deleteTransactionLogsBefore(...args) {
 		throw new Error('deleteTransactionLogsBefore bridge method is not defined');
 	}
 
-	async readAuditLog(_readAuditLogObj) {
+	/** @param {...any} args */
+	async readAuditLog(...args) {
 		throw new Error('readAuditLog bridge method is not defined');
 	}
 }

@@ -161,7 +161,7 @@ export async function copyDb(sourceDatabase: string, targetDatabasePath: string)
 	const sourceDbisDb = rootStore.dbisDb;
 	const sourceAuditStore = rootStore.auditStore;
 	const targetEnv = open(new OpenEnvironmentObject(targetDatabasePath));
-	const targetDbisDb = targetEnv.openDB(INTERNAL_DBIS_NAME);
+	const targetDbisDb = targetEnv.openDB({ name: INTERNAL_DBIS_NAME });
 	let written;
 	let outstandingWrites = 0;
 	// we use a single transaction to get a snapshot, also we can't use snapshot: false on dupsort dbs

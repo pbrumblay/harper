@@ -6,7 +6,7 @@ import { ServerError } from '../utility/errors/hdbError.js';
 import { server } from '../server/Server.ts';
 
 interface ResourceEntry {
-	Resource: typeof Resource;
+	Resource: any;
 	path: string;
 	exportTypes: any;
 	hasSubPaths: boolean;
@@ -18,11 +18,12 @@ interface ResourceEntry {
  */
 export class Resources extends Map<string, ResourceEntry> {
 	isWorker = true;
-	loginPath?: (request) => string;
+	loginPath?: (request: any) => string;
 
 	allTypes: Map<any, any> = new Map();
 
-	set(path, resource, exportTypes?: { [key: string]: boolean }, force?: boolean): void {
+	// @ts-expect-error override with different signature
+	set(path: string, resource: any, exportTypes?: { [key: string]: boolean }, force?: boolean): void {
 		if (!resource) throw new Error('Must provide a resource');
 		if (path.startsWith('/')) path = path.replace(/^\/+/, '');
 		const entry = {

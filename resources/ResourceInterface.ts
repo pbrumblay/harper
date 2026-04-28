@@ -101,6 +101,7 @@ export interface Context {
 	resourceCache?: Map<Id, any>;
 	_freezeRecords?: boolean; // until v5, we conditionally freeze records for back-compat
 	timestamp?: number;
+	includeExpensiveRecordCountEstimates?: boolean;
 }
 
 export interface SourceContext<TRequestContext = Context, Record extends object = any> {

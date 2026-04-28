@@ -153,9 +153,11 @@ export function makeTable(options) {
 	const updateRecord = recordUpdater(primaryStore, tableId, auditStore);
 	let sourceLoad: any; // if a source has a load function (replicator), record it here
 	let hasSourceGet: any;
-	let primaryKeyAttribute: Attribute = {};
+	let primaryKeyAttribute: Attribute | undefined;
 	let lastEvictionCompletion: Promise<void> = Promise.resolve();
-	let createdTimeProperty: Attribute, updatedTimeProperty: Attribute, expiresAtProperty: Attribute;
+	let createdTimeProperty: Attribute | undefined,
+		updatedTimeProperty: Attribute | undefined,
+		expiresAtProperty: Attribute | undefined;
 	for (const attribute of attributes) {
 		if (attribute.assignCreatedTime || attribute.name === '__createdtime__') createdTimeProperty = attribute;
 		if (attribute.assignUpdatedTime || attribute.name === '__updatedtime__') updatedTimeProperty = attribute;
@@ -496,10 +498,10 @@ export function makeTable(options) {
 									}
 								});
 								if (txnInProgress) txnInProgress.committed = commitResolution;
-								if (userRoleUpdate && commitResolution && !commitResolution?.waitingForUserChange) {
+								if (userRoleUpdate && commitResolution && !(commitResolution as any).waitingForUserChange) {
 									// if the user role changed, asynchronously signal the user change (but don't block this function)
 									commitResolution.then(() => signalling.signalUserChange(new UserEventMsg(process.pid)));
-									commitResolution.waitingForUserChange = true; // only need to send one signal per transaction
+									(commitResolution as any).waitingForUserChange = true; // only need to send one signal per transaction
 								}
 
 								if (event.onCommit) {
@@ -547,7 +549,7 @@ export function makeTable(options) {
 			}
 			return resource;
 		}
-		_loadRecord<Record extends object = any>(
+		_loadRecord(
 			target: RequestTarget,
 			request: Context,
 			resourceOptions?: any
@@ -582,7 +584,7 @@ export function makeTable(options) {
 							if (!this.doesExist()) throw new ServerError('Entry is not cached', 504);
 						} else if (resourceOptions?.ensureLoaded) {
 							const loadingFromSource = ensureLoadedFromSource(
-								this.constructor.source,
+								(this.constructor as any).source,
 								id,
 								entry,
 								request,
@@ -617,7 +619,7 @@ export function makeTable(options) {
 		 */
 		ensureLoaded() {
 			const loadedFromSource = ensureLoadedFromSource(
-				this.constructor.source,
+				(this.constructor as any).source,
 				this.getId(),
 				this.#entry,
 				this.getContext()
@@ -939,9 +941,9 @@ export function makeTable(options) {
 		 */
 		get(target: RequestTargetOrId): Record | AsyncIterable<Record> | Promise<Record | AsyncIterable<Record>>;
 		get(
-			target?: RequestTargetOrId
-		): TableResource<Record> | undefined | Record | AsyncIterable<Record> | Promise<Record | AsyncIterable<Record>> {
-			const constructor: Resource = this.constructor;
+			target?: any
+		): any {
+			const constructor: any = this.constructor;
 			if (typeof target === 'string' && constructor.loadAsInstance !== false) return this.getProperty(target);
 			if (isSearchTarget(target)) {
 				// go back to the static search method so it gets a chance to override
@@ -958,7 +960,7 @@ export function makeTable(options) {
 					recordCount: undefined,
 					estimatedRecordRange: undefined,
 				};
-				if (this.getContext()?.includeExpensiveRecordCountEstimates) {
+				if ((this.getContext() as any)?.includeExpensiveRecordCountEstimates) {
 					return TableResource.getRecordCount().then((recordCount) => {
 						description.recordCount = recordCount.recordCount;
 						description.estimatedRecordRange = recordCount.estimatedRange;
@@ -968,7 +970,7 @@ export function makeTable(options) {
 				return description;
 			}
 			if (target !== undefined && constructor.loadAsInstance === false) {
-				const context = this.getContext();
+				const context: any = this.getContext();
 				const txn = txnForContext(context);
 				const readTxn = txn.getReadTxn();
 				if (readTxn?.isDone) {
@@ -1037,7 +1039,7 @@ export function makeTable(options) {
 				}
 				return promiseNormalize(record, target);
 			}
-			if (this.doesExist() || target?.ensureLoaded === false || this.getContext()?.returnNonexistent) {
+			if (this.doesExist() || target?.ensureLoaded === false || (this.getContext() as any)?.returnNonexistent) {
 				return this;
 			}
 			return undefined;

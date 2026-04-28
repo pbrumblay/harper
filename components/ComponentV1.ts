@@ -33,7 +33,7 @@ interface ComponentV1Details {
 }
 
 export class ComponentV1 {
-	readonly config: Readonly<ComponentV1Config>;
+	readonly config: ComponentV1Config;
 	readonly name: string;
 	readonly directory: string;
 	readonly module: Readonly<ComponentV1Module>;

@@ -12,13 +12,19 @@ const LMDB_CACHING = envMngr.get(terms.CONFIG_PARAMS.STORAGE_CACHING) !== false;
 class OpenDBIObject {
 	/**
 	 * @param {Boolean} dupSort - if the dbi allows duplicate keys
-	 * @param {Boolean} useVersions - if the dbi uses versions
+	 * @param {Boolean} [isPrimary] - if the dbi is the primary dbi
 	 */
 	constructor(dupSort, isPrimary = false) {
+		/** @type {boolean} */
 		this.dupSort = dupSort === true;
+		/** @type {"string" | "json" | "binary" | "msgpack" | "ordered-binary"} */
 		this.encoding = dupSort ? 'ordered-binary' : 'msgpack';
+		/** @type {boolean} */
 		this.useVersions = isPrimary;
+		/** @type {Symbol} */
 		this.sharedStructuresKey = Symbol.for('structures');
+		/** @type {any} */
+		this.compression = undefined;
 		if (isPrimary) {
 			this.cache = LMDB_CACHING && { validated: true };
 			this.randomAccessStructure = true;
