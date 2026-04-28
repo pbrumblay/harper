@@ -190,7 +190,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 						write.entry = write.store.getEntry(write.key);
 					}
 
-					const conditionResolution = write.store.ifVersion(write.key, write.entry?.version ?? null, nextCondition);
+					const conditionResolution = (write.store as any).ifVersion(write.key, write.entry?.version ?? null, nextCondition);
 					resolution = resolution || conditionResolution;
 				} else {
 					nextCondition();
