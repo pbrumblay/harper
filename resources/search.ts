@@ -240,7 +240,8 @@ export function searchByIndex(
 			if (start instanceof Date) start = start.getTime();
 			end = value[1];
 			if (end instanceof Date) end = end.getTime();
-			inclusiveEnd = (comparator as any) === 'gele' || (comparator as any) === 'gtle' || (comparator as any) === 'between';
+			inclusiveEnd =
+				(comparator as any) === 'gele' || (comparator as any) === 'gtle' || (comparator as any) === 'between';
 			exclusiveStart = (comparator as any) === 'gtlt' || (comparator as any) === 'gtle';
 			break;
 		case 'equals':
@@ -808,7 +809,9 @@ export function filterByType(searchCondition, Table, context, filtered, isPrimar
 					let matchingIds: Iterable<Id>;
 					if ((recordFilter as any).to) {
 						// the values could be an array of keys, so we flatten the mapping
-						matchingIds = (searchResults as any).flatMap((id) => Table.primaryStore.getSync(id)[(recordFilter as any).to]);
+						matchingIds = (searchResults as any).flatMap(
+							(id) => Table.primaryStore.getSync(id)[(recordFilter as any).to]
+						);
 					} else {
 						matchingIds = (searchResults as any).map(flattenKey);
 					}

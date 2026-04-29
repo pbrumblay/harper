@@ -279,8 +279,10 @@ function onSocket(socket, send, request, user, mqttSettings) {
 						// TODO: Handle the will & testament, and possibly use the will's content type as a hint for expected content
 						if (packet.will) {
 							const deserialize =
-								socket.deserialize || (socket.deserialize = getDeserializer(request?.headers.get?.('content-type') as string, false));
-							(packet.will as any).data = packet.will.payload?.length > 0 ? deserialize(packet.will.payload) : undefined;
+								socket.deserialize ||
+								(socket.deserialize = getDeserializer(request?.headers.get?.('content-type') as string, false));
+							(packet.will as any).data =
+								packet.will.payload?.length > 0 ? deserialize(packet.will.payload) : undefined;
 							delete packet.will.payload;
 						}
 						session = getSession({
@@ -407,7 +409,8 @@ function onSocket(socket, send, request, user, mqttSettings) {
 					const responseCmd = packet.qos === 2 ? 'pubrec' : 'puback';
 					// deserialize
 					const deserialize =
-						socket.deserialize || (socket.deserialize = getDeserializer(request?.headers.get?.('content-type') as string, false));
+						socket.deserialize ||
+						(socket.deserialize = getDeserializer(request?.headers.get?.('content-type') as string, false));
 					const messageLength = packet.payload?.length || 0;
 					const data = messageLength > 0 ? deserialize(packet.payload) : undefined; // zero payload length maps to a delete
 					let published;

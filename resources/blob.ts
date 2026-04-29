@@ -96,7 +96,7 @@ InstanceOfBlobWithNoConstructor.prototype = Blob.prototype;
  * 3. This also avoids the Blob constructor which is expensive due to the transferred setup
  * Harper still supports saving native Blobs, but when they blobs are retrieved from storage, they always use this class.
  */
-class FileBackedBlob extends (Blob as unknown as { new(): Blob }) implements Blob {
+class FileBackedBlob extends (Blob as unknown as { new (): Blob }) implements Blob {
 	type = '';
 	size: number;
 	declare finished: Promise<void>;

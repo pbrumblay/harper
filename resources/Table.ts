@@ -1274,8 +1274,8 @@ export function makeTable(options) {
 			if ((target as RequestTarget)?.checkPermission) {
 				// requesting authorization verification
 				allowed = this.allowDelete((context as any).user, target as any, context);
-				}
-				return when(allowed, (allowed: boolean) => {
+			}
+			return when(allowed, (allowed: boolean) => {
 				if (!allowed) {
 					throw new AccessViolation((context as any).user);
 				}
@@ -1822,7 +1822,8 @@ export function makeTable(options) {
 					if (recordToStore && recordToStore.getRecord)
 						throw new Error('Can not assign a record to a record, check for circular references');
 					if (residencyId == undefined) {
-						if (entry?.residencyId) (context as any).previousResidency = TableResource.getResidencyRecord(entry.residencyId);
+						if (entry?.residencyId)
+							(context as any).previousResidency = TableResource.getResidencyRecord(entry.residencyId);
 						const residency = residencyFromFunction(TableResource.getResidency(recordToStore, context));
 						if (residency) {
 							if (!residency.includes(server.hostname)) {
@@ -1924,8 +1925,8 @@ export function makeTable(options) {
 				if (target.checkPermission) {
 					// requesting authorization verification
 					allowed = this.allowDelete((context as any).user, target as any, context);
-					}
-					return when(allowed, (allowed: boolean) => {
+				}
+				return when(allowed, (allowed: boolean) => {
 					if (!allowed) {
 						throw new AccessViolation((context as any).user);
 					}
@@ -2848,8 +2849,8 @@ export function makeTable(options) {
 				if (target.checkPermission) {
 					// requesting authorization verification
 					allowed = this.allowDelete((context as any).user, target as any, context);
-					}
-					return when(allowed, (allowed: boolean) => {
+				}
+				return when(allowed, (allowed: boolean) => {
 					if (!allowed) {
 						throw new AccessViolation((context as any).user);
 					}
@@ -4593,4 +4594,3 @@ function convertToComparableKeys(a) {
 	}
 	return a;
 }
-

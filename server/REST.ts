@@ -94,15 +94,19 @@ async function http(request: Request, nextHandler) {
 			if (headersObject['content-length'] || headersObject['transfer-encoding']) {
 				// TODO: Support cancellation (if the request otherwise fails or takes too many bytes)
 				try {
-					request.data = (getDeserializer(headersObject['content-type'] as any, true) as any)(request.body, request.headers);
-					} catch (error) {
+					request.data = (getDeserializer(headersObject['content-type'] as any, true) as any)(
+						request.body,
+						request.headers
+					);
+				} catch (error) {
 					throw new ClientError(error, 400);
-					}
-					}
-					request.authorize = true;
+				}
+			}
+			request.authorize = true;
 
-					if (url === OPENAPI_DOMAIN && method === 'GET') {
-					target = {} as any;				if (request?.user?.role?.permission?.super_user) {
+			if (url === OPENAPI_DOMAIN && method === 'GET') {
+				target = {} as any;
+				if (request?.user?.role?.permission?.super_user) {
 					return generateJsonApi(resources, `${request.protocol}://${request.hostname}`);
 				} else {
 					throw new ServerError(`Forbidden`, 403);
@@ -213,7 +217,8 @@ async function http(request: Request, nextHandler) {
 			} else {
 				headers.setIfNone('ETag', etag);
 			}
-			if ((httpOptions as any).lastModified) headers.setIfNone('Last-Modified', new Date(lastModification).toUTCString());
+			if ((httpOptions as any).lastModified)
+				headers.setIfNone('Last-Modified', new Date(lastModification).toUTCString());
 		}
 		if (request.createdResource) status = 201;
 		if (request.newLocation) headers.setIfNone('Location', request.newLocation);
@@ -423,4 +428,3 @@ export function parseHeaderValue(value: string) {
 			return parsed;
 		});
 }
-

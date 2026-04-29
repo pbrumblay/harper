@@ -67,7 +67,6 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		throw new Error('Not implemented');
 	}
 
-
 	/**
 	 * The get methods are for directly getting a resource, and called for HTTP GET requests.
 	 */
@@ -310,7 +309,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	): Promise<Record & Partial<RecordObject>> {
 		if ((this.constructor as any).loadAsInstance === false) {
 			if ((target as any).isCollection && this.create) {
-				newRecord = await this.create((target as any), newRecord) as any;
+				newRecord = (await this.create(target as any, newRecord)) as any;
 				return newRecord?.[(this.constructor as any).primaryKey as keyof typeof newRecord] as any;
 			}
 		} else {
@@ -400,7 +399,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		const query = (this.constructor as any).loadAsInstance === false ? target : incomingMessages;
 		if ((query as any)?.subscribe !== false) {
 			// subscribing is the default action, but can be turned off
-			return this.subscribe?.((query as any));
+			return this.subscribe?.(query as any);
 		}
 		return new IterableEventQueue();
 	}

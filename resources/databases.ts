@@ -525,7 +525,10 @@ function initStores(
 					rootStore
 				);
 			} else {
-				primaryStore = handleLocalTimeForGets((rootStore as any).openDB(primaryAttribute.key, dbiInit as any), rootStore);
+				primaryStore = handleLocalTimeForGets(
+					(rootStore as any).openDB(primaryAttribute.key, dbiInit as any),
+					rootStore
+				);
 			}
 			rootStore.databaseName = databaseName;
 			primaryStore.tableId = tableId;

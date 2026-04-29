@@ -437,7 +437,8 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 			(options as any).SNICallback.initialize(server);
 			if (mtls) server.mtlsConfig = mtls;
 			server.on('secureConnection', (socket) => {
-				if (socket._parent.startTime) recordAction(performance.now() - socket._parent.startTime, 'tls-handshake', String(port));
+				if (socket._parent.startTime)
+					recordAction(performance.now() - socket._parent.startTime, 'tls-handshake', String(port));
 				recordAction(socket.isSessionReused(), 'tls-reused', String(port));
 			});
 			server.isSecure = true;
