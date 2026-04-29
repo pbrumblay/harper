@@ -3751,6 +3751,10 @@ export function makeTable(options) {
 	}
 
 	function ensureLoadedFromSource(source: typeof TableResource, id, entry, context, resource?, target?) {
+		if (context?.onlyIfCached) {
+			if (!entry?.value) throw new ServerError('Entry is not cached', 504);
+			return;
+		}
 		if (hasSourceGet) {
 			let needsSourceData = false;
 			if (context.noCache) needsSourceData = true;
@@ -3779,10 +3783,9 @@ export function makeTable(options) {
 					return entry;
 				});
 				// if the resource defines a method for indicating if stale-while-revalidate is allowed for a record
-				if (context?.onlyIfCached || (entry?.value && resource?.allowStaleWhileRevalidate?.(entry, id))) {
+				if (entry?.value && resource?.allowStaleWhileRevalidate?.(entry, id)) {
 					// since we aren't waiting for it any errors won't propagate so we should at least log them
 					loadingFromSource.catch((error) => logger.warn?.(error));
-					if (context?.onlyIfCached && !resource.doesExist()) throw new ServerError('Entry is not cached', 504);
 					return; // go ahead and return and let the current stale value be used while we re-validate
 				} else return loadingFromSource; // return the promise for the resolved value
 			}
