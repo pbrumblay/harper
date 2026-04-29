@@ -16,7 +16,7 @@ import { dirname, resolve } from 'node:path';
 import jwt from 'jsonwebtoken';
 import mqtt, { type IClientOptions, type MqttClient } from 'mqtt';
 
-import { startHarper, teardownHarper, sendOperation, type ContextWithHarper } from '../utils/harperLifecycle.ts';
+import { startHarper, teardownHarper, sendOperation, type ContextWithHarper } from '@harperfast/integration-testing';
 
 const PROJECT = 'acl-connect-with-sys';
 const __dirname = dirname(fileURLToPath(import.meta.url));
