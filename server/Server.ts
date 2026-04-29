@@ -78,6 +78,10 @@ export interface HttpOptions extends ServerOptions {
 	before?: string;
 	/** This middleware must run after the named middleware */
 	after?: string;
+	/** Only handle requests whose pathname starts with this prefix */
+	urlPath?: string;
+	/** Only handle requests for this virtual hostname */
+	host?: string;
 }
 export interface ContentTypeHandler {
 	serialize(data: any): Buffer | string;

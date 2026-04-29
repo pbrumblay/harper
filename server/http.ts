@@ -33,7 +33,7 @@ server.upgrade = onUpgrade;
 const websocketServers = {};
 const httpServers = {},
 	httpChain = {},
-	httpResponders: { listener: Function; port: number | string; name?: string; before?: string; after?: string }[] = [];
+	httpResponders: { listener: Function; port: number | string; name?: string; before?: string; after?: string; urlPath?: string; host?: string }[] = [];
 let httpOptions: HttpOptions = {};
 export const universalHeaders: [string, string][] = [];
 
@@ -200,6 +200,8 @@ export function httpServer(listener, options) {
 				name: options?.name ?? getComponentName(),
 				before: options?.before,
 				after: options?.after,
+				urlPath: options?.urlPath || undefined,
+				host: options?.host || undefined,
 			};
 			httpResponders[options?.runFirst ? 'unshift' : 'push'](entry);
 		} else {
@@ -522,19 +524,96 @@ function topoSort(entries: { listener: Function; port: number | string; name?: s
 	return sorted;
 }
 
-function makeCallbackChain(responders: typeof httpResponders, portNum: number | string) {
-	// Filter to entries relevant to this port, then sort by declared constraints
-	const portEntries = responders.filter(({ port }) => port === portNum || port === 'all');
-	const sorted = topoSort(portEntries);
+type HttpEntry = (typeof httpResponders)[0];
 
-	// Build chain: iterate in reverse so the first sorted entry becomes the outermost (first called)
-	let nextCallback = unhandled;
+function buildLinearChain(sorted: HttpEntry[]) {
+	let next = unhandled;
 	for (let i = sorted.length; i > 0; ) {
 		const { listener } = sorted[--i];
-		const callback = nextCallback;
-		nextCallback = (...args) => listener(...args, callback);
+		const callback = next;
+		next = (...args) => listener(...args, callback);
 	}
-	return nextCallback;
+	return next;
+}
+
+function resolveDeps(entries: HttpEntry[], nameToEntry: Map<string, HttpEntry>): HttpEntry[] {
+	const included = new Set(entries);
+	let changed = true;
+	while (changed) {
+		changed = false;
+		for (const entry of [...included]) {
+			if (entry.after) {
+				const dep = nameToEntry.get(entry.after);
+				if (dep && !included.has(dep)) {
+					included.add(dep);
+					changed = true;
+				}
+			}
+		}
+	}
+	return [...included];
+}
+
+function matchesRoute(request: any, route: { host?: string; urlPath?: string }): boolean {
+	if (route.host) {
+		const hostHeader: string = request.headers?.asObject?.host ?? '';
+		const requestHost = hostHeader.split(':')[0];
+		if (requestHost !== route.host) return false;
+	}
+	if (route.urlPath) {
+		const pathname: string = request.pathname ?? '/';
+		if (pathname !== route.urlPath && !pathname.startsWith(route.urlPath + '/')) return false;
+	}
+	return true;
+}
+
+function buildRoutedChain(portEntries: HttpEntry[]) {
+	// Build global name registry (first registration wins for a given name)
+	const nameToEntry = new Map<string, HttpEntry>();
+	for (const entry of portEntries) {
+		if (entry.name && !nameToEntry.has(entry.name)) nameToEntry.set(entry.name, entry);
+	}
+
+	// Group entries by (host, urlPath) route
+	type RouteGroup = { host?: string; urlPath?: string; entries: HttpEntry[] };
+	const routeGroups: RouteGroup[] = [];
+	for (const entry of portEntries) {
+		const group = routeGroups.find(g => g.host === entry.host && g.urlPath === entry.urlPath);
+		if (group) group.entries.push(entry);
+		else routeGroups.push({ host: entry.host, urlPath: entry.urlPath, entries: [entry] });
+	}
+
+	const defaultGroup = routeGroups.find(g => !g.host && !g.urlPath);
+	const subRouteGroups = routeGroups.filter(g => g.host || g.urlPath);
+
+	// Build per-sub-route chains; pull in transitive `after` deps from any route
+	const subRouteChains = subRouteGroups.map(group => {
+		const resolved = resolveDeps(group.entries, nameToEntry);
+		return { host: group.host, urlPath: group.urlPath, chain: buildLinearChain(topoSort(resolved)) };
+	});
+
+	// Sort: host+path > host-only > path-only; within path-only, longer prefix first
+	subRouteChains.sort((a, b) => {
+		const aSpec = (a.host ? 2 : 0) + (a.urlPath ? 1 : 0);
+		const bSpec = (b.host ? 2 : 0) + (b.urlPath ? 1 : 0);
+		if (aSpec !== bSpec) return bSpec - aSpec;
+		return (b.urlPath?.length ?? 0) - (a.urlPath?.length ?? 0);
+	});
+
+	const defaultChain = buildLinearChain(topoSort(defaultGroup?.entries ?? []));
+
+	return function dispatch(request: any) {
+		for (const route of subRouteChains) {
+			if (matchesRoute(request, route)) return route.chain(request);
+		}
+		return defaultChain(request);
+	};
+}
+
+function makeCallbackChain(responders: typeof httpResponders, portNum: number | string) {
+	const portEntries = responders.filter(({ port }) => port === portNum || port === 'all');
+	if (portEntries.some(e => e.urlPath || e.host)) return buildRoutedChain(portEntries);
+	return buildLinearChain(topoSort(portEntries));
 }
 function unhandled(request) {
 	if (request.user) {
