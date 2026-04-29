@@ -5,7 +5,6 @@ const {
 	buildLinearChain,
 	resolveDeps,
 	matchesRoute,
-	buildRoutedChain,
 	makeCallbackChain,
 } = require('#src/server/middlewareChain');
 
@@ -22,21 +21,6 @@ function entry(name, opts = {}) {
 /** Build a simple request object. */
 function req(pathname = '/', host = undefined) {
 	return { pathname, headers: { asObject: host ? { host } : {} } };
-}
-
-/** Run the chain and collect the names of listeners in call order. */
-function callOrder(entries, request = req()) {
-	const order = [];
-	const withTracking = entries.map((e) => ({
-		...e,
-		listener: (r, next) => {
-			order.push(e.name);
-			return e.listener(r, next);
-		},
-	}));
-	const chain = buildLinearChain(withTracking, UNHANDLED);
-	chain(request);
-	return order;
 }
 
 // --------------------------------------------------------------------------
@@ -192,7 +176,7 @@ describe('buildLinearChain', () => {
 	it('short-circuits when a listener returns without calling next', () => {
 		const order = [];
 		const a = entry('a', {
-			listener: (r, _next) => {
+			listener: (_r, _next) => {
 				order.push('a');
 				return { status: 200 };
 			},
