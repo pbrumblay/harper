@@ -96,7 +96,13 @@ export class LMDBTransaction extends DatabaseTransaction {
 			// if the transaction is lingering, it is already committed, so we need to commit the write immediately
 			const immediateTxn = new ImmediateTransaction(this.db);
 			immediateTxn.addWrite(operation);
-			return immediateTxn.commit({});
+			const result = immediateTxn.commit({});
+			if (result?.then) {
+				operation.promise = result;
+			} else {
+				operation.result = result;
+			}
+			return result;
 		}
 
 		this.writes.push(operation); // standard path, add to current transaction

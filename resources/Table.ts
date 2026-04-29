@@ -1222,10 +1222,11 @@ export function makeTable(options) {
 		 */
 		save() {
 			if (this.#savingOperation) {
+				const promiseOrResult = this.#savingOperation.promise || this.#savingOperation.result;
 				const transaction = txnForContext(this.getContext());
 				if (transaction.save) {
 					try {
-						return transaction.save(this.#savingOperation);
+						return transaction.save(this.#savingOperation) || promiseOrResult;
 					} finally {
 						this.#savingOperation = null;
 					}
@@ -1417,8 +1418,8 @@ export function makeTable(options) {
 		 */
 		static evict(id, existingRecord, existingVersion) {
 			let entry;
-			let dbTxn = new DatabaseTransaction();
-			let transaction = txnForContext({ transaction: dbTxn }).getReadTxn();
+			let dbTxn = txnForContext({});
+			let transaction = dbTxn.getReadTxn();
 			let options = { transaction };
 			try {
 				if (hasSourceGet || audit) {
@@ -1445,7 +1446,7 @@ export function makeTable(options) {
 					return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), options);
 				}
 			} finally {
-				return (transaction as any)?.commit?.() ?? dbTxn.commit();
+				dbTxn.doneReadTxn();
 			}
 		}
 		/**
@@ -4355,9 +4356,9 @@ export function makeTable(options) {
 											resolution = TableResource.evict(key, record, version);
 											count++;
 										}
-										if (resolution) {
+										if (resolution && (resolution as any).catch) {
 											await outstandingCleanupOperations[cleanupIndex];
-											outstandingCleanupOperations[cleanupIndex] = resolution.catch((error) => {
+											outstandingCleanupOperations[cleanupIndex] = (resolution as any).catch((error) => {
 												logger.error?.('Cleanup error', error);
 											});
 											if (++cleanupIndex >= MAX_CLEANUP_CONCURRENCY) cleanupIndex = 0;

@@ -464,6 +464,7 @@ describe('Transactions', () => {
 				})();
 			});
 			await writes;
+			if (TxnTest.primaryStore.flushed) await TxnTest.primaryStore.flushed;
 			let entity = await TxnTest.get(49);
 			assert.equal(entity.count, 9);
 		});
