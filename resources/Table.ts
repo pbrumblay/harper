@@ -7,6 +7,7 @@
 import { CONFIG_PARAMS, OPERATIONS_ENUM, SYSTEM_TABLE_NAMES, SYSTEM_SCHEMA_NAME } from '../utility/hdbTerms.ts';
 import { type Database } from 'lmdb';
 import { getIndexedValues } from '../utility/lmdb/commonUtility.js';
+import { getThisNodeId, exportIdMapping } from './nodeIdMapping.ts';
 import lodash from 'lodash';
 import { ExtendedIterable, SKIP } from '@harperfast/extended-iterable';
 import type {
@@ -90,6 +91,7 @@ const NULL_WITH_TIMESTAMP = new Uint8Array(9);
 NULL_WITH_TIMESTAMP[8] = 0xc0; // null
 const UNCACHEABLE_TIMESTAMP = Infinity; // we use this when dynamic content is accessed that we can't safely cache, and this prevents earlier timestamps from change the "last" modification
 const RECORD_PRUNING_INTERVAL = 60000; // one minute
+const CACHEABLE_STATUS_CODES = new Set([200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501]);
 envMngr.initSync();
 const LMDB_PREFETCH_WRITES = envMngr.get(CONFIG_PARAMS.STORAGE_PREFETCHWRITES);
 const LOCK_TIMEOUT = 10000;
@@ -1424,23 +1426,35 @@ export function makeTable(options) {
 		 */
 		static evict(id, existingRecord, existingVersion) {
 			let entry;
-			if (hasSourceGet || audit) {
-				if (!existingRecord) return;
-				entry = primaryStore.getEntry(id);
-				if (!entry || !existingRecord) return;
-				if (entry.version !== existingVersion) return;
+			let transaction = txnForContext({ transaction: new DatabaseTransaction() }).getReadTxn();
+			let options = { transaction };
+			try {
+				if (hasSourceGet || audit) {
+					if (!existingRecord) return;
+					entry = primaryStore.getEntry(id, options);
+					if (!entry || !existingRecord) return;
+					if (entry.version !== existingVersion) return;
+				}
+				if (hasSourceGet) {
+					// if there is a resolution in-progress, abandon the eviction
+					if (primaryStore.hasLock(id, entry.version)) return;
+				}
+				// evictions never go in the audit log, so we can not record a deletion entry for the eviction
+				// as there is no corresponding audit entry and it would never get cleaned up. So we must simply
+				// removed the entry entirely, but first cleanup indices
+				if (primaryStore.ifVersion) {
+					// lmdb
+					primaryStore.ifVersion?.(id, existingVersion, () => {
+						updateIndices(id, existingRecord, null);
+					});
+					return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), existingVersion);
+				} else {
+					updateIndices(id, existingRecord, null, options);
+					return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), options);
+				}
+			} finally {
+				return transaction.commit();
 			}
-			if (hasSourceGet) {
-				// if there is a resolution in-progress, abandon the eviction
-				if (primaryStore.hasLock(id, entry.version)) return;
-			}
-			primaryStore.ifVersion?.(id, existingVersion, () => {
-				updateIndices(id, existingRecord, null);
-			});
-			// evictions never go in the audit log, so we can not record a deletion entry for the eviction
-			// as there is no corresponding audit entry and it would never get cleaned up. So we must simply
-			// removed the entry entirely
-			return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), existingVersion);
 		}
 		/**
 		 * This is intended to acquire a lock on a record from the whole cluster.
@@ -1951,9 +1965,10 @@ export function makeTable(options) {
 							context.lastModified = existingEntry.version;
 						TableResource._updateResource(this, existingEntry);
 					}
-					if (precedesExistingVersion(txnTime, existingEntry, options?.nodeId) <= 0) return; // a newer record exists locally
-					updateIndices(id, existingRecord);
-					logger.trace?.(`Deleting record with id: ${id}, txn timestamp: ${new Date(txnTime).toISOString()}`);
+					if (precedesExistingVersion(txnTime, existingEntry, options?.nodeId) < 0) {
+						return;
+					} // a newer record exists locally
+					updateIndices(id, existingRecord, null, transaction && { transaction });
 					if (audit || trackDeletes) {
 						updateRecord(
 							id,
@@ -3511,6 +3526,7 @@ export function makeTable(options) {
 			// determine what index values need to be removed and added
 			let valuesToAdd = getIndexedValues(value, indexNulls) as any[];
 			let valuesToRemove = getIndexedValues(existingValue, indexNulls) as any[];
+			let isLMDB = !!index.prefetch;
 			if (valuesToRemove?.length > 0) {
 				// put this in a conditional so we can do a faster version for new records
 				// determine the changes/diff from new values and old values
@@ -3527,18 +3543,18 @@ export function makeTable(options) {
 						})
 					: [];
 				valuesToRemove = Array.from(setToRemove);
-				if ((valuesToRemove.length > 0 || valuesToAdd.length > 0) && LMDB_PREFETCH_WRITES) {
+				if (isLMDB && (valuesToRemove.length > 0 || valuesToAdd.length > 0) && LMDB_PREFETCH_WRITES) {
 					// prefetch any values that have been removed or added
 					const valuesToPrefetch = valuesToRemove.concat(valuesToAdd).map((v) => ({ key: v, value: id }));
-					index.prefetch?.(valuesToPrefetch, noop);
+					index.prefetch(valuesToPrefetch, noop);
 				}
 				//if the update cleared out the attribute value we need to delete it from the index
 				for (let i = 0, l = valuesToRemove.length; i < l; i++) {
 					index.remove(valuesToRemove[i], id, options);
 				}
-			} else if (valuesToAdd?.length > 0 && LMDB_PREFETCH_WRITES) {
+			} else if (isLMDB && valuesToAdd?.length > 0 && LMDB_PREFETCH_WRITES) {
 				// no old values, just new
-				index.prefetch?.(
+				index.prefetch(
 					valuesToAdd.map((v) => ({ key: v, value: id })),
 					noop
 				);
@@ -3898,15 +3914,15 @@ export function makeTable(options) {
 
 	function precedesExistingVersion(txnTime: number, existingEntry: Entry, nodeId?: number): number {
 		if (nodeId === undefined) {
-			nodeId = server.replication?.getThisNodeId(auditStore);
+			nodeId = getThisNodeId(auditStore);
 		}
 
 		if (txnTime <= existingEntry?.version) {
 			if (existingEntry?.version === txnTime && nodeId !== undefined) {
 				// if we have a timestamp tie, we break the tie by comparing the node name of the
 				// existing entry to the node name of the update
-				const nodeNameToId = server.replication?.exportIdMapping(auditStore);
-				let existingNodeId = existingEntry.nodeId;
+				const nodeNameToId = exportIdMapping(auditStore);
+				let existingNodeId = existingEntry.nodeId ?? 0;
 				if (nodeId === existingNodeId) {
 					return 0; // early match for a tie
 				}
@@ -4023,15 +4039,14 @@ export function makeTable(options) {
 							if (typeof updatedRecord !== 'object') throw new Error('Only objects can be cached and stored in tables');
 							if (updatedRecord.status > 0 && updatedRecord.headers) {
 								// if the source has a status code and headers, treat it as a response
-								if (updatedRecord.status >= 300) {
-									if (updatedRecord.status === 304) {
-										// revalidation of our current cached record
-										updatedRecord = existingRecord;
-										version = existingVersion;
-									} else {
-										// if the source has an error status, we need to throw an error
-										throw new ServerError(updatedRecord.body || 'Error from source', updatedRecord.status);
-									} // there are definitely more status codes to handle
+								const status = updatedRecord.status;
+								if (status === 304) {
+									// revalidation of our current cached record
+									updatedRecord = existingRecord;
+									version = existingVersion;
+								} else if (!CACHEABLE_STATUS_CODES.has(status)) {
+									// non-cacheable status - propagate to client without caching
+									throw new ServerError(updatedRecord.body || 'Error from source', status);
 								} else {
 									let headers: any;
 									const sourceHeaders = updatedRecord.headers;
@@ -4059,16 +4074,11 @@ export function makeTable(options) {
 									if (data !== undefined) {
 										// we have structured data that we have parsed
 										delete headers['content-type']; // don't store the content type if we have already parsed it
-										updatedRecord = {
-											headers,
-											data,
-										};
+										updatedRecord = { headers, data };
 									} else {
-										updatedRecord = {
-											headers,
-											body: createBlob(updatedRecord.body),
-										};
+										updatedRecord = { headers, body: createBlob(updatedRecord.body) };
 									}
+									if (status !== 200) updatedRecord.status = status;
 								}
 							}
 							if (typeof updatedRecord.toJSON === 'function') updatedRecord = updatedRecord.toJSON();
@@ -4124,7 +4134,7 @@ export function makeTable(options) {
 								// don't do anything if the version has changed
 								return;
 							}
-							updateIndices(id, existingRecord, updatedRecord);
+							updateIndices(id, existingRecord, updatedRecord, transaction && { transaction });
 							if (updatedRecord) {
 								if (existingEntry) {
 									context.previousResidency = TableResource.getResidencyRecord(existingEntry.residencyId);
