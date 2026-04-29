@@ -96,7 +96,7 @@ function publish(
 	client: MqttClient,
 	topic: string,
 	payload: string,
-	opts: { qos: 0 | 1 | 2 } = { qos: 1 },
+	opts: { qos: 0 | 1 | 2 } = { qos: 1 }
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
 		client.publish(topic, payload, opts, (err) => {
@@ -108,7 +108,7 @@ function publish(
 
 function expectConnectFailure(
 	url: string,
-	opts: IClientOptions,
+	opts: IClientOptions
 ): Promise<Error & { code?: number; reasonCode?: number }> {
 	return new Promise((resolve, reject) => {
 		const client = mqtt.connect(url, opts);
@@ -176,7 +176,7 @@ function collectMessages(client: MqttClient, filter: string) {
 
 async function waitFor(
 	predicate: () => boolean,
-	opts: { timeoutMs?: number; intervalMs?: number } = {},
+	opts: { timeoutMs?: number; intervalMs?: number } = {}
 ): Promise<boolean> {
 	const { timeoutMs = 5000, intervalMs = 50 } = opts;
 	const deadline = Date.now() + timeoutMs;
@@ -191,7 +191,7 @@ function assertReasonIn(err: any, allowed: readonly number[], label: string): vo
 	const code = reasonCodeOf(err);
 	ok(
 		code !== null && allowed.includes(code as number),
-		`expected ${label} (one of ${allowed.join(', ')}), got ${code} (${err?.message})`,
+		`expected ${label} (one of ${allowed.join(', ')}), got ${code} (${err?.message})`
 	);
 }
 
@@ -243,7 +243,7 @@ suite('Component: acl-connect', (ctx: ContextWithHarper) => {
 			const err = lastError as any;
 			throw new Error(
 				`Timed out waiting for acl-connect after ${attempts} attempts on ${MQTT_URL}. ` +
-					`Last SUBACK code for dog/#: ${lastSubackCode ?? 'n/a'}. Last error: ${err?.message ?? err}`,
+					`Last SUBACK code for dog/#: ${lastSubackCode ?? 'n/a'}. Last error: ${err?.message ?? err}`
 			);
 		}
 	});
@@ -273,7 +273,7 @@ suite('Component: acl-connect', (ctx: ContextWithHarper) => {
 				username: `nope-${randomUUID().slice(0, 6)}`,
 				password: 'definitely-wrong',
 				clientId: `ci-bad-${randomUUID().slice(0, 8)}`,
-			}),
+			})
 		);
 		assertReasonIn(err, RC.BAD_CREDS, 'bad credentials');
 	});
@@ -282,7 +282,7 @@ suite('Component: acl-connect', (ctx: ContextWithHarper) => {
 		const { sub } = freshIdentities();
 		const err = await expectConnectFailure(
 			MQTT_URL,
-			jwtOpts(mintJwt(sub), `mismatched-${randomUUID().slice(0, 8)}`, sub.username),
+			jwtOpts(mintJwt(sub), `mismatched-${randomUUID().slice(0, 8)}`, sub.username)
 		);
 		assertReasonIn(err, [...RC.NOT_AUTHORIZED, ...RC.BAD_CREDS], 'clientId mismatch reject');
 	});
@@ -409,7 +409,7 @@ suite('Component: acl-connect', (ctx: ContextWithHarper) => {
 							fresh.some((m) => m.topic === '$SYS/connects' && m.payload.includes(sub.clientID))
 						);
 					},
-					{ timeoutMs: 4000 },
+					{ timeoutMs: 4000 }
 				);
 				sysObs.stop();
 				ok(arrived, `expected connecting + connected $SYS events for ${sub.clientID}`);
@@ -434,7 +434,7 @@ suite('Component: acl-connect', (ctx: ContextWithHarper) => {
 
 			const arrived = await waitFor(
 				() => sysObs.messages.slice(startIdx).some((m) => m.topic === '$SYS/drops' && m.payload.includes(sub.clientID)),
-				{ timeoutMs: 4000 },
+				{ timeoutMs: 4000 }
 			);
 			sysObs.stop();
 			ok(arrived, `expected $SYS/drops for ${sub.clientID}`);
@@ -464,7 +464,7 @@ suite('Component: acl-connect', (ctx: ContextWithHarper) => {
 						fresh.some((m) => m.topic === '$SYS/drops')
 					);
 				},
-				{ timeoutMs: 4000 },
+				{ timeoutMs: 4000 }
 			);
 			sysObs.stop();
 			ok(arrived, `expected $SYS/errors (with ${failId}) + $SYS/drops for failed auth`);
@@ -490,11 +490,14 @@ suite('Component: acl-connect', (ctx: ContextWithHarper) => {
 
 			const evt = obs.messages.find((m) => m.payload.includes(failId));
 			ok(evt, `expected $SYS/errors event for ${failId}`);
-			ok(!evt!.payload.includes(secret), `auth-failed event leaked plaintext password (${secret} found in $SYS/errors)`);
+			ok(
+				!evt!.payload.includes(secret),
+				`auth-failed event leaked plaintext password (${secret} found in $SYS/errors)`
+			);
 			const parsed = JSON.parse(evt!.payload);
 			ok(
 				parsed.password === undefined || parsed.password === null,
-				`auth-failed event must omit password field; got ${JSON.stringify(parsed.password)}`,
+				`auth-failed event must omit password field; got ${JSON.stringify(parsed.password)}`
 			);
 		} finally {
 			await endQuiet(observer);
