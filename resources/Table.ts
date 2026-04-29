@@ -3318,7 +3318,7 @@ export function makeTable(options) {
 					} else if (attribute.computedFromExpression) {
 						// build a fallback scope object with all attribute names set to undefined,
 						// matching the behavior in graphql.ts to prevent ReferenceErrors
-						const attributesFallback = {};
+						const attributesFallback: Record<string, undefined> = {};
 						for (const attr of this.attributes) attributesFallback[attr.name] = undefined;
 						this.setComputedAttribute(
 							attribute.name,
