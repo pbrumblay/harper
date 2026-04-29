@@ -1,6 +1,13 @@
 'use strict';
 const assert = require('assert');
-const { topoSort, buildLinearChain, resolveDeps, matchesRoute, buildRoutedChain, makeCallbackChain } = require('#src/server/middlewareChain');
+const {
+	topoSort,
+	buildLinearChain,
+	resolveDeps,
+	matchesRoute,
+	buildRoutedChain,
+	makeCallbackChain,
+} = require('#src/server/middlewareChain');
 
 // Helpers ------------------------------------------------------------------
 
@@ -20,9 +27,12 @@ function req(pathname = '/', host = undefined) {
 /** Run the chain and collect the names of listeners in call order. */
 function callOrder(entries, request = req()) {
 	const order = [];
-	const withTracking = entries.map(e => ({
+	const withTracking = entries.map((e) => ({
 		...e,
-		listener: (r, next) => { order.push(e.name); return e.listener(r, next); },
+		listener: (r, next) => {
+			order.push(e.name);
+			return e.listener(r, next);
+		},
 	}));
 	const chain = buildLinearChain(withTracking, UNHANDLED);
 	chain(request);
@@ -44,25 +54,34 @@ describe('topoSort', () => {
 	});
 
 	it('preserves registration order when no constraints', () => {
-		const [a, b, c] = ['a', 'b', 'c'].map(n => entry(n));
+		const [a, b, c] = ['a', 'b', 'c'].map((n) => entry(n));
 		const sorted = topoSort([a, b, c]);
-		assert.deepStrictEqual(sorted.map(e => e.name), ['a', 'b', 'c']);
+		assert.deepStrictEqual(
+			sorted.map((e) => e.name),
+			['a', 'b', 'c']
+		);
 	});
 
 	it('enforces `before` constraint', () => {
 		const a = entry('a');
-		const b = entry('b', { before: 'a' });  // b must come before a
+		const b = entry('b', { before: 'a' }); // b must come before a
 		// registered order: a, b  → sort should give b, a
 		const sorted = topoSort([a, b]);
-		assert.deepStrictEqual(sorted.map(e => e.name), ['b', 'a']);
+		assert.deepStrictEqual(
+			sorted.map((e) => e.name),
+			['b', 'a']
+		);
 	});
 
 	it('enforces `after` constraint', () => {
-		const a = entry('a', { after: 'b' });  // a must come after b
+		const a = entry('a', { after: 'b' }); // a must come after b
 		const b = entry('b');
 		// registered order: a, b → sort should give b, a
 		const sorted = topoSort([a, b]);
-		assert.deepStrictEqual(sorted.map(e => e.name), ['b', 'a']);
+		assert.deepStrictEqual(
+			sorted.map((e) => e.name),
+			['b', 'a']
+		);
 	});
 
 	it('preserves config order as tiebreaker: auth before rest when both unconstrained', () => {
@@ -71,7 +90,10 @@ describe('topoSort', () => {
 		const staticE = entry('static');
 		// config: static, authentication, rest
 		const sorted = topoSort([staticE, auth, rest]);
-		assert.deepStrictEqual(sorted.map(e => e.name), ['static', 'authentication', 'rest']);
+		assert.deepStrictEqual(
+			sorted.map((e) => e.name),
+			['static', 'authentication', 'rest']
+		);
 	});
 
 	it('config: rest, authentication, static → auth pulled before rest', () => {
@@ -81,7 +103,7 @@ describe('topoSort', () => {
 		// registered: rest(0), authentication(1), static(2)
 		// constraint: auth before rest → expected: authentication, rest, static
 		const sorted = topoSort([rest, auth, staticE]);
-		const names = sorted.map(e => e.name);
+		const names = sorted.map((e) => e.name);
 		const authIdx = names.indexOf('authentication');
 		const restIdx = names.indexOf('rest');
 		assert.ok(authIdx < restIdx, `authentication (${authIdx}) should come before rest (${restIdx})`);
@@ -109,7 +131,10 @@ describe('topoSort', () => {
 		const a = entry('a', { after: 'nonexistent' });
 		const b = entry('b');
 		const sorted = topoSort([a, b]);
-		assert.deepStrictEqual(sorted.map(e => e.name), ['a', 'b']);
+		assert.deepStrictEqual(
+			sorted.map((e) => e.name),
+			['a', 'b']
+		);
 	});
 
 	it('calls onCycle and returns original order when cycle detected', () => {
@@ -117,7 +142,9 @@ describe('topoSort', () => {
 		const a = entry('a', { after: 'b' });
 		const b = entry('b', { after: 'a' });
 		const original = [a, b];
-		const result = topoSort(original, () => { cycleCalled = true; });
+		const result = topoSort(original, () => {
+			cycleCalled = true;
+		});
 		assert.strictEqual(cycleCalled, true, 'onCycle should be called');
 		assert.strictEqual(result, original, 'should return original array on cycle');
 	});
@@ -135,7 +162,12 @@ describe('buildLinearChain', () => {
 
 	it('calls the single listener with (request, next)', () => {
 		let calledWith;
-		const e = entry('a', { listener: (r, next) => { calledWith = r; return next(r); } });
+		const e = entry('a', {
+			listener: (r, next) => {
+				calledWith = r;
+				return next(r);
+			},
+		});
 		const chain = buildLinearChain([e], UNHANDLED);
 		const r = req();
 		chain(r);
@@ -144,8 +176,13 @@ describe('buildLinearChain', () => {
 
 	it('calls listeners in sorted order and threads next correctly', () => {
 		const order = [];
-		const entries = ['a', 'b', 'c'].map(n =>
-			entry(n, { listener: (r, next) => { order.push(n); return next(r); } })
+		const entries = ['a', 'b', 'c'].map((n) =>
+			entry(n, {
+				listener: (r, next) => {
+					order.push(n);
+					return next(r);
+				},
+			})
 		);
 		const chain = buildLinearChain(entries, UNHANDLED);
 		chain(req());
@@ -154,8 +191,18 @@ describe('buildLinearChain', () => {
 
 	it('short-circuits when a listener returns without calling next', () => {
 		const order = [];
-		const a = entry('a', { listener: (r, _next) => { order.push('a'); return { status: 200 }; } });
-		const b = entry('b', { listener: (r, next) => { order.push('b'); return next(r); } });
+		const a = entry('a', {
+			listener: (r, _next) => {
+				order.push('a');
+				return { status: 200 };
+			},
+		});
+		const b = entry('b', {
+			listener: (r, next) => {
+				order.push('b');
+				return next(r);
+			},
+		});
 		const chain = buildLinearChain([a, b], UNHANDLED);
 		const result = chain(req());
 		assert.deepStrictEqual(order, ['a']);
@@ -169,8 +216,8 @@ describe('buildLinearChain', () => {
 
 describe('resolveDeps', () => {
 	it('returns same entries when no after deps', () => {
-		const entries = ['a', 'b'].map(n => entry(n));
-		const registry = new Map(entries.map(e => [e.name, e]));
+		const entries = ['a', 'b'].map((n) => entry(n));
+		const registry = new Map(entries.map((e) => [e.name, e]));
 		const result = resolveDeps(entries, registry);
 		assert.deepStrictEqual(new Set(result), new Set(entries));
 	});
@@ -178,7 +225,10 @@ describe('resolveDeps', () => {
 	it('pulls in a dep that is in the registry but not the entry list', () => {
 		const auth = entry('authentication');
 		const rest = entry('rest', { after: 'authentication' });
-		const registry = new Map([['authentication', auth], ['rest', rest]]);
+		const registry = new Map([
+			['authentication', auth],
+			['rest', rest],
+		]);
 		// Only rest is in the initial list; auth should be pulled in
 		const result = resolveDeps([rest], registry);
 		assert.ok(result.includes(auth), 'auth should be pulled in');
@@ -189,7 +239,11 @@ describe('resolveDeps', () => {
 		const c = entry('c');
 		const b = entry('b', { after: 'c' });
 		const a = entry('a', { after: 'b' });
-		const registry = new Map([['a', a], ['b', b], ['c', c]]);
+		const registry = new Map([
+			['a', a],
+			['b', b],
+			['c', c],
+		]);
 		const result = resolveDeps([a], registry);
 		assert.ok(result.includes(b), 'b should be pulled in');
 		assert.ok(result.includes(c), 'c should be pulled in transitively');
@@ -198,7 +252,10 @@ describe('resolveDeps', () => {
 	it('does NOT pull in entries referenced only by `before`', () => {
 		const auth = entry('authentication');
 		const staticE = entry('static', { before: 'authentication' });
-		const registry = new Map([['authentication', auth], ['static', staticE]]);
+		const registry = new Map([
+			['authentication', auth],
+			['static', staticE],
+		]);
 		// static declares before:auth but auth is not in the list
 		const result = resolveDeps([staticE], registry);
 		assert.ok(!result.includes(auth), 'auth should NOT be pulled in via before');
@@ -260,9 +317,13 @@ describe('matchesRoute', () => {
 describe('makeCallbackChain', () => {
 	it('flat chain: no sub-routes, calls middleware in registration order', () => {
 		const order = [];
-		const responders = ['a', 'b', 'c'].map(n => ({
-			name: n, port: 9000,
-			listener: (r, next) => { order.push(n); return next(r); },
+		const responders = ['a', 'b', 'c'].map((n) => ({
+			name: n,
+			port: 9000,
+			listener: (r, next) => {
+				order.push(n);
+				return next(r);
+			},
 		}));
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req());
@@ -272,8 +333,23 @@ describe('makeCallbackChain', () => {
 	it('flat chain: before/after constraints override registration order', () => {
 		const order = [];
 		const responders = [
-			{ name: 'rest', port: 9000, after: 'authentication', listener: (r, next) => { order.push('rest'); return next(r); } },
-			{ name: 'authentication', port: 9000, listener: (r, next) => { order.push('authentication'); return next(r); } },
+			{
+				name: 'rest',
+				port: 9000,
+				after: 'authentication',
+				listener: (r, next) => {
+					order.push('rest');
+					return next(r);
+				},
+			},
+			{
+				name: 'authentication',
+				port: 9000,
+				listener: (r, next) => {
+					order.push('authentication');
+					return next(r);
+				},
+			},
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req());
@@ -283,8 +359,22 @@ describe('makeCallbackChain', () => {
 	it('filters by port: only includes matching port entries', () => {
 		const order = [];
 		const responders = [
-			{ name: 'a', port: 9000, listener: (r, next) => { order.push('a'); return next(r); } },
-			{ name: 'b', port: 8080, listener: (r, next) => { order.push('b'); return next(r); } },
+			{
+				name: 'a',
+				port: 9000,
+				listener: (r, next) => {
+					order.push('a');
+					return next(r);
+				},
+			},
+			{
+				name: 'b',
+				port: 8080,
+				listener: (r, next) => {
+					order.push('b');
+					return next(r);
+				},
+			},
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req());
@@ -294,8 +384,22 @@ describe('makeCallbackChain', () => {
 	it('port "all" entries appear in every port chain', () => {
 		const order = [];
 		const responders = [
-			{ name: 'cors', port: 'all', listener: (r, next) => { order.push('cors'); return next(r); } },
-			{ name: 'a', port: 9000, listener: (r, next) => { order.push('a'); return next(r); } },
+			{
+				name: 'cors',
+				port: 'all',
+				listener: (r, next) => {
+					order.push('cors');
+					return next(r);
+				},
+			},
+			{
+				name: 'a',
+				port: 9000,
+				listener: (r, next) => {
+					order.push('a');
+					return next(r);
+				},
+			},
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req());
@@ -306,10 +410,23 @@ describe('makeCallbackChain', () => {
 	it('routes to sub-chain by urlPath', () => {
 		const order = [];
 		const responders = [
-			{ name: 'api-handler', port: 9000, urlPath: '/api',
-				listener: (r, next) => { order.push('api'); return next(r); } },
-			{ name: 'default-handler', port: 9000,
-				listener: (r, next) => { order.push('default'); return next(r); } },
+			{
+				name: 'api-handler',
+				port: 9000,
+				urlPath: '/api',
+				listener: (r, next) => {
+					order.push('api');
+					return next(r);
+				},
+			},
+			{
+				name: 'default-handler',
+				port: 9000,
+				listener: (r, next) => {
+					order.push('default');
+					return next(r);
+				},
+			},
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 
@@ -325,10 +442,23 @@ describe('makeCallbackChain', () => {
 	it('routes to sub-chain by host', () => {
 		const order = [];
 		const responders = [
-			{ name: 'vhost-handler', port: 9000, host: 'example.com',
-				listener: (r, next) => { order.push('vhost'); return next(r); } },
-			{ name: 'default-handler', port: 9000,
-				listener: (r, next) => { order.push('default'); return next(r); } },
+			{
+				name: 'vhost-handler',
+				port: 9000,
+				host: 'example.com',
+				listener: (r, next) => {
+					order.push('vhost');
+					return next(r);
+				},
+			},
+			{
+				name: 'default-handler',
+				port: 9000,
+				listener: (r, next) => {
+					order.push('default');
+					return next(r);
+				},
+			},
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 
@@ -345,11 +475,25 @@ describe('makeCallbackChain', () => {
 		const order = [];
 		const responders = [
 			// auth on default route
-			{ name: 'authentication', port: 9000,
-				listener: (r, next) => { order.push('authentication'); return next(r); } },
+			{
+				name: 'authentication',
+				port: 9000,
+				listener: (r, next) => {
+					order.push('authentication');
+					return next(r);
+				},
+			},
 			// rest on /api, declares it needs to run after auth
-			{ name: 'rest', port: 9000, urlPath: '/api', after: 'authentication',
-				listener: (r, next) => { order.push('rest'); return next(r); } },
+			{
+				name: 'rest',
+				port: 9000,
+				urlPath: '/api',
+				after: 'authentication',
+				listener: (r, next) => {
+					order.push('rest');
+					return next(r);
+				},
+			},
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 
@@ -361,10 +505,15 @@ describe('makeCallbackChain', () => {
 	it('sub-route with `after` dep: dep runs once, not twice', () => {
 		let authCount = 0;
 		const responders = [
-			{ name: 'authentication', port: 9000,
-				listener: (r, next) => { authCount++; return next(r); } },
-			{ name: 'rest', port: 9000, urlPath: '/api', after: 'authentication',
-				listener: (r, next) => next(r) },
+			{
+				name: 'authentication',
+				port: 9000,
+				listener: (r, next) => {
+					authCount++;
+					return next(r);
+				},
+			},
+			{ name: 'rest', port: 9000, urlPath: '/api', after: 'authentication', listener: (r, next) => next(r) },
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req('/api/products'));
@@ -374,10 +523,25 @@ describe('makeCallbackChain', () => {
 	it('specificity: host+path wins over path-only for same urlPath prefix', () => {
 		const order = [];
 		const responders = [
-			{ name: 'path-only', port: 9000, urlPath: '/api',
-				listener: (r, next) => { order.push('path-only'); return next(r); } },
-			{ name: 'host-path', port: 9000, host: 'example.com', urlPath: '/api',
-				listener: (r, next) => { order.push('host-path'); return next(r); } },
+			{
+				name: 'path-only',
+				port: 9000,
+				urlPath: '/api',
+				listener: (r, next) => {
+					order.push('path-only');
+					return next(r);
+				},
+			},
+			{
+				name: 'host-path',
+				port: 9000,
+				host: 'example.com',
+				urlPath: '/api',
+				listener: (r, next) => {
+					order.push('host-path');
+					return next(r);
+				},
+			},
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req('/api', 'example.com'));
@@ -387,10 +551,24 @@ describe('makeCallbackChain', () => {
 	it('longer urlPath wins over shorter prefix', () => {
 		const order = [];
 		const responders = [
-			{ name: 'short', port: 9000, urlPath: '/api',
-				listener: (r, next) => { order.push('short'); return next(r); } },
-			{ name: 'long', port: 9000, urlPath: '/api/v2',
-				listener: (r, next) => { order.push('long'); return next(r); } },
+			{
+				name: 'short',
+				port: 9000,
+				urlPath: '/api',
+				listener: (r, next) => {
+					order.push('short');
+					return next(r);
+				},
+			},
+			{
+				name: 'long',
+				port: 9000,
+				urlPath: '/api/v2',
+				listener: (r, next) => {
+					order.push('long');
+					return next(r);
+				},
+			},
 		];
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req('/api/v2/products'));

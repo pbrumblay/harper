@@ -79,7 +79,7 @@ export class Scope extends EventEmitter<ScopeEventsMap> {
 					const method = Reflect.get(target, prop, receiver);
 					if (typeof method === 'function') {
 						return (listener: any, options?: any) => {
-							const scopeConfig = scopeRef.options?.getAll() as any ?? {};
+							const scopeConfig = (scopeRef.options?.getAll() as any) ?? {};
 							return method.call(target, listener, {
 								name: pluginName,
 								urlPath: scopeConfig.urlPath || undefined,

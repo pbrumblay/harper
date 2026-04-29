@@ -163,15 +163,15 @@ export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function): 
 	type RouteGroup = { host?: string; urlPath?: string; entries: HttpEntry[] };
 	const routeGroups: RouteGroup[] = [];
 	for (const entry of portEntries) {
-		const group = routeGroups.find(g => g.host === entry.host && g.urlPath === entry.urlPath);
+		const group = routeGroups.find((g) => g.host === entry.host && g.urlPath === entry.urlPath);
 		if (group) group.entries.push(entry);
 		else routeGroups.push({ host: entry.host, urlPath: entry.urlPath, entries: [entry] });
 	}
 
-	const defaultGroup = routeGroups.find(g => !g.host && !g.urlPath);
-	const subRouteGroups = routeGroups.filter(g => g.host || g.urlPath);
+	const defaultGroup = routeGroups.find((g) => !g.host && !g.urlPath);
+	const subRouteGroups = routeGroups.filter((g) => g.host || g.urlPath);
 
-	const subRouteChains = subRouteGroups.map(group => {
+	const subRouteChains = subRouteGroups.map((group) => {
 		const resolved = resolveDeps(group.entries, nameToEntry);
 		return { host: group.host, urlPath: group.urlPath, chain: buildLinearChain(topoSort(resolved), fallback) };
 	});
@@ -198,12 +198,8 @@ export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function): 
  * Uses a flat linear chain when no sub-routes are present (fast path),
  * or a route-dispatching chain when any entry has urlPath or host.
  */
-export function makeCallbackChain(
-	responders: HttpEntry[],
-	portNum: number | string,
-	fallback: Function
-): Function {
+export function makeCallbackChain(responders: HttpEntry[], portNum: number | string, fallback: Function): Function {
 	const portEntries = responders.filter(({ port }) => port === portNum || port === 'all');
-	if (portEntries.some(e => e.urlPath || e.host)) return buildRoutedChain(portEntries, fallback);
+	if (portEntries.some((e) => e.urlPath || e.host)) return buildRoutedChain(portEntries, fallback);
 	return buildLinearChain(topoSort(portEntries), fallback);
 }

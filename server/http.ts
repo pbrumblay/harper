@@ -34,7 +34,15 @@ server.upgrade = onUpgrade;
 const websocketServers = {};
 const httpServers = {},
 	httpChain = {},
-	httpResponders: { listener: Function; port: number | string; name?: string; before?: string; after?: string; urlPath?: string; host?: string }[] = [];
+	httpResponders: {
+		listener: Function;
+		port: number | string;
+		name?: string;
+		before?: string;
+		after?: string;
+		urlPath?: string;
+		host?: string;
+	}[] = [];
 let httpOptions: HttpOptions = {};
 export const universalHeaders: [string, string][] = [];
 

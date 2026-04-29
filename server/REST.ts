@@ -287,10 +287,13 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 		Request.prototype.includeExpensiveRecordCountEstimates = true;
 	}
 	resources = scope.resources;
-	scope.server.http(async (request: Request, nextHandler) => {
-		if (request.isWebSocket) return;
-		return http(request, nextHandler);
-	}, { after: 'authentication', ...httpOptions });
+	scope.server.http(
+		async (request: Request, nextHandler) => {
+			if (request.isWebSocket) return;
+			return http(request, nextHandler);
+		},
+		{ after: 'authentication', ...httpOptions }
+	);
 	if ((httpOptions as any).webSocket === false) return;
 	scope.server.ws(async (ws, request, chainCompletion) => {
 		connectionCount++;
