@@ -549,11 +549,7 @@ export function makeTable(options) {
 			}
 			return resource;
 		}
-		_loadRecord(
-			target: RequestTarget,
-			request: Context,
-			resourceOptions?: any
-		): MaybePromise<TableResource<Record>> {
+		_loadRecord(target: RequestTarget, request: Context, resourceOptions?: any): MaybePromise<TableResource<Record>> {
 			const id = target && typeof target === 'object' ? target.id : target;
 			if (id == null) return this;
 			checkValidId(id);
@@ -935,9 +931,7 @@ export function makeTable(options) {
 		 * This retrieves the data of this resource.
 		 * @param target - If included, is an identifier/query that specifies the requested target to retrieve and query
 		 */
-		get(
-			target?: any
-		): any {
+		get(target?: any): any {
 			const constructor: any = this.constructor;
 			if (typeof target === 'string' && constructor.loadAsInstance !== false) return this.getProperty(target);
 			if (isSearchTarget(target)) {
@@ -1241,7 +1235,8 @@ export function makeTable(options) {
 
 		addTo(property: any, value: any) {
 			if (typeof value === 'number' || typeof value === 'bigint') {
-				if (this.#savingOperation?.fullUpdate) (this as any).set(property, (+this.getProperty(property) || 0) + (value as any));
+				if (this.#savingOperation?.fullUpdate)
+					(this as any).set(property, (+this.getProperty(property) || 0) + (value as any));
 				else {
 					if (!this.#savingOperation) (this as any).update();
 					(this as any).set(property, new Addition(value));
@@ -1278,9 +1273,9 @@ export function makeTable(options) {
 			const context = this.getContext();
 			if ((target as RequestTarget)?.checkPermission) {
 				// requesting authorization verification
-				allowed = this.allowDelete((context as any).user, target as RequestTarget, context);
-			}
-			return when(allowed, (allowed: boolean) => {
+				allowed = this.allowDelete((context as any).user, target as any, context);
+				}
+				return when(allowed, (allowed: boolean) => {
 				if (!allowed) {
 					throw new AccessViolation((context as any).user);
 				}
@@ -1296,7 +1291,7 @@ export function makeTable(options) {
 				store: primaryStore,
 				invalidated: true,
 				entry: this.#entry,
-				beforeIntermediate: preCommitBlobsForRecordBefore(partialRecord),
+				beforeIntermediate: () => preCommitBlobsForRecordBefore(partialRecord),
 				commit: (txnTime, existingEntry, _retry, transaction: any) => {
 					if (precedesExistingVersion(txnTime, existingEntry, options?.nodeId) <= 0) return;
 					partialRecord ??= null;
@@ -1369,7 +1364,7 @@ export function makeTable(options) {
 						metadata,
 						audit,
 						{
-							user: context.user,
+							user: (context as any)?.user,
 							residencyId: options.residencyId,
 							nodeId: options.nodeId,
 							viaNodeId: options?.viaNodeId,
@@ -1600,7 +1595,7 @@ export function makeTable(options) {
 				validate: (txnTime) => {
 					if (!recordUpdate) recordUpdate = this.#changes;
 					if (fullUpdate || (recordUpdate && hasChanges(this.#changes === recordUpdate ? this : recordUpdate))) {
-						if (!context?.source) {
+						if (!(context as any)?.source) {
 							transaction.checkOverloaded();
 							this.validate(recordUpdate, !fullUpdate);
 							if (updatedTimeProperty) {
@@ -1637,7 +1632,7 @@ export function makeTable(options) {
 							// TODO: else freeze after we have applied the changes
 						}
 					} else {
-						transaction.removeWrite?.(write);
+						(transaction as any).removeWrite?.(write);
 						return false;
 					}
 				},
@@ -1827,7 +1822,7 @@ export function makeTable(options) {
 					if (recordToStore && recordToStore.getRecord)
 						throw new Error('Can not assign a record to a record, check for circular references');
 					if (residencyId == undefined) {
-						if (entry?.residencyId) context.previousResidency = TableResource.getResidencyRecord(entry.residencyId);
+						if (entry?.residencyId) (context as any).previousResidency = TableResource.getResidencyRecord(entry.residencyId);
 						const residency = residencyFromFunction(TableResource.getResidency(recordToStore, context));
 						if (residency) {
 							if (!residency.includes(server.hostname)) {
@@ -1899,7 +1894,7 @@ export function makeTable(options) {
 								expiresAt,
 								nodeId: options?.nodeId,
 								viaNodeId: options?.viaNodeId,
-								originatingOperation: context?.originatingOperation,
+								originatingOperation: (context as any)?.originatingOperation,
 								transaction,
 								tableToTrack: databaseName === 'system' ? null : options?.replay ? null : tableName, // don't track analytics on system tables
 								additionalAuditRefs: additionalAuditRefs.length > 0 ? additionalAuditRefs : undefined,
@@ -1928,11 +1923,11 @@ export function makeTable(options) {
 				const context = this.getContext();
 				if (target.checkPermission) {
 					// requesting authorization verification
-					allowed = this.allowDelete(context.user, target, context);
-				}
-				return when(allowed, (allowed: boolean) => {
+					allowed = this.allowDelete((context as any).user, target as any, context);
+					}
+					return when(allowed, (allowed: boolean) => {
 					if (!allowed) {
-						throw new AccessViolation(context.user);
+						throw new AccessViolation((context as any).user);
 					}
 					const id = requestTargetToId(target);
 					this._writeDelete(id);
@@ -1954,8 +1949,8 @@ export function makeTable(options) {
 				entry,
 				nodeName: context?.nodeName,
 				before:
-					this.constructor.source?.delete && !context?.source
-						? this.constructor.source.delete.bind(this.constructor.source, id, undefined, context)
+					(this.constructor as any).source?.delete && !(context as any)?.source
+						? (this.constructor as any).source.delete.bind((this.constructor as any).source, id, undefined, context)
 						: undefined,
 				commit: (txnTime, existingEntry, retry, transaction: any) => {
 					const existingRecord = existingEntry?.value;
@@ -2001,9 +1996,9 @@ export function makeTable(options) {
 			if (target.parseError) throw target.parseError; // if there was a parse error, we can throw it now
 			if (target.checkPermission) {
 				// requesting authorization verification
-				const allowed = this.allowRead(context.user, target, context);
+				const allowed = this.allowRead((context as any).user, target, context);
 				if (!allowed) {
-					throw new AccessViolation(context.user);
+					throw new AccessViolation((context as any).user);
 				}
 			}
 			if (context) context.lastModified = UNCACHEABLE_TIMESTAMP;
@@ -2852,11 +2847,11 @@ export function makeTable(options) {
 				const context = this.getContext();
 				if (target.checkPermission) {
 					// requesting authorization verification
-					allowed = this.allowCreate(context.user, message, context);
-				}
-				return when(allowed, (allowed: boolean) => {
+					allowed = this.allowDelete((context as any).user, target as any, context);
+					}
+					return when(allowed, (allowed: boolean) => {
 					if (!allowed) {
-						throw new AccessViolation(context.user);
+						throw new AccessViolation((context as any).user);
 					}
 					const id = requestTargetToId(target);
 					this._writePublish(id, message, options);
@@ -3911,7 +3906,7 @@ export function makeTable(options) {
 		return ids;
 	}
 
-	function precedesExistingVersion(txnTime: number, existingEntry: Entry, nodeId?: number): number {
+	function precedesExistingVersion(txnTime: number, existingEntry: Partial<Entry>, nodeId?: number): number {
 		if (nodeId === undefined) {
 			nodeId = getThisNodeId(auditStore);
 		}
