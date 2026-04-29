@@ -593,7 +593,7 @@ export function makeTable(options) {
 							);
 							if (loadingFromSource) {
 								txn?.disregardReadTxn(); // this could take some time, so don't keep the transaction open if possible
-								return when(loadingFromSource, (entry) => {
+								return when(loadingFromSource as Promise<Entry>, (entry) => {
 									TableResource._updateResource(this, entry);
 									return this;
 								});
@@ -625,7 +625,7 @@ export function makeTable(options) {
 				this.getContext()
 			);
 			if (loadedFromSource) {
-				return when(loadedFromSource, (entry) => {
+				return when(loadedFromSource as Promise<Entry>, (entry) => {
 					this.#entry = entry;
 					this.#record = entry.value;
 					this.#version = entry.version;
@@ -932,14 +932,9 @@ export function makeTable(options) {
 			);
 		}
 		/**
-		 * This retrieves the data of this resource. By default, with no argument, just return `this`.
-		 */
-		get(): TableResource<Record> | undefined;
-		/**
 		 * This retrieves the data of this resource.
 		 * @param target - If included, is an identifier/query that specifies the requested target to retrieve and query
 		 */
-		get(target: RequestTargetOrId): Record | AsyncIterable<Record> | Promise<Record | AsyncIterable<Record>>;
 		get(
 			target?: any
 		): any {
@@ -1057,20 +1052,20 @@ export function makeTable(options) {
 					// If attribute permissions are defined, we need to ensure there is a select that only returns the attributes the user has permission to
 					// or if there are relationships, we need to ensure that the user has permission to read from the related table
 					// Note that if we do not have a select, we do not return any relationships by default.
-					if (!target) target = {};
+					if (!target) target = {} as any;
 					if (select) {
 						const selectArray = Array.isArray(select) ? select : [select];
 						const attrsForType = attribute_permissions?.length > 0 && attributesAsObject(attribute_permissions, 'read');
-						target.select = selectArray
-							.map((property) => {
+						(target as any).select = selectArray
+							.map((property: any) => {
 								const propertyName = property.name || property;
 								if (!attrsForType || attrsForType[propertyName]) {
 									const relatedTable = propertyResolvers[propertyName]?.definition?.tableClass;
 									if (relatedTable) {
 										// if there is a related table, we need to ensure the user has permission to read from that table and that attributes are properly restricted
 										if (!property.name) property = { name: property };
-										if (!property.checkPermission && target.checkPermission)
-											property.checkPermission = target.checkPermission;
+										if (!property.checkPermission && (target as any).checkPermission)
+											property.checkPermission = (target as any).checkPermission;
 										if (!relatedTable.prototype.allowRead.call(null, user, property, context)) return false;
 										if (!property.select) return property.name; // no select was applied, just return the name
 									}
@@ -1205,14 +1200,14 @@ export function makeTable(options) {
 					if (target == undefined) throw new TypeError('Can not put a record without a target');
 					if (target.checkPermission) {
 						// requesting authorization verification
-						allowed = this.allowUpdate(context.user, updates, context);
+						allowed = this.allowUpdate((context as any).user, updates, context);
 					}
 					return when(allowed, (allowed) => {
 						if (!allowed) {
-							throw new AccessViolation(context.user);
+							throw new AccessViolation((context as any).user);
 						}
 						let loading: Promise<any>;
-						if (!this.#entry && this.constructor.loadAsInstance === false) {
+						if (!this.#entry && (this.constructor as any).loadAsInstance === false) {
 							// load the record if it hasn't been done yet
 							loading = this._loadRecord(target, context, { ensureLoaded: true, async: true }) as Promise<any>;
 						}
@@ -1244,18 +1239,18 @@ export function makeTable(options) {
 			}
 		}
 
-		addTo(property, value) {
+		addTo(property: any, value: any) {
 			if (typeof value === 'number' || typeof value === 'bigint') {
-				if (this.#savingOperation?.fullUpdate) this.set(property, (+this.getProperty(property) || 0) + value);
+				if (this.#savingOperation?.fullUpdate) (this as any).set(property, (+this.getProperty(property) || 0) + (value as any));
 				else {
-					if (!this.#savingOperation) this.update();
-					this.set(property, new Addition(value));
+					if (!this.#savingOperation) (this as any).update();
+					(this as any).set(property, new Addition(value));
 				}
 			} else {
 				throw new Error('Can not add a non-numeric value');
 			}
 		}
-		subtractFrom(property, value) {
+		subtractFrom(property: any, value: any) {
 			if (typeof value === 'number') {
 				return this.addTo(property, -value);
 			} else {
@@ -1283,11 +1278,11 @@ export function makeTable(options) {
 			const context = this.getContext();
 			if ((target as RequestTarget)?.checkPermission) {
 				// requesting authorization verification
-				allowed = this.allowDelete(context.user, target as RequestTarget, context);
+				allowed = this.allowDelete((context as any).user, target as RequestTarget, context);
 			}
 			return when(allowed, (allowed: boolean) => {
 				if (!allowed) {
-					throw new AccessViolation(context.user);
+					throw new AccessViolation((context as any).user);
 				}
 				this._writeInvalidate(target ? requestTargetToId(target) : this.getId());
 			});
@@ -1321,7 +1316,7 @@ export function makeTable(options) {
 						INVALIDATED,
 						audit,
 						{
-							user: context?.user,
+							user: (context as any)?.user,
 							residencyId: options?.residencyId,
 							nodeId: options?.nodeId,
 							viaNodeId: options?.viaNodeId,
@@ -1344,8 +1339,8 @@ export function makeTable(options) {
 				invalidated: true,
 				entry: this.#entry,
 				before:
-					this.constructor.source?.relocate && !context?.source
-						? this.constructor.source.relocate.bind(this.constructor.source, id, undefined, context)
+					(this.constructor as any).source?.relocate && !(context as any)?.source
+						? (this.constructor as any).source.relocate.bind((this.constructor as any).source, id, undefined, context)
 						: undefined,
 				commit: (txnTime, existingEntry, _retry, transaction: any) => {
 					if (precedesExistingVersion(txnTime, existingEntry, options?.nodeId) <= 0) return;
@@ -1427,7 +1422,8 @@ export function makeTable(options) {
 		 */
 		static evict(id, existingRecord, existingVersion) {
 			let entry;
-			let transaction = txnForContext({ transaction: new DatabaseTransaction() }).getReadTxn();
+			let dbTxn = new DatabaseTransaction();
+			let transaction = txnForContext({ transaction: dbTxn }).getReadTxn();
 			let options = { transaction };
 			try {
 				if (hasSourceGet || audit) {
@@ -1454,7 +1450,7 @@ export function makeTable(options) {
 					return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), options);
 				}
 			} finally {
-				return transaction.commit();
+				return (transaction as any)?.commit?.() ?? dbTxn.commit();
 			}
 		}
 		/**
@@ -1473,25 +1469,26 @@ export function makeTable(options) {
 		 * Store the provided record data into the current resource. This is not written
 		 * until the corresponding transaction is committed.
 		 */
+		// @ts-expect-error The implementation intentionally uses a different argument order for back-compat
 		put(
 			target: RequestTarget,
 			record: Record & RecordObject
 		): void | (Record & Partial<RecordObject>) | Promise<void | (Record & Partial<RecordObject>)> {
 			if (record === undefined || record instanceof URLSearchParams) {
 				// legacy argument position, shift the arguments and go through the update method for back-compat
-				this.update(target, true);
-				return this.save();
+				(this as any).update(target, true);
+				return this.save() as any;
 			} else {
 				let allowed = true;
 				if (target == undefined) throw new TypeError('Can not put a record without a target');
 				const context = this.getContext();
-				if (target.checkPermission) {
+				if ((target as any).checkPermission) {
 					// requesting authorization verification
-					allowed = this.allowUpdate(context.user, record, context);
+					allowed = this.allowUpdate((context as any).user, record, context);
 				}
 				return when(allowed, (allowed) => {
 					if (!allowed) {
-						throw new AccessViolation(context.user);
+						throw new AccessViolation((context as any).user);
 					}
 					// standard path, handle arrays as multiple updates, and otherwise do a direct update
 					if (Array.isArray(record)) {
@@ -1499,44 +1496,45 @@ export function makeTable(options) {
 							record.map((element) => {
 								const id = element[primaryKey];
 								this._writeUpdate(id, element, true);
-								return this.save();
+								return this.save() as any;
 							})
-						);
+						) as any;
 					} else {
-						const id = requestTargetToId(target);
+						const id = requestTargetToId(target as any);
 						this._writeUpdate(id, record, true);
-						return this.save();
+						return this.save() as any;
 					}
-				});
+				}) as any;
 			}
 			// always return undefined
 		}
 
+		// @ts-expect-error The implementation intentionally uses a different argument order for back-compat
 		create(
-			target: RequestTarget,
+			target: RequestTargetOrId,
 			record: Partial<Record & RecordObject>
 		): void | (Record & Partial<RecordObject>) | Promise<Record & Partial<RecordObject>> {
 			let allowed = true;
 			const context = this.getContext();
 			if (!record && !(target instanceof URLSearchParams)) {
 				// single argument, shift arguments
-				record = target;
+				record = target as any;
 				target = undefined;
 			}
 			if (!record || typeof record !== 'object' || Array.isArray(record)) {
 				throw new TypeError('Can not create a record without an object');
 			}
-			if (target?.checkPermission) {
+			if ((target as any)?.checkPermission) {
 				// requesting authorization verification
-				allowed = this.allowCreate(context.user, record, context);
+				allowed = this.allowCreate((context as any).user, record as any, context);
 			}
 			return when(allowed, (allowed) => {
 				if (!allowed) {
-					throw new AccessViolation(context.user);
+					throw new AccessViolation((context as any).user);
 				}
-				let id = requestTargetToId(target) ?? record[primaryKey];
+				let id = requestTargetToId(target as any) ?? record[primaryKey];
 				if (id === undefined) {
-					id = this.constructor.getNewId();
+					id = (this.constructor as any).getNewId();
 					record[primaryKey] = id; // make this immediately available
 				} else {
 					const existing = primaryStore.getSync(id);
@@ -1546,7 +1544,7 @@ export function makeTable(options) {
 				}
 				this._writeUpdate(id, record, true);
 				return record;
-			});
+			}) as any;
 		}
 
 		// @ts-expect-error The implementation handles the possibility of target and recordUpdate being swapped
@@ -1556,13 +1554,13 @@ export function makeTable(options) {
 		): void | (Record & Partial<RecordObject>) | Promise<void | (Record & Partial<RecordObject>)> {
 			if (recordUpdate === undefined || recordUpdate instanceof URLSearchParams) {
 				// legacy argument position, shift the arguments and go through the update method for back-compat
-				this.update(target, false);
-				return this.save();
+				(this as any).update(target, false);
+				return this.save() as any;
 			} else {
 				// standard path, ensure there is no return object
 				return when(this.update(target, recordUpdate), () => {
-					return when(this.save(), () => undefined); // wait for the update and save, but return undefined
-				});
+					return when(this.save() as any, () => undefined); // wait for the update and save, but return undefined
+				}) as any;
 			}
 		}
 		// perform the actual write operation; this may come from a user request to write (put, post, etc.), or
@@ -1575,19 +1573,19 @@ export function makeTable(options) {
 			checkValidId(id);
 			const entry = this.#entry ?? primaryStore.getEntry(id, { transaction: transaction.getReadTxn() });
 			const writeToSource = () => {
-				if (!this.constructor.source || context?.source) return;
+				if (!(this.constructor as any).source || (context as any)?.source) return;
 				if (fullUpdate) {
 					// full update is a put
-					if (this.constructor.source.put) {
-						return () => this.constructor.source.put(id, recordUpdate, context);
+					if ((this.constructor as any).source.put) {
+						return () => (this.constructor as any).source.put(id, recordUpdate, context);
 					}
 				} else {
 					// incremental update
-					if (this.constructor.source.patch) {
-						return () => this.constructor.source.patch(id, recordUpdate, context);
-					} else if (this.constructor.source.put) {
+					if ((this.constructor as any).source.patch) {
+						return () => (this.constructor as any).source.patch(id, recordUpdate, context);
+					} else if ((this.constructor as any).source.put) {
 						// if this is incremental, but only have put, we can use that by generating the full record (at least the expected one)
-						return () => this.constructor.source.put(id, updateAndFreeze(this), context);
+						return () => (this.constructor as any).source.put(id, updateAndFreeze(this), context);
 					}
 				}
 			};
@@ -1596,7 +1594,7 @@ export function makeTable(options) {
 				key: id,
 				store: primaryStore,
 				entry,
-				nodeName: context?.nodeName,
+				nodeName: (context as any)?.nodeName,
 				fullUpdate,
 				deferSave: true,
 				validate: (txnTime) => {
@@ -1818,7 +1816,7 @@ export function makeTable(options) {
 					let recordToStore: any;
 					if (fullUpdate && !incrementalUpdateToApply) recordToStore = recordUpdate;
 					else {
-						if (this.constructor.loadAsInstance === false)
+						if ((this.constructor as any).loadAsInstance === false)
 							recordToStore = updateAndFreeze(existingRecord, incrementalUpdateToApply ?? recordUpdate);
 						else {
 							this.#record = existingRecord;
@@ -1896,7 +1894,7 @@ export function makeTable(options) {
 							audit,
 							{
 								omitLocalRecord,
-								user: context?.user,
+								user: (context as any)?.user,
 								residencyId,
 								expiresAt,
 								nodeId: options?.nodeId,
@@ -1979,7 +1977,7 @@ export function makeTable(options) {
 							0,
 							audit,
 							{
-								user: context?.user,
+								user: (context as any)?.user,
 								nodeId: options?.nodeId,
 								viaNodeId: options?.viaNodeId,
 								transaction,
@@ -2909,7 +2907,7 @@ export function makeTable(options) {
 						0,
 						true,
 						{
-							user: context?.user,
+							user: (context as any)?.user,
 							residencyId: options?.residencyId,
 							expiresAt: context?.expiresAt,
 							nodeId: options?.nodeId,
@@ -4600,3 +4598,4 @@ function convertToComparableKeys(a) {
 	}
 	return a;
 }
+

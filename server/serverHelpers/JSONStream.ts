@@ -119,7 +119,7 @@ class JSONStream extends Readable {
 			return this.push(null);
 		}
 		when(
-			this.readIterator(this.iterator),
+			this.readIterator(this.jsonIterator),
 			(done) => {
 				if (done) {
 					this.done = true;
@@ -159,6 +159,9 @@ class JSONStream extends Readable {
 
 	readIterator(iterator) {
 		try {
+			if (!iterator || typeof iterator.next !== 'function') {
+				console.error('DEBUG iterator is not valid:', typeof iterator, iterator);
+			}
 			// eventually we should be able to just put this around iterator.next()
 			let nextString;
 			if (iterator.childIterator) {

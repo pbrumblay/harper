@@ -96,7 +96,6 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 			// allows context to reset/remove transaction after completion so it can be used in immediate mode:
 			letItLinger: true,
 			ensureLoaded: true, // load from source by default
-			hasContent: false,
 			async: true, // use async by default
 			method: 'get',
 		}
@@ -211,7 +210,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		function (resource: any, query: RequestTarget, _request: Context, _data: any) {
 			return resource.invalidate ? resource.invalidate(query) : missingMethod(resource, 'invalidate');
 		},
-		{ hasContent: false, type: 'update', method: 'invalidate' }
+		{ type: 'update', method: 'invalidate' }
 	);
 
 	static post = transactional(
@@ -457,8 +456,8 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	search?(target: RequestTargetOrId): AsyncIterable<Record & Partial<RecordObject>>;
 
 	create?(
-		target: RequestTargetOrId,
-		newRecord: Partial<Record & RecordObject>
+		newRecord: Partial<Record & RecordObject>,
+		target: RequestTargetOrId
 	): void | (Record & Partial<RecordObject>) | Promise<Record & Partial<RecordObject>>;
 	put?(
 		record: Record & RecordObject,
@@ -495,7 +494,7 @@ export function snakeCase(camelCase: string) {
 function transactional(
 	action: (resource: any, query: RequestTarget, context: Context, data: any) => any,
 	options: {
-		hasContent: boolean;
+		hasContent?: boolean;
 		type: 'read' | 'update' | 'create' | 'delete';
 		async?: boolean;
 		ensureLoaded?: boolean;
