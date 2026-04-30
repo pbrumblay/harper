@@ -30,7 +30,7 @@ class JSONStream extends Readable {
 		this.activeIterators = [];
 	}
 
-	*serialize(object: any, topLevel?: boolean): Generator<string | Buffer, string | Buffer | void, unknown> {
+	*serialize(object: any, _topLevel?: boolean): Generator<string | Buffer, string | Buffer | void, unknown> {
 		// using a generator to serialize JSON for convenience of recursive pause and resume functionality
 		// serialize a value to an iterator that can be consumed by streaming API
 		if (object && typeof object === 'object') {

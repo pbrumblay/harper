@@ -8,7 +8,7 @@ import { IterableEventQueue } from '../resources/IterableEventQueue.ts';
 import { transaction } from '../resources/transaction.ts';
 import { Headers, mergeHeaders } from '../server/serverHelpers/Headers.ts';
 import { generateJsonApi } from '../resources/openApi.ts';
-import type { Context } from '../resources/ResourceInterface.ts';
+
 import { Request } from '../server/serverHelpers/Request.ts';
 import { RequestTarget } from '../resources/RequestTarget';
 

@@ -434,7 +434,8 @@ export function createAuditEntry(auditRecord: AuditRecord, start = 0) {
 export function readAuditEntry(buffer: Uint8Array, start = 0, end = undefined): AuditRecord {
 	try {
 		const decoder =
-			 (buffer as any).decoder || ( (buffer as any).decoder = new Decoder(buffer.buffer, buffer.byteOffset, buffer.byteLength));
+			(buffer as any).decoder ||
+			((buffer as any).decoder = new Decoder(buffer.buffer, buffer.byteOffset, buffer.byteLength));
 		decoder.position = start;
 		let previousVersion;
 		if (buffer[decoder.position] == 66) {
@@ -478,7 +479,7 @@ export function readAuditEntry(buffer: Uint8Array, start = 0, end = undefined): 
 		const usernameStart = decoder.position;
 		const usernameEnd = (decoder.position += length);
 		let value: any;
-		return ({
+		return {
 			type: EVENT_TYPES[action & 7],
 			tableId,
 			nodeId,
@@ -526,7 +527,7 @@ export function readAuditEntry(buffer: Uint8Array, start = 0, end = undefined): 
 			expiresAt,
 			originatingOperation,
 			previousAdditionalAuditRefs,
-		 } as any);
+		} as any;
 	} catch (error) {
 		harperLogger.error('Reading audit entry error', error, buffer);
 		return {} as any;

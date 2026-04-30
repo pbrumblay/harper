@@ -1,4 +1,3 @@
-import { Transaction as LMDBNativeTransaction } from 'lmdb';
 import {
 	DatabaseTransaction,
 	type CommitOptions,
@@ -23,11 +22,6 @@ let confirmReplication;
 export function replicationConfirmation(callback) {
 	confirmReplication = callback;
 }
-
-type ReadTransaction = LMDBNativeTransaction & {
-	openTimer?: number;
-	retryRisk?: number;
-};
 
 export class LMDBTransaction extends DatabaseTransaction {
 	#context: Context;
@@ -306,7 +300,7 @@ export class LMDBTransaction extends DatabaseTransaction {
 		// reset the transaction
 		this.writes = [];
 	}
-	save(...args: any[]): any {
+	save(..._args: any[]): any {
 		// noop for LMDB
 	}
 }
@@ -316,7 +310,7 @@ export class ImmediateTransaction extends LMDBTransaction {
 		super();
 		this.db = db;
 	}
-	save(...args: any[]): any {
+	save(..._args: any[]): any {
 		return this.commit();
 	}
 	// @ts-expect-error accessor overriding property

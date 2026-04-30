@@ -1,4 +1,3 @@
-import { Resource } from './Resource.ts';
 import { transaction } from './transaction.ts';
 import { ErrorResource } from './ErrorResource.ts';
 import logger from '../utility/logging/harper_logger.js';
@@ -132,7 +131,7 @@ export class Resources extends Map<string, ResourceEntry> {
 		const entry = this.getMatch(path);
 		if (entry) {
 			path = entry.relativeURL;
-			return entry.Resource.getResource( (this as any).pathToId(path, entry.Resource), resourceInfo);
+			return entry.Resource.getResource((this as any).pathToId(path, entry.Resource), resourceInfo);
 		}
 	}
 	call(path: string, request, callback: Function) {

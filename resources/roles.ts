@@ -80,7 +80,7 @@ async function handleFile(rolesContent) {
 async function ensureRole(role) {
 	const roleTable = getDatabases().system.hdb_role;
 	// if the role already exists, we need to update it
-	for await (let existingRole of roleTable.search([{ attribute: "role", value: role.role }] as any)) {
+	for await (let existingRole of roleTable.search([{ attribute: 'role', value: role.role }] as any)) {
 		// use the existing role id so we can update in place. Legacy roles may have a UUID for the id instead of the role name
 		const { __createdtime__, __updatedtime__, ...existingRoleData } = existingRole;
 		if (isEqual(existingRoleData, role)) {

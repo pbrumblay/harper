@@ -312,7 +312,7 @@ export class RecordEncoder extends Encoder {
 							: super.decode(buffer.subarray(position, end), end - position),
 					this.rootStore
 				);
-				lastMetadata = ({
+				lastMetadata = {
 					localTime,
 					version: localTime,
 					[METADATA]: metadataFlags,
@@ -322,7 +322,7 @@ export class RecordEncoder extends Encoder {
 					additionalAuditRefs,
 					size: end - start,
 					value,
-				 } as any);
+				} as any;
 				if (this.isRocksDB) return lastMetadata;
 				return value;
 			} // else a normal entry

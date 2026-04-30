@@ -59,11 +59,11 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		// Subclasses should override if needed
 	}
 
-	addTo(property: keyof Record, value: Record[keyof Record]): void {
+	addTo(_property: keyof Record, _value: Record[keyof Record]): void {
 		throw new Error('Not implemented');
 	}
 
-	subtractFrom(property: keyof Record, value: Record[keyof Record]): void {
+	subtractFrom(_property: keyof Record, _value: Record[keyof Record]): void {
 		throw new Error('Not implemented');
 	}
 
@@ -469,7 +469,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	): void | (Record & Partial<RecordObject>) | Promise<void | (Record & Partial<RecordObject>)>;
 
 	delete?(target: RequestTargetOrId): boolean | Promise<boolean>;
-	invalidate(target: RequestTargetOrId): void | Promise<void> {
+	invalidate(_target: RequestTargetOrId): void | Promise<void> {
 		missingMethod(this, 'invalidate');
 	}
 

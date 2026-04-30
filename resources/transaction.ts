@@ -50,8 +50,8 @@ export function transaction<T>(
 			(context as any).isExplicit || asyncStorageContext
 				? callback(transaction)
 				: contextStorage.run(context, () => callback(transaction));
-		if ( (result as any)?.then) {
-			return  (result as any).then(onComplete, onError);
+		if ((result as any)?.then) {
+			return (result as any).then(onComplete, onError);
 		}
 	} catch (error) {
 		onError(error);
@@ -60,8 +60,8 @@ export function transaction<T>(
 	// when the transaction function completes, run this to commit the transaction
 	function onComplete(result) {
 		const committed = transaction.commit({ doneWriting: true });
-		if ( (committed as any).then) {
-			return  (committed as any).then(() => {
+		if ((committed as any).then) {
+			return (committed as any).then(() => {
 				return result;
 			});
 		} else {

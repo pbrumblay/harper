@@ -68,8 +68,8 @@ export function addSubscription(table, key, listener?: (key) => any, startTime?:
 	if (subscriptions) subscriptions.push(subscription);
 	else {
 		tableSubscriptions.set(key, (subscriptions = [subscription]));
-		 (subscriptions as any).tables = tableSubscriptions;
-		 (subscriptions as any).key = key;
+		(subscriptions as any).tables = tableSubscriptions;
+		(subscriptions as any).key = key;
 	}
 	subscription.subscriptions = subscriptions;
 	return subscription;
@@ -96,10 +96,10 @@ class Subscription extends IterableEventQueue {
 		if (!this.subscriptions) return;
 		this.subscriptions.splice(this.subscriptions.indexOf(this), 1);
 		if (this.subscriptions.length === 0) {
-			const tableSubscriptions =  (this.subscriptions as any).tables;
+			const tableSubscriptions = (this.subscriptions as any).tables;
 			if (tableSubscriptions) {
 				// TODO: Handle cleanup of wildcard
-				const key =  (this.subscriptions as any).key;
+				const key = (this.subscriptions as any).key;
 				tableSubscriptions.delete(key);
 				if (tableSubscriptions.size === 0) {
 					const envSubscriptions = tableSubscriptions.envs;

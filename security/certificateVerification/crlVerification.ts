@@ -20,7 +20,6 @@ import {
 import { ERROR_CACHE_TTL, CRL_DEFAULT_VALIDITY_PERIOD, CRL_USER_AGENT } from './verificationConfig.ts';
 import type {
 	CertificateVerificationResult,
-	CertificateVerificationContext,
 	CertificateCacheEntry,
 	CRLCheckResult,
 	CRLConfig,
@@ -496,7 +495,7 @@ async function downloadAndParseCRL(
 		}
 
 		// Parse and validate the CRL
-		const crl = pkijs.CertificateRevocationList.fromBER((crlDerBuffer as any));
+		const crl = pkijs.CertificateRevocationList.fromBER(crlDerBuffer as any);
 
 		// Verify CRL signature
 		const issuerCert = pkijs.Certificate.fromBER(pemToBuffer(issuerPemStr));

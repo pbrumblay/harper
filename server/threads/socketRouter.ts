@@ -148,7 +148,8 @@ export function startSocketServer(port = 0, sessionAffinityIdentifier?) {
 			workerStrategy(clientHandle, (worker, receivedData) => {
 				if (!worker) {
 					if (directThreadServer) {
-						const socket = clientHandle._socket || new Socket({ handle: clientHandle, writable: true, readable: true } as any);
+						const socket =
+							clientHandle._socket || new Socket({ handle: clientHandle, writable: true, readable: true } as any);
 						directThreadServer.deliverSocket(socket, port, receivedData);
 						socket.resume();
 					} else if (currentThreadCount > 0) {
@@ -177,7 +178,8 @@ export function startSocketServer(port = 0, sessionAffinityIdentifier?) {
 				// valid file descriptor, forward it
 				// Windows doesn't support passing sockets by file descriptors, so we have manually proxy the socket data
 				else {
-					const socket = clientHandle._socket || new Socket({ handle: clientHandle, writable: true, readable: true } as any);
+					const socket =
+						clientHandle._socket || new Socket({ handle: clientHandle, writable: true, readable: true } as any);
 					proxySocket(socket, worker, port);
 				}
 				recordAction(true, 'socket-routed');

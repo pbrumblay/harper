@@ -289,7 +289,7 @@ export class RocksTransactionLogStore extends EventEmitter {
 		}
 		const mappedAggregateIterable = iterable.map(({ timestamp, data, endTxn }: TransactionEntry) => {
 			const decoder = new Decoder(data.buffer, data.byteOffset, data.byteLength);
-			 (data as any).dataView = decoder;
+			(data as any).dataView = decoder;
 			// This represents the data that shouldn't be transferred for replication
 			let structureVersion = decoder.getUint32(0);
 			let position = 4;

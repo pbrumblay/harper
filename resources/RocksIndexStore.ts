@@ -59,7 +59,7 @@ export class RocksIndexStore extends RocksDatabase {
 	// @ts-ignore
 	remove(indexedValue: any, primaryKey: Id, options?: StoreRemoveOptions) {
 		return super.removeSync([indexedValue, primaryKey], options);
-	// @ts-ignore
+		// @ts-ignore
 	}
 
 	// @ts-ignore

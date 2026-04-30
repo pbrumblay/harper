@@ -114,10 +114,10 @@ export async function authentication(request, nextHandler) {
 				request.method,
 				request.pathname
 			);
-			 (log as any).auth_strategy = strategy;
-			if (sessionId)  (log as any).session_id = sessionId;
-			if (headers['referer'])  (log as any).referer = headers['referer'];
-			if (headers['origin'])  (log as any).origin = headers['origin'];
+			(log as any).auth_strategy = strategy;
+			if (sessionId) (log as any).session_id = sessionId;
+			if (headers['referer']) (log as any).referer = headers['referer'];
+			if (headers['origin']) (log as any).origin = headers['origin'];
 
 			if (status === AUTH_AUDIT_STATUS.SUCCESS) authEventLog.info?.(log);
 			else authEventLog.error?.(log);
@@ -357,7 +357,7 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 	if (started) return;
 	started = true;
 	const { port, securePort }: any = scope.options.getAll() as { port?: number; securePort?: number };
-	scope.server.http(authentication, port || securePort ? { port, securePort } as any : { port: 'all' } as any);
+	scope.server.http(authentication, port || securePort ? ({ port, securePort } as any) : ({ port: 'all' } as any));
 }
 // operations
 export async function login(loginObject) {

@@ -1952,7 +1952,7 @@ export function makeTable(options) {
 			checkValidId(id);
 			const entry = this.#entry ?? primaryStore.getEntry(id, { transaction: transaction.getReadTxn() });
 
-			transaction.addWrite(({
+			transaction.addWrite({
 				key: id,
 				store: primaryStore,
 				entry,
@@ -1994,7 +1994,7 @@ export function makeTable(options) {
 						removeEntry(primaryStore, existingEntry);
 					}
 				},
-			} as any));
+			} as any);
 			return true;
 		}
 
@@ -2888,10 +2888,10 @@ export function makeTable(options) {
 						? (this.constructor as any).source.publish.bind((this.constructor as any).source, id, message, context)
 						: undefined,
 				beforeIntermediate: preCommitBlobsForRecordBefore(
-						message,
-						undefined,
-						true // because transaction log entries can be deleted at any point, we must save the blobs in the record, there is no cleanup of them
-					),
+					message,
+					undefined,
+					true // because transaction log entries can be deleted at any point, we must save the blobs in the record, there is no cleanup of them
+				),
 				commit: (txnTime, existingEntry, _retry, transaction: any) => {
 					// just need to update the version number of the record so it points to the latest audit record
 					// but have to update the version number of the record
@@ -3248,13 +3248,15 @@ export function makeTable(options) {
 								const id = object[relationship.from ? relationship.from : primaryKey];
 								const relatedTable = attribute.elements.definition.tableClass;
 								if (returnEntry) {
-									return (searchByIndex(
-										{ attribute: relationship.to, value: id },
-										txnForContext(context).getReadTxn(),
-										false,
-										relatedTable,
-										false
-									) as any).map((entry) => {
+									return (
+										searchByIndex(
+											{ attribute: relationship.to, value: id },
+											txnForContext(context).getReadTxn(),
+											false,
+											relatedTable,
+											false
+										) as any
+									).map((entry) => {
 										if (entry && entry.key !== undefined) return entry;
 										return relatedTable.primaryStore.getEntry(entry, {
 											transaction: txnForContext(context).getReadTxn(),
@@ -3839,7 +3841,9 @@ export function makeTable(options) {
 				transaction = nextTxn;
 			} while (true);
 		} else {
-			transaction = (isRocksDB ? new ImmediateTransaction(primaryStore as any) : new ImmediateLMDBTransaction(primaryStore as any)) as any;
+			transaction = (
+				isRocksDB ? new ImmediateTransaction(primaryStore as any) : new ImmediateLMDBTransaction(primaryStore as any)
+			) as any;
 			if (context) {
 				context.transaction = transaction;
 				if (context.timestamp) transaction.timestamp = context.timestamp;
@@ -4095,7 +4099,7 @@ export function makeTable(options) {
 							key: id,
 							version,
 							value: updatedRecord,
-						 } as any);
+						} as any);
 					} catch (error) {
 						error.message += ` while resolving record ${id} for ${tableName}`;
 						if (
@@ -4431,7 +4435,9 @@ export function makeTable(options) {
 			if (shardOrResidencyList >= 65536) throw new Error(`Shard id ${shardOrResidencyList} must be below 65536`);
 			const residencyList = server.shards?.get?.(shardOrResidencyList);
 			if (residencyList) {
-				logger.trace?.(`Shard ${shardOrResidencyList} mapped to ${residencyList.map((node) => (node as any).name).join(', ')}`);
+				logger.trace?.(
+					`Shard ${shardOrResidencyList} mapped to ${residencyList.map((node) => (node as any).name).join(', ')}`
+				);
 				return residencyList.map((node) => (node as any).name);
 			}
 			throw new Error(`Shard ${shardOrResidencyList} is not defined`);
