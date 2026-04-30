@@ -265,13 +265,34 @@ jobs:
               `<details>` here — the related ai-review-log issue
               keeps history across runs.
 
-            For "no blockers" runs, a single sentence on the PR is
-            enough (e.g. `Reviewed; no blockers found.`). Don't
-            restate scope, confidence, or what you checked — that's
-            noise on the PR. The next workflow step threads each
-            run's PR comment into a per-PR ai-review-log issue, so
-            cross-run history accumulates there rather than on the
-            PR itself.
+            **For "no blockers" runs, the PR comment is one sentence.**
+            This overrides the universal scope's
+            `summary is welcome during calibration` allowance — Harper
+            has a log surface (the next workflow step threads each
+            run's PR comment into a per-PR `HarperFast/ai-review-log`
+            issue), so the verbose tracing belongs there, not on the
+            PR. Concrete shape:
+
+            ✅ Right shape on the PR:
+
+            ```
+            Reviewed; no blockers found.
+            ```
+
+            ❌ Wrong shape (the recap belongs in the log surface):
+
+            ```
+            No blockers found.
+
+            Two independent fixes:
+            - **<file>:** <one-line rationale for change A>
+            - **<other file>:** <one-line rationale for change B>
+            ```
+
+            The "what I traced" recap — one line per surface verified —
+            still has value for calibration; it just lives in the
+            ai-review-log issue, where reviewers can spot-check the
+            bot's reasoning without paying that cost on every PR.
 
             Only post GitHub comments — do NOT submit review text as SDK
             messages.
