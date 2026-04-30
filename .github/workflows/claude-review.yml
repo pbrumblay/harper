@@ -131,7 +131,15 @@ jobs:
             # guarantee against destructive git ops comes from branch
             # protection on main / release_* / v*.x, not from this
             # allowlist.)
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr view:*),Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git blame:*),Bash(git show:*)"
+            # `Write` is granted but the prompt restricts it to a
+            # single path (`$RUNNER_TEMP/claude-review-notes.md`) — the
+            # channel for structured run notes that flow into the
+            # per-PR ai-review-log issue. claude-code-action's
+            # allowedTools doesn't support per-path filters, so the
+            # path-bound is enforced via prompt; deviations are
+            # contained because the runner is ephemeral and has no
+            # write credentials beyond `gh pr comment`.
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr view:*),Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(git blame:*),Bash(git show:*)"
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -194,12 +202,13 @@ jobs:
             write operations are permitted. Trying to call anything
             not listed here will be denied.
 
-            Do NOT write files during the review — not to `.claude-pr/`,
-            not to `/tmp/`, not anywhere. The `Write` and `Edit` tools
-            are not allowed. If you want to organize notes, keep them
-            in-memory and assemble the final PR comment; saving
-            intermediate drafts to disk wastes turns on permission
-            denials.
+            You MAY use the `Write` tool, but ONLY to write to
+            `${{ runner.temp }}/claude-review-notes.md`. No other
+            paths or filenames. This file is the single channel for
+            structured run notes that flow into the per-PR
+            ai-review-log issue — see "## After reviewing" below for
+            its purpose and format. The `Edit` tool is not allowed,
+            and writes to any other path will be denied.
 
             Shared Harper best-practices are mirrored on disk at
             `.harper-skills/harper-best-practices/rules/*.md` if a layer
@@ -299,6 +308,50 @@ jobs:
 
             Cap the review at 10 findings.
 
+            ## After reviewing: capture learnings for the log surface
+
+            The PR comment is for the PR author and human reviewers —
+            it stays concise (see "## How to post the review" above).
+            Verbose context, structured run notes, and learnings from
+            this run go into the per-PR ai-review-log issue, NOT the
+            PR. **Do not duplicate any of this content in the PR
+            comment.**
+
+            The channel: write a structured markdown file to
+            `${{ runner.temp }}/claude-review-notes.md`. The next
+            workflow step appends this file's contents to the
+            log-issue comment for this run, so reviewers can spot-
+            check your reasoning and a future KB can ingest it.
+
+            Format:
+
+            ```
+            ## Run notes
+
+            ### Surfaces verified
+            - One line per surface (auth, API contract, error path,
+              etc.). No full re-derivation.
+
+            ### Dismissals honored from prior conversation
+            - Finding "<title>" — thread #<N> said "<reason>" (link
+              the thread URL when useful).
+
+            ### Findings resolved by this push
+            - Finding "<title>" — line <X> in commit <abbrev SHA>
+              addresses the concern.
+
+            ### New observations
+            - Patterns, conventions, or context worth tracking for
+              cross-PR learning. Keep concrete; reference files and
+              lines.
+            ```
+
+            Sections may be empty; omit empty sections rather than
+            writing "(none)". If you have nothing to capture (e.g.,
+            first review on a fresh PR with no prior conversation
+            and nothing notable to flag), skip the file entirely —
+            the log step is a no-op when the file is absent.
+
       - name: Log review to ai-review-log
         # Best-effort — never fail the job if logging fails. Feeds the
         # central HarperFast/ai-review-log issue tracker that aggregates
@@ -365,6 +418,21 @@ jobs:
 
           BODY=$(printf '**Source:** %s\n**Repo:** %s\n**PR:** #%s\n**Model:** claude-sonnet-4-6\n**Phase:** baseline\n**Review job status:** %s\n**Date:** %s\n\n---\n\n%s\n' \
             "$PR_URL" "$REPO_SHORT" "$PR_NUMBER" "$REVIEW_STATUS" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$CLAUDE_BODY")
+
+          # Structured run notes from the agent (optional). This is
+          # the channel that keeps verbose context off the PR — the
+          # agent writes to a fixed path under $RUNNER_TEMP, and we
+          # append here so the log issue gets the full picture while
+          # the PR comment stays concise. Absent file is fine; means
+          # the run had nothing structured to capture.
+          NOTES_FILE="${RUNNER_TEMP:-/tmp}/claude-review-notes.md"
+          if [ -f "$NOTES_FILE" ]; then
+            NOTES_CONTENT=$(cat "$NOTES_FILE")
+            BODY=$(printf '%s\n\n---\n\n%s\n' "$BODY" "$NOTES_CONTENT")
+            echo "Appended $(wc -c < "$NOTES_FILE") bytes of run notes from $NOTES_FILE"
+          else
+            echo "No run notes file at $NOTES_FILE — skipping notes append"
+          fi
 
           # One ai-review-log issue per PR. Stable prefix
           # `[<repo>] PR #<N>:` lets us look up an existing issue for
