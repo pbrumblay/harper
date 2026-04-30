@@ -42,7 +42,6 @@ describe('Caching', () => {
 		Source = class extends Resource {
 			get() {
 				let expiresAt = Date.now() + 2;
-				console.log('Expiration at: ' + expiresAt);
 				this.getContext().expiresAt = expiresAt;
 				return new Promise((resolve, reject) => {
 					setTimeout(() => {
@@ -314,6 +313,7 @@ describe('Caching', () => {
 		IndexedCachingTable.setTTLExpiration(0.005);
 		let result = await IndexedCachingTable.get(23);
 		assert.equal(result.id, 23);
+		events = [];
 		assert.equal(result.name, 'name ' + 23);
 		assert.equal(sourceRequests, 1);
 		await new Promise((resolve) => setTimeout(resolve, 10));

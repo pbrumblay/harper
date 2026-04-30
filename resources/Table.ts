@@ -1512,7 +1512,6 @@ export function makeTable(options) {
 			// always return undefined
 		}
 
-		// @ts-expect-error The implementation intentionally uses a different argument order for back-compat
 		create(
 			target: RequestTargetOrId,
 			record: Partial<Record & RecordObject>

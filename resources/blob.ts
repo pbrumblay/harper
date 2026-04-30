@@ -1035,7 +1035,7 @@ addExtension({
 			storageInfoForBlob.set(blob, {
 				storageIndex: 0,
 				fileId: null,
-				storageBuffer: buffer,
+				storageBuffer: buffer as any,
 				contentBuffer: blobInfo[1] as any,
 			});
 			blob.size = blobInfo[1]?.length;

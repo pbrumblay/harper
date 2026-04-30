@@ -594,6 +594,7 @@ export class HierarchicalNavigableSmallWorld {
 	}
 	validateConnectivity(startLevel: number = 0) {
 		const entryPoint = this.getEntryPoint();
+		if (!entryPoint) return;
 		const visited = new Set<number>();
 
 		// BFS from entry point to ensure all nodes are reachable
@@ -618,9 +619,6 @@ export class HierarchicalNavigableSmallWorld {
 
 		// Check if all nodes are reachable
 		// This would require maintaining a separate set/count of all nodes
-		if (visited.size !== this.totalNodes) {
-			console.log('visited', visited.size, 'total', this.totalNodes);
-		}
 		return {
 			isFullyConnected: visited.size === this.totalNodes,
 			averageConnections: connections / visited.size,

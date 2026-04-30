@@ -195,7 +195,7 @@ function onSocket(socket, send, request, user, mqttSettings) {
 		numberOfConnections--;
 		if (!disconnected) {
 			disconnected = true;
-			session?.disconnect?.();
+			session?.disconnect?.(false);
 			emitEvent('disconnected', session, socket);
 			mqttSettings.sessions.delete(session);
 			recordActionBinary(false, 'connection', 'mqtt', 'disconnect');
@@ -220,7 +220,7 @@ function onSocket(socket, send, request, user, mqttSettings) {
 			else socket?.terminate();
 			return;
 		}
-		const topic = packet.topic;
+		const topic = (packet as any).topic;
 		const slashIndex = topic?.indexOf('/', 1);
 		const generalTopic = slashIndex > 0 ? topic.slice(0, slashIndex) : topic;
 		recordAction(packet.length, 'bytes-received', generalTopic, packetMethodName(packet), 'mqtt');
@@ -340,7 +340,7 @@ function onSocket(socket, send, request, user, mqttSettings) {
 							return !rawSocket.closed;
 						} catch (error) {
 							mqttLog.error?.(error);
-							session?.disconnect();
+							session?.disconnect(false);
 							mqttSettings.sessions.delete(session);
 							return false;
 						}

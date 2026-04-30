@@ -5,6 +5,7 @@ export function start({ resources }) {
 		return '/login?redirect=' + encodeURIComponent(request.url);
 	};
 }
+// @ts-ignore
 class Login extends Resource {
 	static async get(_id, _body, _request) {
 		// TODO: Return a login page

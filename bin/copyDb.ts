@@ -194,8 +194,8 @@ export async function copyDb(sourceDatabase: string, targetDatabasePath: string)
 			sourceDbi.decoderCopies = false;
 			sourceDbi.encoding = 'binary';
 			dbiInit.compression = newCompression;
-			const targetDbi = targetEnv.openDB(key, dbiInit);
-			targetDbi.encoder = null;
+			const targetDbi = (targetEnv as any).openDB(key, dbiInit);
+			(targetDbi as any).encoder = null;
 			console.log('copying', key, 'from', sourceDatabase, 'to', targetDatabasePath);
 			await copyDbi(sourceDbi, targetDbi, isPrimary, transaction);
 		}
@@ -289,7 +289,7 @@ function openRocksDb(path: string, options: RocksDatabaseOptions & { dupSort?: b
 	}
 	let db;
 	if (options.dupSort) {
-		db = RocksDatabase.open(new RocksIndexStore(path, options));
+		db = RocksDatabase.open(new RocksIndexStore(path, options) as any);
 	} else {
 		db = RocksDatabase.open(path, options);
 		db.encoder.name = options.name;

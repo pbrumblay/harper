@@ -1,6 +1,6 @@
 {
 	"extends": "./tsconfig.json",
-	"exclude": ["index.d.ts"],
+	"exclude": [],
 	"compilerOptions": {
 		"noEmit": false,
 		"rewriteRelativeImportExtensions": true,

@@ -120,7 +120,7 @@ export async function get(metric: string, opts?: GetAnalyticsOpts): Promise<Metr
 		}
 	}
 
-	const request = { conditions, allowConditionsOnDynamicAttributes: true };
+	const request: any = { conditions, allowConditionsOnDynamicAttributes: true };
 	if (select.length > 0) {
 		request['select'] = select;
 	}
@@ -192,7 +192,7 @@ export async function listMetrics(
 			} as Condition;
 		});
 		conditions.push(...metricConditions);
-		const customMetricsSearch = {
+		const customMetricsSearch: any = {
 			select: ['metric'],
 			conditions: conditions,
 		};
@@ -226,7 +226,7 @@ export function describeMetricOp(req: DescribeMetricRequest): Promise<DescribeMe
 }
 
 export async function describeMetric(metric: string): Promise<DescribeMetricResponse> {
-	const lastEntrySearch = {
+	const lastEntrySearch: any = {
 		conditions: [{ attribute: 'metric', comparator: 'equals', value: metric }],
 		sort: {
 			attribute: 'id',

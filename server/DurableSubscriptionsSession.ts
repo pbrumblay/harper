@@ -408,6 +408,7 @@ async function publishMessage(message: any, data: any, context: any) {
 	});
 }
 export class DurableSubscriptionsSession extends SubscriptionsSession {
+	committed: Promise<void> | void;
 	sessionRecord: any;
 	constructor(sessionId, user, record?) {
 		super(sessionId, user);

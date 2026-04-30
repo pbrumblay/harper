@@ -395,12 +395,12 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		return new IterableEventQueue();
 	}
 
-	connect(target: RequestTarget, incomingMessages: IterableEventQueue<Record>): AsyncIterable<Record> {
+	async connect(target: RequestTarget, incomingMessages: IterableEventQueue<Record>): Promise<AsyncIterable<Record>> {
 		// convert subscription to an (async) iterator
 		const query = (this.constructor as any).loadAsInstance === false ? target : incomingMessages;
 		if ((query as any)?.subscribe !== false) {
 			// subscribing is the default action, but can be turned off
-			return this.subscribe?.(query as any);
+			return await this.subscribe?.(query as any);
 		}
 		return new IterableEventQueue();
 	}
@@ -456,8 +456,8 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	search?(target: RequestTargetOrId): AsyncIterable<Record & Partial<RecordObject>>;
 
 	create?(
-		newRecord: Partial<Record & RecordObject>,
-		target: RequestTargetOrId
+		target: RequestTargetOrId,
+		newRecord: Partial<Record & RecordObject>
 	): void | (Record & Partial<RecordObject>) | Promise<Record & Partial<RecordObject>>;
 	put?(
 		record: Record & RecordObject,

@@ -118,7 +118,7 @@ export type OperationDefinition = {
  * @param operationDefinition
  */
 server.registerOperation = (operationDefinition: OperationDefinition) => {
-	OPERATION_FUNCTION_MAP.set(operationDefinition.name, new OperationFunctionObject(operationDefinition.execute));
+	OPERATION_FUNCTION_MAP.set(operationDefinition.name as any, new OperationFunctionObject(operationDefinition.execute));
 };
 
 export function chooseOperation(json: OperationRequestBody) {
@@ -296,7 +296,7 @@ export async function executeJob(json: OperationRequestBody): Promise<JobResult>
 		const error = err instanceof Error ? err : null;
 		const message = `There was an error executing job: ${error && 'http_resp_msg' in error ? error.http_resp_msg : err}`;
 		operationLog.error(message);
-		throw handleHDBError(err, message);
+		throw handleHDBError(err, message, 500);
 	}
 }
 

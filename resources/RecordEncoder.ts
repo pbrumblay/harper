@@ -76,8 +76,8 @@ let lastValueEncoding,
 export let lastMetadata: Entry | null = null;
 export class RecordEncoder extends Encoder {
 	rootStore: any;
-	saveStructures: any;
-	getStructures: any;
+	declare saveStructures: any;
+	declare getStructures: any;
 	structureUpdate?: any;
 	isRocksDB: boolean;
 	name: string;
