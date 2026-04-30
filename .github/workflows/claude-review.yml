@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: HarperFast/ai-review-prompts
-          ref: 752c5da8f1a7746e8202dba8aba4c28bd17d14c4 # main at seed merge
+          ref: 14c79a1c36565c764b68d3641c32bdadfc4d0512 # main 2026-04-30 (incl. concise-PR + within-PR-memory)
           path: .ai-review-prompts
 
       - name: Compose review scope from layers
