@@ -496,7 +496,7 @@ async function downloadAndParseCRL(
 		}
 
 		// Parse and validate the CRL
-		const crl = pkijs.CertificateRevocationList.fromBER(crlDerBuffer);
+		const crl = pkijs.CertificateRevocationList.fromBER((crlDerBuffer as any));
 
 		// Verify CRL signature
 		const issuerCert = pkijs.Certificate.fromBER(pemToBuffer(issuerPemStr));

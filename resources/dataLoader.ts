@@ -42,7 +42,7 @@ export function computeRecordHash(record: Record<string, any>): string {
  * Gets or creates the hash tracking table in the system database.
  * Lazy-initializes the table on first access.
  */
-function getHashTrackingTable(databasesRef: Databases) {
+function getHashTrackingTable(databasesRef: Databases): any {
 	// Always check databasesRef first (important for testing with mocks)
 	if (databasesRef.system && databasesRef.system[DATA_LOADER_HASH_TABLE]) {
 		return databasesRef.system[DATA_LOADER_HASH_TABLE];

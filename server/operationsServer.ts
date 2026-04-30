@@ -24,7 +24,7 @@ import {
 } from './serverHelpers/serverHandlers.js';
 import { registerContentHandlers } from './serverHelpers/contentTypes.ts';
 import type { OperationFunctionName } from './serverHelpers/serverUtilities.ts';
-import type { ParsedSqlObject } from '../sqlTranslator/index.js';
+type ParsedSqlObject = any;
 import { generateJsonApi } from '../resources/openApi.ts';
 import { Resources } from '../resources/Resources.ts';
 import { ServerError } from '../utility/errors/hdbError.js';
