@@ -24,8 +24,8 @@ const workersReady = [];
 if (isMainThread) {
 	process.on('uncaughtException', (error) => {
 		// TODO: Maybe we should try to log the first of each type of error
-		if (error.code === 'ECONNRESET') return; // that's what network connections do
-		if (error.code === 'EIO') {
+		if ((error as any).code === 'ECONNRESET') return; // that's what network connections do
+		if ((error as any).code === 'EIO') {
 			// that means the terminal is closed
 			harperLogger.disableStdio();
 			return;
@@ -53,7 +53,7 @@ export async function startHTTPThreads(threadCount = 2, dynamicThreads?: boolean
 		}
 		await Promise.all(workersReady);
 	} finally {
-		threadsHaveStarted();
+		threadsHaveStarted(undefined as any);
 	}
 }
 
@@ -138,8 +138,8 @@ export function startSocketServer(port = 0, sessionAffinityIdentifier?) {
 		allowHalfOpen: true,
 		pauseOnConnect: !workerStrategy.readsData,
 	}).listen(port);
-	if (server._handle) {
-		server._handle.onconnection = handleSocket[port] = function (err, clientHandle) {
+	if ((server as any)._handle) {
+		(server as any)._handle.onconnection = handleSocket[port] = function (err, clientHandle) {
 			if (!workerStrategy.readsData) {
 				clientHandle.reading = false;
 				clientHandle.readStop();
@@ -148,7 +148,7 @@ export function startSocketServer(port = 0, sessionAffinityIdentifier?) {
 			workerStrategy(clientHandle, (worker, receivedData) => {
 				if (!worker) {
 					if (directThreadServer) {
-						const socket = clientHandle._socket || new Socket({ handle: clientHandle, writable: true, readable: true });
+						const socket = clientHandle._socket || new Socket({ handle: clientHandle, writable: true, readable: true } as any);
 						directThreadServer.deliverSocket(socket, port, receivedData);
 						socket.resume();
 					} else if (currentThreadCount > 0) {
@@ -177,7 +177,7 @@ export function startSocketServer(port = 0, sessionAffinityIdentifier?) {
 				// valid file descriptor, forward it
 				// Windows doesn't support passing sockets by file descriptors, so we have manually proxy the socket data
 				else {
-					const socket = clientHandle._socket || new Socket({ handle: clientHandle, writable: true, readable: true });
+					const socket = clientHandle._socket || new Socket({ handle: clientHandle, writable: true, readable: true } as any);
 					proxySocket(socket, worker, port);
 				}
 				recordAction(true, 'socket-routed');
@@ -226,7 +226,7 @@ const sessions = new Map();
  * @returns Worker
  */
 function findByRemoteAddressAffinity(handle, deliver) {
-	const remoteInfo = {};
+	const remoteInfo: any = {};
 	handle.getpeername(remoteInfo);
 	const address = remoteInfo.address;
 	// we might need to fallback to new Socket({handle}).remoteAddress for... bun?
@@ -258,7 +258,7 @@ function makeFindByHeaderAffinity(header) {
 	findByHeaderAffinity.readsData = true; // make sure we don't start with the socket being paused
 	return findByHeaderAffinity;
 	function findByHeaderAffinity(handle, deliver) {
-		const socket = new Socket({ handle, readable: true, writable: true });
+		const socket = new Socket({ handle, readable: true, writable: true } as any);
 		handle._socket = socket;
 		socket.on('data', (data) => {
 			// must forcibly stop the TCP handle to ensure no more data is read and that all further data is read by

@@ -68,8 +68,8 @@ export function addSubscription(table, key, listener?: (key) => any, startTime?:
 	if (subscriptions) subscriptions.push(subscription);
 	else {
 		tableSubscriptions.set(key, (subscriptions = [subscription]));
-		subscriptions.tables = tableSubscriptions;
-		subscriptions.key = key;
+		 (subscriptions as any).tables = tableSubscriptions;
+		 (subscriptions as any).key = key;
 	}
 	subscription.subscriptions = subscriptions;
 	return subscription;
@@ -81,7 +81,7 @@ export function addSubscription(table, key, listener?: (key) => any, startTime?:
  */
 class Subscription extends IterableEventQueue {
 	listener: (recordId: Id, auditEntry: any, localTime: number, beginTxn: boolean) => void;
-	subscriptions: [];
+	subscriptions: any[];
 	startTime?: number;
 	includeDescendants?: boolean;
 	supportsTransactions?: boolean;
@@ -96,10 +96,10 @@ class Subscription extends IterableEventQueue {
 		if (!this.subscriptions) return;
 		this.subscriptions.splice(this.subscriptions.indexOf(this), 1);
 		if (this.subscriptions.length === 0) {
-			const tableSubscriptions = this.subscriptions.tables;
+			const tableSubscriptions =  (this.subscriptions as any).tables;
 			if (tableSubscriptions) {
 				// TODO: Handle cleanup of wildcard
-				const key = this.subscriptions.key;
+				const key =  (this.subscriptions as any).key;
 				tableSubscriptions.delete(key);
 				if (tableSubscriptions.size === 0) {
 					const envSubscriptions = tableSubscriptions.envs;
@@ -115,7 +115,7 @@ class Subscription extends IterableEventQueue {
 	}
 }
 const ACTIONS_OF_INTEREST = ['put', 'patch', 'delete', 'message', 'invalidate'];
-function notifyFromTransactionData(subscriptions, auditLogIterable) {
+function notifyFromTransactionData(subscriptions: any, auditLogIterable?: any) {
 	if (!subscriptions) return; // if no subscriptions to this env path, don't need to read anything
 	const auditStore = subscriptions.auditStore;
 	auditStore.resetReadTxn?.();

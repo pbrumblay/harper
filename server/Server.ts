@@ -37,6 +37,8 @@ export interface Server {
 	shards: Map<number, string[]>;
 	hostname: string;
 	resources: Resources;
+	knownGraphQLDirectives?: string[];
+	onInvalidatedUser(callback: () => void): void;
 	replication: {
 		replicateOperation(operation: {
 			replicated: boolean;

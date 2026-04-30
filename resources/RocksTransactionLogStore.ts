@@ -289,7 +289,7 @@ export class RocksTransactionLogStore extends EventEmitter {
 		}
 		const mappedAggregateIterable = iterable.map(({ timestamp, data, endTxn }: TransactionEntry) => {
 			const decoder = new Decoder(data.buffer, data.byteOffset, data.byteLength);
-			data.dataView = decoder;
+			 (data as any).dataView = decoder;
 			// This represents the data that shouldn't be transferred for replication
 			let structureVersion = decoder.getUint32(0);
 			let position = 4;
@@ -304,7 +304,7 @@ export class RocksTransactionLogStore extends EventEmitter {
 				previousVersion = decoder.getFloat64(position);
 				position += 8;
 			}
-			const auditRecord = readAuditEntry(data, position, undefined, true);
+			const auditRecord = readAuditEntry(data, position, undefined);
 			auditRecord.version = timestamp;
 			auditRecord.endTxn = endTxn;
 			auditRecord.previousResidencyId = previousResidencyId;
@@ -342,7 +342,7 @@ export class RocksTransactionLogStore extends EventEmitter {
 	getUserSharedBuffer(key: string | symbol, defaultBuffer: ArrayBuffer, options?: { callback?: () => void }) {
 		return this.rootStore.getUserSharedBuffer(key, defaultBuffer, options);
 	}
-	on(eventName: string, listener: any) {
+	on(eventName: string, listener: any): any {
 		if (eventName === 'aftercommit') {
 			return super.on('aftercommit', listener);
 		} else {

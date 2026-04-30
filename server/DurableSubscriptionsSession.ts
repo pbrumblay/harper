@@ -10,7 +10,7 @@ import { RequestTarget } from '../resources/RequestTarget';
 import { cloneDeep } from 'lodash';
 
 const AWAITING_ACKS_HIGH_WATER_MARK = 100;
-const DurableSession = table({
+const DurableSession: any = table({
 	database: 'system',
 	table: 'hdb_durable_session',
 	attributes: [
@@ -24,7 +24,7 @@ const DurableSession = table({
 		},
 	],
 });
-const LastWill = table({
+const LastWill: any = table({
 	database: 'system',
 	table: 'hdb_session_will',
 	attributes: [
@@ -43,9 +43,9 @@ if (getWorkerIndex() === 0) {
 		for await (const will of LastWill.search({})) {
 			const data = will.data;
 			const message = { ...will };
-			if (message.user?.username) message.user = await server.getUser(message.user.username);
+			if (message.user?.username) message.user = await (server as any).getUser(message.user.username);
 			try {
-				await publish(message, data, message);
+				await publishMessage(message, data, message);
 			} catch {
 				warn('Failed to publish will', data);
 			}
@@ -174,7 +174,7 @@ class SubscriptionsSession {
 			const notFoundError = new Error(
 				`The topic ${topic} does not exist, no resource has been defined to handle this topic`
 			);
-			notFoundError.statusCode = 404;
+			(notFoundError as any).statusCode = 404;
 			throw notFoundError;
 		}
 		let url = entry.relativeURL;
@@ -332,10 +332,10 @@ class SubscriptionsSession {
 	}
 	async publish(message, data) {
 		// each publish gets it own context so that each publish gets it own transaction
-		return publish(message, data, this.createContext());
+		return publishMessage(message, data, this.createContext());
 	}
 	createContext(): any {
-		const context = {
+		const context: any = {
 			session: this,
 			socket: this.socket,
 			user: this.user,
@@ -359,7 +359,7 @@ class SubscriptionsSession {
 				if (!clientTerminated) {
 					const will = await LastWill.get(this.sessionId);
 					if (will) {
-						await publish(will, will.data, context);
+						await publishMessage(will, will.data, context);
 					}
 				}
 			} finally {
@@ -384,7 +384,7 @@ class SubscriptionsSession {
 		}
 	}
 }
-function publish(message, data, context) {
+async function publishMessage(message: any, data: any, context: any) {
 	const { topic, retain } = message;
 	message = { ...message, data, async: true };
 	context.authorize = true;

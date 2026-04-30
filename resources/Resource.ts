@@ -391,7 +391,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	 * but implementors can call send with
 	 */
 	// eslint-disable-next-line no-unused-vars
-	subscribe(request: SubscriptionRequest): AsyncIterable<Record> {
+	subscribe(request: SubscriptionRequest): AsyncIterable<Record> | Promise<AsyncIterable<Record>> {
 		return new IterableEventQueue();
 	}
 

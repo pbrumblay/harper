@@ -33,6 +33,7 @@ export type Entry = {
 	residencyId: number;
 	size: number;
 	deref?: () => any;
+	[METADATA]?: any;
 	additionalAuditRefs?: Array<{ version: number; nodeId: number }>;
 };
 
@@ -74,6 +75,9 @@ let lastValueEncoding,
 // tracking metadata with a singleton works better than trying to alter response of getEntry/get and coordinating that across caching layers
 export let lastMetadata: Entry | null = null;
 export class RecordEncoder extends Encoder {
+	rootStore: any;
+	saveStructures: any;
+	getStructures: any;
 	structureUpdate?: any;
 	isRocksDB: boolean;
 	name: string;
@@ -308,7 +312,7 @@ export class RecordEncoder extends Encoder {
 							: super.decode(buffer.subarray(position, end), end - position),
 					this.rootStore
 				);
-				lastMetadata = {
+				lastMetadata = ({
 					localTime,
 					version: localTime,
 					[METADATA]: metadataFlags,
@@ -318,7 +322,7 @@ export class RecordEncoder extends Encoder {
 					additionalAuditRefs,
 					size: end - start,
 					value,
-				};
+				 } as any);
 				if (this.isRocksDB) return lastMetadata;
 				return value;
 			} // else a normal entry
@@ -550,6 +554,7 @@ export function recordUpdater(store, tableId, auditStore) {
 			version: number;
 			instructedWrite?: boolean;
 			ifVersion?: number;
+			transaction?: any;
 		} = {
 			version: newVersion,
 			instructedWrite: timestampNextEncoding > 0,

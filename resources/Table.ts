@@ -78,11 +78,17 @@ export type Attribute = {
 	nullable?: boolean;
 	expiresAt?: boolean;
 	isPrimaryKey?: boolean;
-	indexed?: unknown;
-	relationship?: unknown;
-	computed?: unknown;
+	indexed?: any;
+	relationship?: any;
+	computed?: any;
 	properties?: Array<Attribute>;
 	elements?: Attribute;
+	sealed?: boolean;
+	resolve?: any;
+	definition?: any;
+	set?: any;
+	enumerable?: boolean;
+	select?: any;
 };
 
 type MaybePromise<T> = T | Promise<T>;
@@ -578,6 +584,7 @@ export function makeTable(options) {
 							// return 504 (rather than 404) if there is no content and the cache-control header
 							// dictates not to go to source
 							if (!this.doesExist()) throw new ServerError('Entry is not cached', 504);
+							if (hasSourceGet && target) target.loadedFromSource = false; // mark it as cached
 						} else if (resourceOptions?.ensureLoaded) {
 							const loadingFromSource = ensureLoadedFromSource(
 								(this.constructor as any).source,
@@ -968,7 +975,7 @@ export function makeTable(options) {
 				const id = requestTargetToId(target);
 				checkValidId(id);
 				let allowed = true;
-				if (target.checkPermission) {
+				if ((target as any)?.checkPermission) {
 					// requesting authorization verification
 					allowed = this.allowRead(context.user, target, context);
 				}
@@ -1192,7 +1199,7 @@ export function makeTable(options) {
 					// updates that were passed into this method
 					let allowed = true;
 					if (target == undefined) throw new TypeError('Can not put a record without a target');
-					if (target.checkPermission) {
+					if ((target as any)?.checkPermission) {
 						// requesting authorization verification
 						allowed = this.allowUpdate((context as any).user, updates, context);
 					}
@@ -1292,7 +1299,7 @@ export function makeTable(options) {
 				store: primaryStore,
 				invalidated: true,
 				entry: this.#entry,
-				beforeIntermediate: () => preCommitBlobsForRecordBefore(partialRecord),
+				beforeIntermediate: preCommitBlobsForRecordBefore(partialRecord),
 				commit: (txnTime, existingEntry, _retry, transaction: any) => {
 					if (precedesExistingVersion(txnTime, existingEntry, options?.nodeId) <= 0) return;
 					partialRecord ??= null;
@@ -1909,21 +1916,21 @@ export function makeTable(options) {
 				},
 			};
 			this.#savingOperation = write;
-			return transaction.addWrite(write);
+			return transaction.addWrite(write as any);
 		}
 
 		async delete(target: RequestTargetOrId): Promise<boolean> {
 			if (isSearchTarget(target)) {
 				target.select = ['$id']; // just get the primary key of each record so we can delete them
 				for await (const entry of this.search(target)) {
-					this._writeDelete(entry.$id);
+					this._writeDelete((entry as any).$id);
 				}
 				return true;
 			}
 			if (target) {
 				let allowed = true;
 				const context = this.getContext();
-				if (target.checkPermission) {
+				if ((target as any)?.checkPermission) {
 					// requesting authorization verification
 					allowed = this.allowDelete((context as any).user, target as any, context);
 				}
@@ -1931,10 +1938,10 @@ export function makeTable(options) {
 					if (!allowed) {
 						throw new AccessViolation((context as any).user);
 					}
-					const id = requestTargetToId(target);
+					const id = requestTargetToId(target as any);
 					this._writeDelete(id);
 					return true;
-				});
+				}) as any;
 			}
 			this._writeDelete(this.getId());
 			return Boolean(this.#record);
@@ -1945,11 +1952,11 @@ export function makeTable(options) {
 			checkValidId(id);
 			const entry = this.#entry ?? primaryStore.getEntry(id, { transaction: transaction.getReadTxn() });
 
-			transaction.addWrite({
+			transaction.addWrite(({
 				key: id,
 				store: primaryStore,
 				entry,
-				nodeName: context?.nodeName,
+				nodeName: (context as any)?.nodeName,
 				before:
 					(this.constructor as any).source?.delete && !(context as any)?.source
 						? (this.constructor as any).source.delete.bind((this.constructor as any).source, id, undefined, context)
@@ -1987,7 +1994,7 @@ export function makeTable(options) {
 						removeEntry(primaryStore, existingEntry);
 					}
 				},
-			});
+			} as any));
 			return true;
 		}
 
@@ -2005,7 +2012,7 @@ export function makeTable(options) {
 			}
 			if (context) context.lastModified = UNCACHEABLE_TIMESTAMP;
 
-			let conditions = target.conditions;
+			let conditions: any = target.conditions;
 			if (!conditions) conditions = Array.isArray(target) ? target : target[Symbol.iterator] ? Array.from(target) : [];
 			else if (conditions.length === undefined) {
 				conditions = conditions[Symbol.iterator] ? Array.from(conditions) : [conditions];
@@ -2023,7 +2030,7 @@ export function makeTable(options) {
 			let orderAlignedCondition;
 			const filtered = {};
 
-			function prepareConditions(conditions: Condition[], operator: string) {
+			function prepareConditions(conditions: any[], operator: string) {
 				// some validation:
 				switch (operator) {
 					case 'and':
@@ -2079,7 +2086,7 @@ export function makeTable(options) {
 							}
 							const isGe = lower.comparator === 'ge' || lower.comparator === 'greater_than_equal';
 							const isLe = upper.comparator === 'le' || upper.comparator === 'less_than_equal';
-							condition.comparator = (isGe ? 'ge' : 'gt') + (isLe ? 'le' : 'lt');
+							condition.comparator = ((isGe ? 'ge' : 'gt') + (isLe ? 'le' : 'lt')) as any;
 							condition.value = [lower.value, upper.value];
 						} else throw new Error('Multiple chained conditions are not currently supported');
 					}
@@ -2109,11 +2116,11 @@ export function makeTable(options) {
 			let postOrdering;
 			if (sort) {
 				// TODO: Support index-assisted sorts of unions, which will require potentially recursively adding/modifying an order aligned condition and be able to recursively undo it if necessary
-				if (operator !== 'or') {
+				if ((operator as any) !== 'or') {
 					const attribute_name = sort.attribute;
 					if (attribute_name == undefined) throw new ClientError('Sort requires an attribute');
 					orderAlignedCondition = conditions.find(
-						(condition) => flattenKey(condition.attribute) === flattenKey(attribute_name)
+						(condition) => flattenKey(condition.attribute as any) === flattenKey(attribute_name as any)
 					);
 					if (orderAlignedCondition) {
 						// if there is a condition on the same attribute as the first sort, we can use it to align the sort
@@ -2124,7 +2131,7 @@ export function makeTable(options) {
 							throw handleHDBError(
 								new Error(),
 								`${
-									Array.isArray(attribute_name) ? attribute_name.join('.') : attribute_name
+									Array.isArray(attribute_name) ? (attribute_name as any).join('.') : attribute_name
 								} is not a defined attribute`,
 								404
 							);
@@ -2136,7 +2143,7 @@ export function makeTable(options) {
 							throw handleHDBError(
 								new Error(),
 								`${
-									Array.isArray(attribute_name) ? attribute_name.join('.') : attribute_name
+									Array.isArray(attribute_name) ? (attribute_name as any).join('.') : attribute_name
 								} is not indexed and not combined with any other conditions`,
 								404
 							);
@@ -2172,7 +2179,7 @@ export function makeTable(options) {
 					operator,
 					postOrdering,
 					selectApplied: Boolean(select),
-				};
+				} as any;
 			}
 			// we mark the read transaction as in use (necessary for a stable read
 			// transaction, and we really don't care if the
@@ -2189,7 +2196,7 @@ export function makeTable(options) {
 				(results: any[], filters: Function[]) => transformToEntries(results, select, context, readTxn, filters),
 				filtered
 			);
-			const ensure_loaded = target.ensureLoaded !== false;
+			const ensure_loaded = (target as any).ensureLoaded !== false;
 			const transformToRecord = TableResource.transformEntryForSelect(
 				select,
 				context,
@@ -2222,7 +2229,7 @@ export function makeTable(options) {
 					const columns = [];
 					for (const column of select) {
 						if (column === '*') columns.push(...attributes.map((attribute) => attribute.name));
-						else columns.push(column.name || column);
+						else columns.push((column as any).name || column);
 					}
 					return columns;
 				}
@@ -2262,14 +2269,14 @@ export function makeTable(options) {
 							? entries[Symbol.asyncIterator]()
 							: entries[Symbol.iterator]();
 					let dbDone: boolean;
-					const dbOrderedAttribute = sort.dbOrderedAttribute;
+					const dbOrderedAttribute = (sort as any).dbOrderedAttribute;
 					let enqueuedEntryForNextGroup: any;
 					let lastGroupingValue: any;
 					let firstEntry = true;
 					function createComparator(order: Sort) {
 						const nextComparator = order.next && createComparator(order.next);
 						const descending = order.descending;
-						context.sort = order; // make sure this is set to the current sort order
+						(context as any).sort = order; // make sure this is set to the current sort order
 						return (entryA, entryB) => {
 							const a = getAttributeValue(entryA, order.attribute, context);
 							const b = getAttributeValue(entryB, order.attribute, context);
@@ -2328,7 +2335,7 @@ export function makeTable(options) {
 									ordered.push(entry);
 								}
 							} while (true);
-							if (sort.isGrouped) {
+							if ((sort as any).isGrouped) {
 								// TODO: Return grouped results
 							}
 							ordered.sort(comparator);
@@ -2356,8 +2363,8 @@ export function makeTable(options) {
 						for (let i = 0; i < select.length; i++) {
 							const column = select[i];
 							let columnSort;
-							if (column.name === sort.attribute[0]) {
-								columnSort = column.sort || (column.sort = {});
+							if ((column as any).name === sort.attribute[0]) {
+								columnSort = (column as any).sort || ((column as any).sort = {});
 								while (columnSort.next) columnSort = columnSort.next;
 								columnSort.attribute = sort.attribute.slice(1);
 								columnSort.descending = sort.descending;
@@ -2368,7 +2375,7 @@ export function makeTable(options) {
 										attribute: sort.attribute.slice(1),
 										descending: sort.descending,
 									},
-								};
+								} as any;
 							}
 						}
 					}
@@ -2451,7 +2458,7 @@ export function makeTable(options) {
 							this?.isSync,
 							(entry: Entry) => entry
 						);
-						if (entry?.then) return entry.then(transform.bind(this));
+						if ((entry as any)?.then) return (entry as any).then(transform.bind(this));
 						record = entry?.value;
 					}
 					if (
@@ -2562,7 +2569,7 @@ export function makeTable(options) {
 									context,
 									readTxn,
 									null
-								)({ value });
+								)({ value } as any);
 							}
 						}
 						callback(value, attribute_name);
@@ -2573,7 +2580,7 @@ export function makeTable(options) {
 							selected = value;
 						});
 					} else if (Array.isArray(select)) {
-						if (select.asArray) {
+						if ((select as any).asArray) {
 							selected = [];
 							select.forEach((attribute, index) => {
 								if (attribute === '*') select[index] = record;
@@ -2581,7 +2588,7 @@ export function makeTable(options) {
 							});
 						} else {
 							selected = {};
-							const forceNulls = select.forceNulls;
+							const forceNulls = (select as any).forceNulls;
 							for (const attribute of select) {
 								if (attribute === '*')
 									for (const key in record) {
@@ -2610,14 +2617,14 @@ export function makeTable(options) {
 			if (!audit) {
 				table({ table: tableName, database: databaseName, schemaDefined, attributes, audit: true });
 			}
-			if (!request) request = {};
+			if (!request) request = {} as any;
 			const getFullRecord = !request.rawEvents;
 			let pendingRealTimeQueue = []; // while we are servicing a loop for older messages, we have to queue up real-time messages and deliver them in order
 			const thisId = requestTargetToId(request) ?? null; // treat undefined and null as the root
 			const subscription = addSubscription(
 				TableResource,
 				thisId,
-				function (id: Id, auditRecord: any, localTime: number, beginTxn: boolean) {
+				function (id: Id, auditRecord?: any, localTime?: any, beginTxn?: any) {
 					try {
 						let type = auditRecord.type;
 						let value;
@@ -2847,7 +2854,7 @@ export function makeTable(options) {
 			} else {
 				let allowed = true;
 				const context = this.getContext();
-				if (target.checkPermission) {
+				if ((target as any)?.checkPermission) {
 					// requesting authorization verification
 					allowed = this.allowDelete((context as any).user, target as any, context);
 				}
@@ -2869,22 +2876,22 @@ export function makeTable(options) {
 				key: id,
 				store: primaryStore,
 				entry: this.#entry,
-				nodeName: context?.nodeName,
+				nodeName: (context as any)?.nodeName,
 				validate: () => {
-					if (!context?.source) {
+					if (!(context as any)?.source) {
 						transaction.checkOverloaded();
 						this.validate(message);
 					}
 				},
 				before:
-					this.constructor.source?.publish && !context?.source
-						? this.constructor.source.publish.bind(this.constructor.source, id, message, context)
+					(this.constructor as any).source?.publish && !(context as any)?.source
+						? (this.constructor as any).source.publish.bind((this.constructor as any).source, id, message, context)
 						: undefined,
 				beforeIntermediate: preCommitBlobsForRecordBefore(
-					message,
-					undefined,
-					true // because transaction log entries can be deleted at any point, we must save the blobs in the record, there is no cleanup of them
-				),
+						message,
+						undefined,
+						true // because transaction log entries can be deleted at any point, we must save the blobs in the record, there is no cleanup of them
+					),
 				commit: (txnTime, existingEntry, _retry, transaction: any) => {
 					// just need to update the version number of the record so it points to the latest audit record
 					// but have to update the version number of the record
@@ -3106,7 +3113,7 @@ export function makeTable(options) {
 				schemaDefined,
 				attributes: new_attributes,
 			});
-			return TableResource.indexingOperation;
+			return (TableResource as any).indexingOperation;
 		}
 		static async removeAttributes(names: string[]) {
 			const new_attributes = attributes.filter((attribute) => !names.includes(attribute.name));
@@ -3116,7 +3123,7 @@ export function makeTable(options) {
 				schemaDefined,
 				attributes: new_attributes,
 			});
-			return TableResource.indexingOperation;
+			return (TableResource as any).indexingOperation;
 		}
 		/**
 		 * Get the size of the table in bytes (based on amount of pages stored in the database)
@@ -3241,13 +3248,13 @@ export function makeTable(options) {
 								const id = object[relationship.from ? relationship.from : primaryKey];
 								const relatedTable = attribute.elements.definition.tableClass;
 								if (returnEntry) {
-									return searchByIndex(
+									return (searchByIndex(
 										{ attribute: relationship.to, value: id },
 										txnForContext(context).getReadTxn(),
 										false,
 										relatedTable,
 										false
-									).map((entry) => {
+									) as any).map((entry) => {
 										if (entry && entry.key !== undefined) return entry;
 										return relatedTable.primaryStore.getEntry(entry, {
 											transaction: txnForContext(context).getReadTxn(),
@@ -3593,7 +3600,7 @@ export function makeTable(options) {
 		return true;
 	}
 	function requestTargetToId(target: RequestTargetOrId): Id {
-		return typeof target === 'object' && target ? target.id : (target as Id);
+		return typeof target === 'object' && target ? (target as any).id : (target as Id);
 	}
 	function isSearchTarget(target: RequestTargetOrId): target is RequestTarget {
 		return typeof target === 'object' && target && (target as RequestTarget).isCollection;
@@ -3809,7 +3816,7 @@ export function makeTable(options) {
 		if (transaction) {
 			if (!transaction.db && isRocksDB) {
 				// this is an uninitialized DatabaseTransaction, we can claim it
-				transaction.db = primaryStore;
+				transaction.db = primaryStore as any;
 				if (context?.timestamp) transaction.timestamp = context.timestamp;
 				return transaction;
 			}
@@ -3832,7 +3839,7 @@ export function makeTable(options) {
 				transaction = nextTxn;
 			} while (true);
 		} else {
-			transaction = isRocksDB ? new ImmediateTransaction(primaryStore) : new ImmediateLMDBTransaction(primaryStore);
+			transaction = (isRocksDB ? new ImmediateTransaction(primaryStore as any) : new ImmediateLMDBTransaction(primaryStore as any)) as any;
 			if (context) {
 				context.transaction = transaction;
 				if (context.timestamp) transaction.timestamp = context.timestamp;
@@ -4013,7 +4020,7 @@ export function makeTable(options) {
 			expiresAt: undefined,
 			lastModified: undefined,
 		};
-		const responseHeaders = context?.responseHeaders;
+		const responseHeaders = (context as any)?.responseHeaders;
 		return new Promise((resolve, reject) => {
 			// we don't want to wait for the transaction because we want to return as fast as possible
 			// and let the transaction commit in the background
@@ -4094,7 +4101,7 @@ export function makeTable(options) {
 							key: id,
 							version,
 							value: updatedRecord,
-						});
+						 } as any);
 					} catch (error) {
 						error.message += ` while resolving record ${id} for ${tableName}`;
 						if (
@@ -4112,7 +4119,7 @@ export function makeTable(options) {
 								key: id,
 								version: existingVersion,
 								value: existingRecord,
-							});
+							} as any);
 							logger.trace?.(error.message, '(returned stale record)');
 						} else reject(error);
 						const resolveDuration = performance.now() - start;
@@ -4208,7 +4215,7 @@ export function makeTable(options) {
 									omitLocalRecord ? INVALIDATED : 0,
 									(audit && (hasChanges || omitLocalRecord)) || null,
 									{
-										user: sourceContext?.user,
+										user: (sourceContext as any)?.user,
 										expiresAt: sourceContext.expiresAt,
 										residencyId,
 										transaction,
@@ -4230,7 +4237,7 @@ export function makeTable(options) {
 										txnTime,
 										0,
 										(audit && hasChanges) || null,
-										{ user: sourceContext?.user, transaction, tableToTrack: tableName },
+										{ user: (sourceContext as any)?.user, transaction, tableToTrack: tableName },
 										'delete',
 										Boolean(invalidated)
 									);
@@ -4430,8 +4437,8 @@ export function makeTable(options) {
 			if (shardOrResidencyList >= 65536) throw new Error(`Shard id ${shardOrResidencyList} must be below 65536`);
 			const residencyList = server.shards?.get?.(shardOrResidencyList);
 			if (residencyList) {
-				logger.trace?.(`Shard ${shardOrResidencyList} mapped to ${residencyList.map((node) => node.name).join(', ')}`);
-				return residencyList.map((node) => node.name);
+				logger.trace?.(`Shard ${shardOrResidencyList} mapped to ${residencyList.map((node) => (node as any).name).join(', ')}`);
+				return residencyList.map((node) => (node as any).name);
 			}
 			throw new Error(`Shard ${shardOrResidencyList} is not defined`);
 		}
@@ -4454,23 +4461,24 @@ export function makeTable(options) {
 	}
 	function preCommitBlobsForRecordBefore(
 		record: any,
-		before?: () => Promise<void>,
+		before?: () => Promise<void> | void,
 		saveInRecord?: boolean
-	): Promise<void> | void {
+	): any {
 		const blobCompletion = startPreCommitBlobsForRecord(record, primaryStore.rootStore, saveInRecord);
 		if (blobCompletion) {
 			// if there are blobs that we have started saving, they need to be saved and completed before we commit, so we need to wait for
 			// them to finish and we return a new callback for the before phase of the commit
 			const callSources = before;
 			return callSources
-				? async () => {
+				? async (): Promise<any> => {
 						// if we are calling the sources first and waiting for blobs, do those in order
-						await callSources();
+						const result = callSources();
+						if (result && (result as any).then) await result;
 						await blobCompletion();
 					}
 				: () => blobCompletion();
 		}
-		return before;
+		return before as any;
 	}
 }
 

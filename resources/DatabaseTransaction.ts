@@ -49,16 +49,20 @@ type ReadTransaction = (LMDBTransaction | RocksTransaction) & {
 
 export type TransactionWrite = {
 	key: Id;
-	store: RootDatabaseKind;
+	store: any; // using any here because of circular dependency and complex RootDatabaseKind
 	invalidated?: boolean;
 	entry?: Partial<Entry>;
 	before?: () => void | Promise<void>;
 	beforeIntermediate?: () => void | Promise<void>;
-	commit?: (txnTime: number, existingEntry: Partial<Entry>, retry: boolean, transaction: RocksTransaction) => void;
+	commit?: (txnTime: number, existingEntry: Partial<Entry>, retry: boolean, transaction: any) => void;
 	validate?: (txnTime: number) => void;
 	fullUpdate?: boolean;
 	saved?: boolean;
 	deferSave?: boolean;
+	nodeName?: string;
+	nodeId?: number;
+	promise?: Promise<any>;
+	result?: any;
 };
 
 type RocksTransactionWithRetry = RocksTransaction & { isRetry?: boolean };
@@ -246,6 +250,7 @@ export class DatabaseTransaction implements Transaction {
 				trackedTxns.delete(this);
 				this.transaction = null; // clear transaction so any further operations operate immediately
 				if (transaction) {
+					this.writes = this.writes.filter((write) => write); // filter out removed entries
 					if (this.writes.length > 0) {
 						commitResolution = transaction.commit();
 					} else {

@@ -47,7 +47,7 @@ export function setAnalyticsEnabled(enabled: boolean) {
 
 function recordExistingAction(value: Value, action: Action) {
 	if (typeof value === 'number') {
-		let values: Float32Array = action.values;
+		let values: any = action.values;
 		const index = values.index++;
 		if (index >= values.length) {
 			const oldValues = values;
@@ -71,7 +71,7 @@ function recordNewAction(key: string, value: Value, metric?: string, path?: stri
 	if (typeof value === 'number') {
 		action.total = value;
 		action.values = new Float32Array(4);
-		action.values.index = 1;
+		(action.values as any).index = 1;
 		action.values[0] = value;
 		action.total = value;
 	} else if (typeof value === 'boolean') {
@@ -151,7 +151,7 @@ function sendAnalytics() {
 		};
 		for (const [_name, action] of activeActions) {
 			if (action.values) {
-				const values = action.values.subarray(0, action.values.index);
+				const values = action.values.subarray(0, (action.values as any).index);
 				values.sort();
 				const count = values.length;
 				// compute the stats
@@ -224,7 +224,7 @@ export async function recordHostname() {
 		hostname,
 	};
 	log.trace?.(`recordHostname storing hostname: ${JSON.stringify(hostnameRecord)}`);
-	await hostnamesTable.put(hostnameRecord.id, hostnameRecord);
+	await (hostnamesTable as any).put(hostnameRecord.id, hostnameRecord);
 }
 
 export interface Metric {
@@ -425,7 +425,7 @@ async function aggregation(fromPeriod, toPeriod = 60000) {
 		await stat(getLogFilePath());
 		const delay = performance.now() - start;
 		if (delay > 5000) {
-			log.warn?.('Unusually high task queue latency on the main thread of ' + Math.round(now - start) + 'ms');
+			log.warn?.('Unusually high task queue latency on the main thread of ' + Math.round(delay) + 'ms');
 		}
 		return delay;
 	})();
@@ -565,7 +565,7 @@ async function aggregation(fromPeriod, toPeriod = 60000) {
 		}
 	}
 	const now = Date.now();
-	const { idle, active } = performance.eventLoopUtilization();
+	const { idle, active } = (performance as any).eventLoopUtilization();
 	// don't record boring entries
 	if (hasUpdates || active * 10 > idle) {
 		const value = {

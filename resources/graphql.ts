@@ -55,7 +55,7 @@ export function start({ ensureTable }) {
 					const typeName = definition.name.value;
 					// use type name as the default table
 					const properties = [];
-					const typeDef = { table: null, database: null, properties };
+					const typeDef: any = { table: null, database: null, properties };
 					types.set(typeName, typeDef);
 					resources.allTypes.set(typeName, typeDef);
 					for (const directive of definition.directives) {

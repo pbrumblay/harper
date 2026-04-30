@@ -24,7 +24,7 @@ const appsCors = env.get(CONFIG_PARAMS.HTTP_CORS);
 const operationsCorsAccesslist = env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_CORSACCESSLIST);
 const operationsCors = env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_CORS);
 
-const sessionTable = table({
+const sessionTable: any = table({
 	table: 'hdb_session',
 	database: 'system',
 	attributes: [{ name: 'id', isPrimaryKey: true }, { name: 'user' }],
@@ -114,10 +114,10 @@ export async function authentication(request, nextHandler) {
 				request.method,
 				request.pathname
 			);
-			log.auth_strategy = strategy;
-			if (sessionId) log.session_id = sessionId;
-			if (headers['referer']) log.referer = headers['referer'];
-			if (headers['origin']) log.origin = headers['origin'];
+			 (log as any).auth_strategy = strategy;
+			if (sessionId)  (log as any).session_id = sessionId;
+			if (headers['referer'])  (log as any).referer = headers['referer'];
+			if (headers['origin'])  (log as any).origin = headers['origin'];
 
 			if (status === AUTH_AUDIT_STATUS.SUCCESS) authEventLog.info?.(log);
 			else authEventLog.error?.(log);

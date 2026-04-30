@@ -32,24 +32,30 @@ import { RocksTransactionLogStore } from './RocksTransactionLogStore.ts';
 initSync();
 
 export type AuditRecord = {
-	version?: number;
-	localTime?: number; // only to be used by LMDB (from the key)
+	version: number;
+	localTime: number; // only to be used by LMDB (from the key)
 	type: string;
-	encodedRecord: Buffer;
-	extendedType: number;
-	residencyId: number;
-	previousResidencyId: number;
-	expiresAt: Date | null;
+	encodedRecord?: Buffer;
+	extendedType?: number;
+	residencyId?: number;
+	previousResidencyId?: number;
+	expiresAt: number | null;
 	originatingOperation: string;
-	tableId: number;
-	recordId: number;
-	previousVersion: number;
+	tableId?: number;
+	recordId?: number;
+	previousVersion?: number;
 	user?: string;
 	nodeId?: number;
-	previousNodeId?: number;
-	previousAdditionalAuditRefs?: Array<{ version: number; nodeId: number }>;
-	endTxn?: boolean;
+	previousNodeId: number;
+	previousAdditionalAuditRefs?: Array<{ version?: number; nodeId: number }>;
+	key?: any;
+	encoded?: any;
+	size: number;
+	getValue?: any;
+	getBinaryValue?: any;
 	structureVersion?: number;
+	endTxn?: boolean;
+	getBinaryRecordId?: any;
 };
 
 const ENTRY_HEADER = Buffer.alloc(2816); // this is sized to be large enough for the maximum key size (1976) plus large usernames. We may want to consider some limits on usernames to ensure this all fits
@@ -428,7 +434,7 @@ export function createAuditEntry(auditRecord: AuditRecord, start = 0) {
 export function readAuditEntry(buffer: Uint8Array, start = 0, end = undefined): AuditRecord {
 	try {
 		const decoder =
-			buffer.decoder || (buffer.decoder = new Decoder(buffer.buffer, buffer.byteOffset, buffer.byteLength));
+			 (buffer as any).decoder || ( (buffer as any).decoder = new Decoder(buffer.buffer, buffer.byteOffset, buffer.byteLength));
 		decoder.position = start;
 		let previousVersion;
 		if (buffer[decoder.position] == 66) {
@@ -472,7 +478,7 @@ export function readAuditEntry(buffer: Uint8Array, start = 0, end = undefined): 
 		const usernameStart = decoder.position;
 		const usernameEnd = (decoder.position += length);
 		let value: any;
-		return {
+		return ({
 			type: EVENT_TYPES[action & 7],
 			tableId,
 			nodeId,
@@ -520,10 +526,10 @@ export function readAuditEntry(buffer: Uint8Array, start = 0, end = undefined): 
 			expiresAt,
 			originatingOperation,
 			previousAdditionalAuditRefs,
-		};
+		 } as any);
 	} catch (error) {
 		harperLogger.error('Reading audit entry error', error, buffer);
-		return {};
+		return {} as any;
 	}
 }
 
