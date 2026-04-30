@@ -192,7 +192,6 @@ export function getDatabases(): Databases {
 		getConfigPath(CONFIG_PARAMS.STORAGE_PATH) ||
 		(databasePath && (existsSync(databasePath) ? databasePath : join(getHdbBasePath(), LEGACY_DATABASES_DIR_NAME)));
 	if (!databasePath) return;
-
 	if (existsSync(databasePath)) {
 		// First load all the databases from our main database folder
 		// TODO: Load any databases defined with explicit storage paths from the config
@@ -376,7 +375,7 @@ function readRocksMetaDb(path: string, defaultTable?: string, databaseName: stri
 		if (rootStore) {
 			initStores(path, rootStore, databaseName, defaultTable);
 		} else {
-			rootStore = openRocksDatabase(path, { disableWAL: false }) as RocksRootDatabase;
+			rootStore = openRocksDatabase(path, { disableWAL: false, enableStats: true }) as any;
 			rocksdbDatabaseEnvs.set(path, rootStore);
 			initStores(path, rootStore, databaseName, defaultTable);
 			replayLogs(rootStore, databases[databaseName]);
@@ -734,6 +733,7 @@ export function database({ database: databaseName, table: tableName }) {
 		if (!rootStore || rootStore.status === 'closed') {
 			rootStore = openRocksDatabase(path, {
 				disableWAL: false,
+				enableStats: true,
 			}) as any;
 			rocksdbDatabaseEnvs.set(path, rootStore as any);
 		}

@@ -1,7 +1,6 @@
 import { serialize, serializeMessage, getDeserializer } from '../server/serverHelpers/contentTypes.ts';
 import { addAnalyticsListener, recordAction, recordActionBinary } from '../resources/analytics/write.ts';
 import * as harperLogger from '../utility/logging/harper_logger.js';
-import { ServerOptions } from 'http';
 import { ServerError, ClientError } from '../utility/errors/hdbError.js';
 import { Resources } from '../resources/Resources.ts';
 import { Resource, missingMethod, allowedMethods } from '../resources/Resource.ts';
@@ -281,26 +280,26 @@ async function http(request: Request, nextHandler) {
 	}
 }
 
-let started;
+let started = false;
 let resources: Resources;
 let addedMetrics;
 let connectionCount = 0;
 
-export function start(options: ServerOptions & { path: string; port: number; server: any; resources: Resources }) {
-	httpOptions = options;
-	if ((options as any).includeExpensiveRecordCountEstimates) {
+export function handleApplication(scope: import('../components/Scope.ts').Scope) {
+	httpOptions = scope.options.getAll();
+	if ((httpOptions as any).includeExpensiveRecordCountEstimates) {
 		// If they really want to enable expensive record count estimates
 		(Request.prototype as any).includeExpensiveRecordCountEstimates = true;
 	}
+	resources = scope.resources;
 	if (started) return;
 	started = true;
-	resources = options.resources;
-	options.server.http(async (request: any, nextHandler) => {
+	scope.server.http(async (request: any, nextHandler) => {
 		if (request.isWebSocket) return;
 		return http(request, nextHandler);
-	}, options);
-	if ((options as any).webSocket === false) return;
-	options.server.ws(async (ws, request, chainCompletion) => {
+	}, httpOptions as any);
+	if ((httpOptions as any).webSocket === false) return;
+	scope.server.ws(async (ws, request: any, chainCompletion) => {
 		connectionCount++;
 		const incomingMessages = new IterableEventQueue();
 		if (!addedMetrics) {
@@ -316,12 +315,12 @@ export function start(options: ServerOptions & { path: string; port: number; ser
 		}
 		// TODO: We should set a lower keep-alive ws.socket.setKeepAlive(600000);
 		let hasError;
-		ws.on('error', (error) => {
+		(ws as any).on('error', (error) => {
 			hasError = true;
 			harperLogger.warn(error);
 		});
 		let deserializer;
-		ws.on('message', function message(body) {
+		(ws as any).on('message', function message(body) {
 			if (!deserializer)
 				deserializer = getDeserializer(request.requestedContentType ?? request.headers.asObject['content-type'], false);
 			const data = deserializer(body);
@@ -329,7 +328,7 @@ export function start(options: ServerOptions & { path: string; port: number; ser
 			incomingMessages.push(data);
 		});
 		let iterator;
-		ws.on('close', () => {
+		(ws as any).on('close', () => {
 			connectionCount--;
 			recordActionBinary(!hasError, 'connection', 'ws', 'disconnect');
 			incomingMessages.emit('close');
@@ -369,8 +368,8 @@ export function start(options: ServerOptions & { path: string; port: number; ser
 					const messageBinary = await serializeMessage(result.value, request);
 					ws.send(messageBinary);
 					recordAction(messageBinary.length, 'bytes-sent', request.handlerPath, 'message', 'ws');
-					if (ws._socket.writableNeedDrain) {
-						await new Promise((resolve) => ws._socket.once('drain', resolve));
+					if ((ws as any)._socket.writableNeedDrain) {
+						await new Promise((resolve) => (ws as any)._socket.once('drain', resolve));
 					}
 				}
 			}
@@ -386,7 +385,7 @@ export function start(options: ServerOptions & { path: string; port: number; ser
 			);
 		}
 		ws.close();
-	}, options);
+	}, httpOptions as any);
 }
 const HTTP_TO_WEBSOCKET_CLOSE_CODES = {
 	401: 3000,

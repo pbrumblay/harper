@@ -570,8 +570,9 @@ async function graphqlQueryingHandler(request: Request) {
 	}
 }
 
-export function start(options) {
-	options.server.http(
+export function handleApplication(scope: import('../components/Scope.ts').Scope) {
+	const { port, securePort } = scope.options.getAll() as { port?: number; securePort?: number };
+	scope.server.http(
 		async (request, nextLayer) => {
 			if (!request.url.startsWith('/graphql')) {
 				return nextLayer(request);
@@ -579,7 +580,7 @@ export function start(options) {
 
 			try {
 				// Await the `graphqlHandler` call here so that errors are caught.
-				return await graphqlQueryingHandler(request);
+				return await graphqlQueryingHandler(request as any);
 			} catch (error) {
 				logger.error(error);
 
@@ -695,6 +696,6 @@ export function start(options) {
 				throw error;
 			}
 		},
-		{ port: options.port, securePort: options.securePort }
+		{ port, securePort }
 	);
 }

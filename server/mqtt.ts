@@ -23,18 +23,25 @@ export function bypassAuth() {
 const authorizeLocal = (remoteAddress: string) =>
 	AUTHORIZE_LOCAL && (remoteAddress.includes('127.0.0.') || remoteAddress === '::1');
 
-export function start({ server, port, network, webSocket, securePort, requireAuthentication }) {
+export function handleApplication(scope: import('../components/Scope.ts').Scope) {
+	const { network, webSocket, requireAuthentication } = scope.options.getAll() as {
+		network?: any;
+		webSocket?: any;
+		requireAuthentication?: boolean;
+	};
+	const server = scope.server;
+	const { port, securePort } = network ?? {};
 	// here we basically normalize the different types of sockets to pass to our socket/message handler
-	if (!server.mqtt) {
-		server.mqtt = {
+	if (!(server as any).mqtt) {
+		(server as any).mqtt = {
 			requireAuthentication,
 			sessions: new Set(),
 			events: new EventEmitter(),
 		};
 		// a no-op error handler to prevent unhandled error events from being rethrown
-		server.mqtt.events.on('error', () => {});
+		(server as any).mqtt.events.on('error', () => {});
 	}
-	const mqttSettings = server.mqtt;
+	const mqttSettings = (server as any).mqtt;
 	function emitEvent(type: string, ...args: any[]) {
 		try {
 			mqttSettings.events.emit(type, ...args);
@@ -45,8 +52,8 @@ export function start({ server, port, network, webSocket, securePort, requireAut
 	let serverInstances = [];
 	const mtls = network?.mtls;
 	if (webSocket)
-		serverInstances = server.ws(
-			(ws, request, chainCompletion, next) => {
+		serverInstances = (server as any).ws(
+			(ws, request, chainCompletion, next: any) => {
 				if (request.headers.get('sec-websocket-protocol') !== 'mqtt') {
 					return next(ws, request, chainCompletion);
 				}
@@ -78,13 +85,13 @@ export function start({ server, port, network, webSocket, securePort, requireAut
 					let user;
 					emitEvent('connection', socket);
 					mqttLog.debug?.(
-						`Received ${socket.getCertificate ? 'SSL' : 'TCP'} connection for MQTT from ${socket.remoteAddress}`
+						`Received ${(socket as any).getCertificate ? 'SSL' : 'TCP'} connection for MQTT from ${socket.remoteAddress}`
 					);
 					if (mtls) {
-						if (socket.authorized) {
+						if ((socket as any).authorized) {
 							try {
 								// Perform certificate verification
-								const peerCertificate = socket.getPeerCertificate(true);
+								const peerCertificate = (socket as any).getPeerCertificate(true);
 								if (peerCertificate?.subject) {
 									const verificationResult = await verifyCertificate(peerCertificate, mtls);
 									if (!verificationResult.valid) {
@@ -102,7 +109,7 @@ export function start({ server, port, network, webSocket, securePort, requireAut
 								if (username !== null) {
 									// null means no user is defined from certificate, need regular authentication as well
 									if (username === undefined || username === 'Common Name' || username === 'CN')
-										username = socket.getPeerCertificate().subject.CN;
+										username = (socket as any).getPeerCertificate().subject.CN;
 									try {
 										user = await server.getUser(username, null, null);
 										if (get(CONFIG_PARAMS.LOGGING_AUDITAUTHEVENTS_LOGSUCCESSFUL)) {
@@ -139,7 +146,7 @@ export function start({ server, port, network, webSocket, securePort, requireAut
 							}
 						} else if (mtls.required) {
 							mqttLog.info?.(
-								`Unauthorized connection attempt, no authorized client certificate provided, error: ${socket.authorizationError}`
+								`Unauthorized connection attempt, no authorized client certificate provided, error: ${(socket as any).authorizationError}`
 							);
 							return socket.end();
 						}
@@ -160,7 +167,6 @@ export function start({ server, port, network, webSocket, securePort, requireAut
 			)
 		);
 	}
-	return serverInstances;
 }
 let addingMetrics,
 	numberOfConnections = 0;
