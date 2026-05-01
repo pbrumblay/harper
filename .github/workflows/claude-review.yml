@@ -9,15 +9,79 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  authorize:
+    # Single source of truth for "is this PR allowed to trigger Claude
+    # on this repo?". The `review` job below has ONE `if:` that depends
+    # on this — no step-level guards, no individual user list to
+    # maintain.
+    #
+    # Trust set: the @HarperFast teams listed in this repo's
+    # `.github/CODEOWNERS`. Same set as the people we trust to review
+    # code; alignment by construction. If CODEOWNERS is missing,
+    # empty, or has no `@HarperFast/<team>` handles, we fall back to
+    # `@HarperFast/developers` as the default. External-org handles in
+    # CODEOWNERS (e.g. `@SomeOtherOrg/x`) are deliberately ignored —
+    # we only admit HarperFast members. `claude[bot]` is admitted
+    # explicitly so AI-authored PRs from the issue-to-PR pipeline get
+    # reviewed.
+    #
+    # We check TWO identities; both must be authorized:
+    #   * `pull_request.user.login` — the PR's original author.
+    #   * `github.actor` — whoever triggered THIS specific event (the
+    #     pusher on `synchronize`, etc.). A non-trusted user pushing
+    #     to a trusted user's PR branch changes the actor without
+    #     changing the PR author; we want to refuse those events.
+    #
+    # Team-membership reads need an `Organization: Members: Read`
+    # token, which the default `GITHUB_TOKEN` lacks. We mint an
+    # installation token from an org-wide HarperFast GitHub App
+    # (Members: Read scope only) and use it ONLY in this job — the
+    # work job uses the default `GITHUB_TOKEN`, so the org-read
+    # capability never reaches the agent step.
+    #
+    # Required (organization-level) secrets:
+    #   - HARPERFAST_AI_CLIENT_ID       (the App's Client ID, like Iv23li…)
+    #   - HARPERFAST_AI_APP_PRIVATE_KEY (.pem file contents)
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions:
+      # `contents: read` so we can fetch this repo's .github/CODEOWNERS
+      # via the default token. Team-membership reads use the App token
+      # below, which is contained to this job.
+      contents: read
+    outputs:
+      authorized: ${{ steps.check.outputs.authorized }}
+    steps:
+      - name: Mint org-read token
+        id: app-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ secrets.HARPERFAST_AI_CLIENT_ID }}
+          private-key: ${{ secrets.HARPERFAST_AI_APP_PRIVATE_KEY }}
+          owner: HarperFast
+
+      - name: Checkout (for CODEOWNERS read)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          sparse-checkout: |
+            .github/CODEOWNERS
+            .github/scripts/authorize-claude-workflow.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Check authorization (PR author + event actor)
+        id: check
+        env:
+          DEFAULT_TOKEN: ${{ github.token }}
+          ORG_TOKEN: ${{ steps.app-token.outputs.token }}
+          ADMIT_CLAUDE_BOT: 'true'
+          USERS_TO_CHECK: |
+            ${{ github.event.pull_request.user.login }}
+            ${{ github.actor }}
+        run: bash .github/scripts/authorize-claude-workflow.sh
+
   review:
-    # Review PRs authored by HarperFast org members / collaborators. External
-    # PRs are not auto-reviewed — a maintainer can opt one in via an
-    # `@claude` mention (handled by a separate workflow). Also admits
-    # claude[bot] so AI-authored PRs (from issue-to-pr) get reviewed.
-    if: >-
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'),
-      github.event.pull_request.author_association)
-      || github.event.pull_request.user.login == 'claude[bot]'
+    needs: authorize
+    if: needs.authorize.outputs.authorized == 'true'
     runs-on: ubuntu-latest
     # 15 gives headroom for substantial diffs without letting a runaway loop
     # burn forever (claude-code-action's --max-turns is the real cost ceiling).
@@ -94,7 +158,7 @@ jobs:
           show_full_output: true # TEMP: keep on during calibration so tool denials are visible
           claude_args: |
             --model claude-sonnet-4-6
-            --max-turns 24
+            --max-turns 48
             # This workflow is READ-ONLY by design — the agent reviews and
             # comments, it does not modify the repo. Git subcommands are
             # scoped individually to strictly read-only operations.
@@ -160,9 +224,25 @@ jobs:
 
             ## Tools
 
-            For file inspection use the `Read`, `Grep`, and `Glob` tools.
+            **Turn budget:** you have 48 turns total per review. Plan
+            accordingly: 1–2 turns to read agent context files, 1 turn
+            to identify changed files, ~1 turn per changed file via
+            `Read`, the rest for targeted searches and posting
+            findings. Most reviews finish well under that. Running
+            out of turns means no review gets posted at all — the
+            log step skips when no marker'd review comment exists.
+
+            **The single biggest turn-burner is repo-wide search.**
+            Use the dedicated `Grep` tool with a tight `path` parameter
+            scoping to the changed files or the specific subdirectory
+            you need. Do NOT do `grep -rn …` (or `Bash(grep …)`) over
+            the whole repo — that pattern returned ~20 hits per call
+            in a recent run that timed out before posting anything.
+            For file inspection use `Read`, `Grep`, and `Glob` tools.
+
             Do NOT use `cat`, `head`, `tail`, `grep`, `ls`, or `find`
-            via Bash — those commands are not allowed and waste turns.
+            via Bash. The Bash allowlist below excludes them on
+            purpose, and the equivalent dedicated tools are faster.
             Do NOT run `npm test`, `npm run test:unit`, or any other
             script that executes PR code — the PR's tests are already
             checked separately.
