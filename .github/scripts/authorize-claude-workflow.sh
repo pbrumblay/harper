@@ -44,6 +44,18 @@ if [ -z "$TEAMS" ]; then
   TEAMS="developers"
 fi
 
+# Fail closed if USERS_TO_CHECK is empty or whitespace-only. The
+# main loop below skips empty entries with `[ -z "$user" ] && continue`
+# and would otherwise fall through to `authorized=true` if there was
+# nothing to check. An authorize job that forgot to set USERS_TO_CHECK
+# (or a malicious change that removed it) must NOT silently admit
+# every event — refuse here.
+if [ -z "${USERS_TO_CHECK//[[:space:]]/}" ]; then
+  echo "::error::USERS_TO_CHECK is empty or whitespace-only — denying by default. The authorize job must explicitly pass at least one login (PR author, commenter, labeler, etc.)."
+  echo "authorized=false" >> "$GITHUB_OUTPUT"
+  exit 0
+fi
+
 echo "Trust set (HarperFast teams from CODEOWNERS):"
 for t in $TEAMS; do echo "  - @HarperFast/$t"; done
 

@@ -67,7 +67,18 @@ for f in "${files[@]}"; do
   grep -q 'HARPERFAST_AI_APP_PRIVATE_KEY' "$f" \
     || fail "$f: HARPERFAST_AI_APP_PRIVATE_KEY secret not referenced"
 
-  # 6. Every non-authorize job has `needs: authorize` and a strict
+  # 6. The authorize job sets USERS_TO_CHECK on at least one of its
+  #    steps. The auth script (`authorize-claude-workflow.sh`) fails
+  #    closed if USERS_TO_CHECK is empty, but the workflow still
+  #    shouldn't ship without it — make the omission a structural
+  #    error rather than a silent runtime denial. Defense in depth
+  #    against a PR that drops the env var thinking the script will
+  #    "do the right thing".
+  users_to_check=$(yq -r '[.jobs.authorize.steps[].env.USERS_TO_CHECK // empty] | .[0] // ""' "$f" 2>/dev/null)
+  [ -n "$users_to_check" ] \
+    || fail "$f: authorize job has no step setting USERS_TO_CHECK env var — the auth script needs at least one login to check (PR author, commenter, labeler, etc.)"
+
+  # 7. Every non-authorize job has `needs: authorize` and a strict
   #    if-expression of exactly: needs.authorize.outputs.authorized == 'true'
   #    (whitespace normalized). Stricter than substring match —
   #    rules out tautologies like `... || true`.
