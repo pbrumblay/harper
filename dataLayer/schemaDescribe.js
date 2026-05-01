@@ -233,7 +233,7 @@ async function descTable(describeTableObject, attrPerms) {
  * Returns the schema metadata filtered based on permissions for the user role making the request
  *
  * @param describeSchemaObject
- * @returns {Promise<{}|[]>}
+ * @returns {Promise<Record<string, any>>}
  */
 async function describeSchema(describeSchemaObject) {
 	hdbUtils.transformReq(describeSchemaObject);
