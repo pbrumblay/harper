@@ -58,23 +58,7 @@ jobs:
         id: mention
         env:
           BODY: ${{ github.event.comment.body }}
-        run: |
-          set -uo pipefail
-
-          if ! printf '%s' "$BODY" | grep -Pqz '\A\s*@claude\b'; then
-            echo "Comment does not start with @claude; skipping."
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if printf '%s' "$BODY" | grep -Piq '\bdeep\b'; then
-            echo "model=claude-opus-4-7" >> "$GITHUB_OUTPUT"
-            echo "Selected claude-opus-4-7 (deep requested)"
-          else
-            echo "model=claude-sonnet-4-6" >> "$GITHUB_OUTPUT"
-            echo "Selected claude-sonnet-4-6 (default)"
-          fi
-          echo "proceed=true" >> "$GITHUB_OUTPUT"
+        run: bash .github/scripts/parse-claude-mention.sh
 
       - name: Clone shared Harper skills
         # Pinned to a SHA so agent behavior is reproducible across runs —
