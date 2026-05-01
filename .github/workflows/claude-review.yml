@@ -403,7 +403,11 @@ jobs:
           fi
 
           # Title: count findings (lines starting with `### <digit>`). "No blockers" case has none.
-          if printf '%s' "$CLAUDE_BODY" | grep -qi '^no blockers found'; then
+          # Match the phrase anywhere in the body — the new concise prompt asks for
+          # `Reviewed; no blockers found.`, which doesn't start with "no blockers"
+          # and so wouldn't match an anchored regex. Anywhere-match is safe because
+          # `no blockers found` is a deliberate sentinel phrase from the prompt.
+          if printf '%s' "$CLAUDE_BODY" | grep -qi 'no blockers found'; then
             COUNT_PART="no blockers"
           else
             FINDING_COUNT=$(printf '%s\n' "$CLAUDE_BODY" | grep -c '^### [0-9]' || true)
