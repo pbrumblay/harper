@@ -54,12 +54,10 @@ export class RocksIndexStore extends RocksDatabase {
 	putSync(indexedValue: any, primaryKey: Id, options: StorePutOptions) {
 		return super.putSync([indexedValue, primaryKey], null, options);
 	}
-	// @ts-ignore
 
 	// @ts-ignore
 	remove(indexedValue: any, primaryKey: Id, options?: StoreRemoveOptions) {
 		return super.removeSync([indexedValue, primaryKey], options);
-		// @ts-ignore
 	}
 
 	// @ts-ignore

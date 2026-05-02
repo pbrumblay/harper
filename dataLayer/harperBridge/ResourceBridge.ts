@@ -200,7 +200,7 @@ export class ResourceBridge extends BridgeMethods {
 
 	// @ts-expect-error property is not assignable to base type
 	async upsertRecords(upsertObj) {
-		const { attributes } = await insertUpdateValidate(upsertObj);
+		const { attributes } = insertUpdateValidate(upsertObj);
 
 		let new_attributes;
 		const Table = getDatabases()[upsertObj.schema][upsertObj.table];

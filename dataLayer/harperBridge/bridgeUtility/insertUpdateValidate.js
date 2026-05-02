@@ -12,7 +12,7 @@ module.exports = insertUpdateValidate;
 /**
  * Takes an insert/update object and validates attributes, also looks for dups and get a list of all attributes from the record set
  * @param {Object} writeObject
- * @returns {Promise<{tableSchema, hashes: any[], attributes: string[]}>}
+ * @returns {{schema_table: any, hashes: any[], attributes: string[]}}
  */
 function insertUpdateValidate(writeObject) {
 	// Need to validate these outside of the validator as the getTableSchema call will fail with
