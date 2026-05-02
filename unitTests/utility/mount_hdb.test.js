@@ -51,9 +51,8 @@ describe('test mount_hdb module', () => {
 	before(() => {
 		init_sys_schema_path_stub = sandbox.stub(init_paths, 'initSystemSchemaPaths').resolves();
 		create_table_stub = sandbox.stub(bridge, 'createTable');
-		mount_hdb.__set__('mkdirpSync', mk_dirp_sync_stub);
-		mount_hdb.__set__('copySync', sandbox.stub());
-		mount_hdb.__set__('systemSchema', test_system_schema);
+		mount_hdb.__set__('fs_extra_1', { mkdirpSync: mk_dirp_sync_stub, copySync: sandbox.stub() });
+		mount_hdb.__set__('systemSchema_json_1', { default: test_system_schema });
 	});
 
 	after(() => {
@@ -62,7 +61,7 @@ describe('test mount_hdb module', () => {
 
 	it('Test mountHdb calls makeDirectory happy path', async () => {
 		const test_hdb_path = `mount${SEP}test${SEP}hdb`;
-		await mount_hdb(test_hdb_path);
+		await (mount_hdb.default || mount_hdb)(test_hdb_path);
 		expect(mk_dirp_sync_stub.getCall(0).args[0]).to.equal(`mount${SEP}test${SEP}hdb`);
 		expect(mk_dirp_sync_stub.getCall(1).args[0]).to.equal(`mount${SEP}test${SEP}hdb${SEP}backup`);
 		expect(mk_dirp_sync_stub.getCall(2).args[0]).to.equal(`mount${SEP}test${SEP}hdb${SEP}keys`);

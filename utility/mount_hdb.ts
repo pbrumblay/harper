@@ -1,6 +1,6 @@
 'use strict';
 
-import { mkdirpSync, copySync } from 'fs-extra';
+const { mkdirpSync, copySync } = require('fs-extra');
 import * as path from 'path';
 import * as terms from '../utility/hdbTerms.js';
 import hdbLogger from '../utility/logging/harper_logger.js';

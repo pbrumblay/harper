@@ -22,9 +22,9 @@ const jobs = require('#js/server/jobs/jobs');
 const terms = require('#src/utility/hdbTerms');
 
 const schema = require('#js/dataLayer/schema');
-const PermissionResponseObject = require('#js/security/data_objects/PermissionResponseObject');
-const PermissionTableResponseObject = require('#js/security/data_objects/PermissionTableResponseObject');
-const PermissionAttributeResponseObject = require('#js/security/data_objects/PermissionAttributeResponseObject');
+const PermissionResponseObject = require('#js/security/data_objects/PermissionResponseObject').default;
+const PermissionTableResponseObject = require('#js/security/data_objects/PermissionTableResponseObject').default || require('#js/security/data_objects/PermissionTableResponseObject');
+const PermissionAttributeResponseObject = require('#js/security/data_objects/PermissionAttributeResponseObject').default || require('#js/security/data_objects/PermissionAttributeResponseObject');
 const { TEST_SCHEMA_OP_ERROR, TEST_OPERATION_AUTH_ERROR } = require('../commonTestErrors');
 
 const serverUtilities_rw = rewire('#js/server/serverHelpers/serverUtilities');
