@@ -18,7 +18,7 @@ const { HTTP_STATUS_CODES } = hdbErrors;
 import restart from '../../bin/restart.js';
 import * as util from 'util';
 import insert from '../../dataLayer/insert.js';
-import globalSchema from '../../utility/globalSchema.js';
+import * as globalSchema from '../../utility/globalSchema.js';
 import { systemInformation } from '../../utility/environment/systemInformation.ts';
 import jobRunner from '../jobs/jobRunner.js';
 import * as tokenAuthentication from '../../security/tokenAuthentication.ts';

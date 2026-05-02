@@ -11,7 +11,7 @@ import fastifyStatic from '@fastify/static';
 import requestTimePlugin from './serverHelpers/requestTimePlugin.js';
 import guidePath from 'path';
 import { PACKAGE_ROOT } from '../utility/packageUtils.js';
-import globalSchema from '../utility/globalSchema.js';
+import * as globalSchema from '../utility/globalSchema.js';
 import * as commonUtils from '../utility/common_utils.js';
 import * as userSchema from '../security/user.ts';
 import { server as serverRegistration, type ServerOptions } from '../server/Server.ts';
