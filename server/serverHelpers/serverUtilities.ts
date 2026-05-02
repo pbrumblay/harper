@@ -10,7 +10,7 @@ import customFunctionOperations from '../../components/operations.js';
 import harperLogger from '../../utility/logging/harper_logger.js';
 import readLog from '../../utility/logging/readLog.js';
 import export_ from '../../dataLayer/export.js';
-import opAuth from '../../utility/operation_authorization.js';
+import * as opAuth from '../../utility/operation_authorization.js';
 import jobs from '../jobs/jobs.js';
 import * as terms from '../../utility/hdbTerms.ts';
 import { hdbErrors, handleHDBError } from '../../utility/errors/hdbError.js';
