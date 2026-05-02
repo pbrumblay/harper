@@ -1,5 +1,4 @@
 import { transaction } from './transaction.ts';
-import { ErrorResource } from './ErrorResource.ts';
 import logger from '../utility/logging/harper_logger.js';
 import { ServerError } from '../utility/errors/hdbError.js';
 import { server } from '../server/Server.ts';
@@ -45,6 +44,7 @@ export class Resources extends Map<string, ResourceEntry> {
 			// don't provide anything more descriptive.
 			const error = new ServerError(`Conflicting paths for ${path}`);
 			logger.error(error);
+			const { ErrorResource } = require('./ErrorResource.js');
 			entry.Resource = new ErrorResource(error);
 		}
 		super.set(path, entry);

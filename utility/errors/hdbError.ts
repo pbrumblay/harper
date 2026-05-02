@@ -43,7 +43,7 @@ export class HdbError extends Error {
 		}
 
 		if (logMsg) {
-			logger.default[logLevel](logMsg);
+			logger[logLevel](logMsg);
 			
 		}
 	}

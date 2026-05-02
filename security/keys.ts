@@ -17,7 +17,7 @@ import * as envManager from '../utility/environment/environmentManager.js';
 import * as hdbTerms from '../utility/hdbTerms.js';
 
 import * as certificatesTerms from '../utility/terms/certificates.js';
-import * as tls from 'node:tls';
+const tls = require('node:tls');
 import { relative, join } from 'node:path';
 
 import assignCmdenvVars from '../utility/assignCmdEnvVariables.js';
