@@ -835,7 +835,7 @@ function applyRuntimeEnvVarConfig(configDoc, configFilePath, options = {}) {
 	// No env vars set, skip entirely (zero overhead)
 	if (!defaultEnvValue && !setEnvValue) return;
 
-	const { applyRuntimeEnvConfig } = require('./harperConfigEnvVars.ts');
+	const { applyRuntimeEnvConfig } = require('./harperConfigEnvVars.js');
 
 	// Get rootPath for state file location
 	const rootPath = configDoc.getIn(['rootPath']);
