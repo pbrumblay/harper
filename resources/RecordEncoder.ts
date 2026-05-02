@@ -65,8 +65,8 @@ const TRACKED_WRITE_TYPES = new Set(['put', 'patch', 'delete', 'message', 'publi
 // WeakMaps are definitely not the fastest form of private properties, but they are the only
 // way to do this with how the objects are frozen for now.
 export const entryMap = new WeakMap<any, Entry>();
-let lastValueEncoding,
-	timestampNextEncoding = 0,
+export let lastValueEncoding: Buffer | undefined;
+let timestampNextEncoding = 0,
 	metadataInNextEncoding = -1,
 	expiresAtNextEncoding = -1,
 	residencyIdAtNextEncoding = 0,
@@ -474,6 +474,7 @@ export function handleLocalTimeForGets(store, rootStore) {
 			};
 			Txn.prototype.done = function () {
 				done.call(this);
+				this.openTimer = 0; // reset so idle pool time doesn't accumulate toward the stale-open threshold
 				if (this.isDone) {
 					for (let i = 0; i < trackedTxns.length; i++) {
 						const txn = trackedTxns[i].deref();
@@ -502,7 +503,14 @@ setInterval(() => {
 							'Read transaction detected that has been open too long (over 15 minutes), ending transaction',
 							txn
 						);
-						txn.done();
+						trackedTxns.splice(i--, 1);
+						txn.timerTracked = false;
+						txn.openTimer = 0;
+						try {
+							txn.done();
+						} catch (error) {
+							harperLogger.warn('Unexpected error force-closing stale LMDB read transaction', error);
+						}
 					} else
 						harperLogger.error(
 							'Read transaction detected that has been open too long (over one minute), make sure read transactions are quickly closed',

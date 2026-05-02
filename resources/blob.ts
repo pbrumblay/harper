@@ -44,6 +44,7 @@ import { HAS_BLOBS } from './auditStore.ts';
 import { getHeapStatistics } from 'node:v8';
 import { setTimeout as delay, setImmediate as rest } from 'node:timers/promises';
 import { RocksDatabase } from '@harperfast/rocksdb-js';
+import { _assignPackageExport } from '../globals.js';
 
 type StorageInfo = {
 	storageIndex: number;
@@ -503,7 +504,10 @@ export type BlobCreationOptions = {
  * can be saved/stored.
  * @param source
  */
-(global as any).createBlob = function (source: any, options?: BlobCreationOptions): any {
+export function createBlob(
+	source: Uint8Array | NodeJS.ReadableStream | string | Iterable<Uint8Array> | AsyncIterator<Uint8Array>,
+	options?: BlobCreationOptions
+): Blob {
 	const blob = new FileBackedBlob(options);
 	const storageInfo: StorageInfo = {
 		storageIndex: 0,
@@ -518,10 +522,11 @@ export type BlobCreationOptions = {
 	} else if (source instanceof Readable) {
 		storageInfo.source = source;
 	} else if (typeof source === 'string') storageInfo.contentBuffer = Buffer.from(source);
-	else if (source?.[Symbol.asyncIterator] || source?.[Symbol.iterator]) storageInfo.source = Readable.from(source);
+	else if (source?.[Symbol.asyncIterator] || source?.[Symbol.iterator]) storageInfo.source = Readable.from(source as any);
 	else throw new Error('Invalid source type');
 	return blob as any;
-};
+}
+_assignPackageExport('createBlob', createBlob);
 
 export function saveBlob(blob: FileBackedBlob, deleteOnFailure = false) {
 	let storageInfo = storageInfoForBlob.get(blob);

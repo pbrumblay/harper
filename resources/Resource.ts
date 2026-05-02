@@ -391,16 +391,16 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	 * but implementors can call send with
 	 */
 	// eslint-disable-next-line no-unused-vars
-	async subscribe(request: SubscriptionRequest): Promise<AsyncIterable<Record>> {
+	subscribe(request: SubscriptionRequest): AsyncIterable<Record> | Promise<AsyncIterable<Record>> {
 		return new IterableEventQueue();
 	}
 
-	async connect(target: RequestTarget, incomingMessages: IterableEventQueue<Record>): Promise<AsyncIterable<Record>> {
+	connect(target: RequestTarget, incomingMessages: IterableEventQueue<Record>): AsyncIterable<Record> | Promise<AsyncIterable<Record>> {
 		// convert subscription to an (async) iterator
 		const query = (this.constructor as any).loadAsInstance === false ? target : incomingMessages;
 		if ((query as any)?.subscribe !== false) {
 			// subscribing is the default action, but can be turned off
-			return await this.subscribe?.(query as any);
+			return this.subscribe?.(query as any) as any;
 		}
 		return new IterableEventQueue();
 	}
