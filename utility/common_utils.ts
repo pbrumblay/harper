@@ -507,7 +507,7 @@ export async function isPortTaken(port: number) {
  * @returns string returns a thrown message if schema and or table does not exist
  */
 export function checkGlobalSchemaTable(schemaName: string, tableName: string) {
-	let databases = require('../resources/databases.ts').getDatabases();
+	let databases = require('../resources/databases.js').getDatabases();
 	if (!databases[schemaName]) {
 		return hdbErrors.HDB_ERROR_MSGS.SCHEMA_NOT_FOUND(schemaName);
 	}
@@ -593,7 +593,7 @@ export function checkSchemaTableExist(schema: string, table: string) {
  * @returns {string}
  */
 export function checkSchemaExists(schema: string) {
-	const { getDatabases } = require('../resources/databases.ts');
+	const { getDatabases } = require('../resources/databases.js');
 	if (!getDatabases()[schema]) {
 		return hdbErrors.HDB_ERROR_MSGS.SCHEMA_NOT_FOUND(schema);
 	}
@@ -606,7 +606,7 @@ export function checkSchemaExists(schema: string) {
  * @returns {string}
  */
 export function checkTableExists(schema: string, table: string) {
-	const { getDatabases } = require('../resources/databases.ts');
+	const { getDatabases } = require('../resources/databases.js');
 	if (!getDatabases()[schema][table]) {
 		return hdbErrors.HDB_ERROR_MSGS.TABLE_NOT_FOUND(schema, table);
 	}
@@ -710,7 +710,7 @@ export function autoCastBooleanStrict(value: any) {
  * Gets a tables hash attribute from the global schema
  */
 export function getTableHashAttribute(schema: string, table: string) {
-	const { getDatabases } = require('../resources/databases.ts');
+	const { getDatabases } = require('../resources/databases.js');
 	let tableObj = getDatabases()[schema]?.[table];
 	return tableObj?.primaryKey || tableObj?.hash_attribute;
 }
@@ -721,7 +721,7 @@ export function getTableHashAttribute(schema: string, table: string) {
  * @returns {boolean} - returns true if schema exists
  */
 export function doesSchemaExist(schema: string) {
-	const { getDatabases } = require('../resources/databases.ts');
+	const { getDatabases } = require('../resources/databases.js');
 	return getDatabases()[schema] !== undefined;
 }
 
@@ -732,7 +732,7 @@ export function doesSchemaExist(schema: string) {
  * @returns {boolean} - returns true if table exists
  */
 export function doesTableExist(schema: string, table: string) {
-	const { getDatabases } = require('../resources/databases.ts');
+	const { getDatabases } = require('../resources/databases.js');
 	return getDatabases()[schema]?.[table] !== undefined;
 }
 
