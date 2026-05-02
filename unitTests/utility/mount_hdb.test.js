@@ -51,7 +51,8 @@ describe('test mount_hdb module', () => {
 	before(() => {
 		init_sys_schema_path_stub = sandbox.stub(init_paths, 'initSystemSchemaPaths').resolves();
 		create_table_stub = sandbox.stub(bridge, 'createTable');
-		mount_hdb.__set__('fs_extra_1', { mkdirpSync: mk_dirp_sync_stub, copySync: sandbox.stub() });
+		mount_hdb.__set__('mkdirpSync', mk_dirp_sync_stub);
+		mount_hdb.__set__('copySync', sandbox.stub());
 		mount_hdb.__set__('systemSchema_json_1', { default: test_system_schema });
 	});
 
