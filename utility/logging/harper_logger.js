@@ -7,7 +7,7 @@ const pathModule = require('path');
 const YAML = require('yaml');
 const PropertiesReader = require('properties-reader');
 const hdbTerms = require('../hdbTerms.ts');
-const assignCMDENVVariables = require('../assignCmdEnvVariables.js');
+const assignCMDENVVariables = require('../assignCmdEnvVariables.js').default || require('../assignCmdEnvVariables.js');
 const os = require('os');
 const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
 const { _assignPackageExport } = require('../../globals.js');
@@ -405,8 +405,12 @@ function initLogSettings(forceInit = false) {
 			return;
 		}
 
-		error('Error initializing log settings');
-		error(err);
+		console.error(err);
+		
+                if (mainLogger) error('Error initializing log settings');
+		else console.error('Error initializing log settings');
+		if (mainLogger) error(err);
+		
 		throw err;
 	}
 	if (process.env.DEV_MODE) logToStdstreams = true;
@@ -851,6 +855,7 @@ function getLogConfig(hdbConfigPath) {
 
 		console.error('Error accessing config file for logging');
 		console.error(err);
+		
 	}
 }
 
@@ -873,6 +878,7 @@ function getDefaultConfig() {
 	} catch (err) {
 		console.error('Error accessing default config file for logging');
 		console.error(err);
+		
 	}
 }
 
