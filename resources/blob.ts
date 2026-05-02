@@ -522,7 +522,8 @@ export function createBlob(
 	} else if (source instanceof Readable) {
 		storageInfo.source = source;
 	} else if (typeof source === 'string') storageInfo.contentBuffer = Buffer.from(source);
-	else if (source?.[Symbol.asyncIterator] || source?.[Symbol.iterator]) storageInfo.source = Readable.from(source as any);
+	else if (source?.[Symbol.asyncIterator] || source?.[Symbol.iterator])
+		storageInfo.source = Readable.from(source as any);
 	else throw new Error('Invalid source type');
 	return blob as any;
 }

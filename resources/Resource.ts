@@ -395,7 +395,10 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		return new IterableEventQueue();
 	}
 
-	connect(target: RequestTarget, incomingMessages: IterableEventQueue<Record>): AsyncIterable<Record> | Promise<AsyncIterable<Record>> {
+	connect(
+		target: RequestTarget,
+		incomingMessages: IterableEventQueue<Record>
+	): AsyncIterable<Record> | Promise<AsyncIterable<Record>> {
 		// convert subscription to an (async) iterator
 		const query = (this.constructor as any).loadAsInstance === false ? target : incomingMessages;
 		if ((query as any)?.subscribe !== false) {
@@ -494,7 +497,7 @@ export function snakeCase(camelCase: string) {
 function transactional(
 	action: (resource: any, query: RequestTarget, context: Context, data: any) => any,
 	options: {
-		hasContent: boolean;
+		hasContent?: boolean;
 		type: 'read' | 'update' | 'create' | 'delete';
 		async?: boolean;
 		ensureLoaded?: boolean;
