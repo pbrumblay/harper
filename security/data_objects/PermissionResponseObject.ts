@@ -1,14 +1,17 @@
 'use strict';
 
-const PermissionTableResponseObject = require('./PermissionTableResponseObject.js');
-const PermissionAttributeResponseObject = require('./PermissionAttributeResponseObject.js');
-const { HDB_ERROR_MSGS } = require('../../utility/errors/commonErrors.js');
+import PermissionTableResponseObject from './PermissionTableResponseObject.js';
+import PermissionAttributeResponseObject from './PermissionAttributeResponseObject.js';
+import { HDB_ERROR_MSGS } from '../../utility/errors/commonErrors.js';
 
 /**
  * This object organizes permission checks into a cohesive response object that will be returned to
  * the user in the case of a failed permissions check.
  */
-class PermissionResponseObject {
+export default class PermissionResponseObject {
+	error: string;
+	unauthorized_access: any;
+	invalid_schema_items: any[];
 	constructor() {
 		this.error = HDB_ERROR_MSGS.OP_AUTH_PERMS_ERROR;
 		this.unauthorized_access = {};
@@ -21,7 +24,7 @@ class PermissionResponseObject {
 	 * @param errMsg
 	 * @returns { PermissionResponseObject }
 	 */
-	handleUnauthorizedItem(errMsg) {
+	handleUnauthorizedItem(errMsg: string) {
 		this.invalid_schema_items = [];
 		this.unauthorized_access = [errMsg];
 		return this;
@@ -34,7 +37,7 @@ class PermissionResponseObject {
 	 * @param errMsg
 	 * @returns { PermissionResponseObject }
 	 */
-	handleInvalidItem(errMsg) {
+	handleInvalidItem(errMsg: string) {
 		this.invalid_schema_items = [errMsg];
 		this.unauthorized_access = [];
 		return this;
@@ -48,7 +51,7 @@ class PermissionResponseObject {
 	 * @param schema - schema that the item is a part of
 	 * @param table - table that the item is a part of
 	 */
-	addInvalidItem(item, schema, table) {
+	addInvalidItem(item: any, schema: string, table: string) {
 		if (schema && table) {
 			const schemaTable = `${schema}_${table}`;
 			if (this.unauthorized_access[schemaTable]) {
@@ -64,7 +67,7 @@ class PermissionResponseObject {
 	 * @param table - table name that user does not have correct perms on
 	 * @param requiredPerms - permission/s that user does not have on the table to complete the operation
 	 */
-	addUnauthorizedTable(schema, table, requiredTablePerms) {
+	addUnauthorizedTable(schema: string, table: string, requiredTablePerms: any[]) {
 		const failedTable = new PermissionTableResponseObject(schema, table, requiredTablePerms);
 
 		const schemaTable = `${schema}_${table}`;
@@ -79,7 +82,7 @@ class PermissionResponseObject {
 	 * @param table - table where attr restrictions exist
 	 * @param restrictedAttrs - the perms restrictions for each attr
 	 */
-	addUnauthorizedAttributes(attrKeys, schema, table, restrictedAttrs) {
+	addUnauthorizedAttributes(attrKeys: string[], schema: string, table: string, restrictedAttrs: any) {
 		const unauthorizedTableAttributes = [];
 		attrKeys.forEach((attr) => {
 			const attributeObject = new PermissionAttributeResponseObject(attr, restrictedAttrs[attr]);
@@ -112,4 +115,4 @@ class PermissionResponseObject {
 	}
 }
 
-module.exports = PermissionResponseObject;
+

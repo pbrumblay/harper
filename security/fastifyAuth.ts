@@ -1,25 +1,25 @@
 'use strict';
 
-const validation = require('../validation/check_permissions.js');
-const passport = require('passport');
-const LocalStrategy = require('passport-local').Strategy;
-const BasicStrategy = require('passport-http').BasicStrategy;
-const util = require('util');
-const userFunctions = require('./user.ts');
+import * as validation from '../validation/check_permissions.js';
+import * as passport from 'passport';
+import { Strategy as LocalStrategy } from 'passport-local';
+import { BasicStrategy } from 'passport-http';
+import * as util from 'util';
+import * as userFunctions from './user.js';
 const cbFindValidateUsers = util.callbackify(userFunctions.findAndValidateUser);
-const hdbTerms = require('../utility/hdbTerms.ts');
-const tokenAuthentication = require('./tokenAuthentication.ts');
-const { AccessViolation } = require('../utility/errors/hdbError');
+import * as hdbTerms from '../utility/hdbTerms.js';
+import * as tokenAuthentication from './tokenAuthentication.js';
+import { AccessViolation } from '../utility/errors/hdbError.js';
 
 passport.use(
 	new LocalStrategy(function (username, password, done) {
-		cbFindValidateUsers(username, password, done);
+		(cbFindValidateUsers as any)(username, password, done);
 	})
 );
 
 passport.use(
 	new BasicStrategy(function (username, password, done) {
-		cbFindValidateUsers(username, password, done);
+		(cbFindValidateUsers as any)(username, password, done);
 	})
 );
 
@@ -31,7 +31,7 @@ passport.deserializeUser(function (user, done) {
 	done(null, user);
 });
 
-function authorize(req, res, next) {
+export function authorize(req: any, res: any, next: any) {
 	if (req.raw?.user !== undefined) return next(null, req.raw.user);
 	let strategy;
 	let token;
@@ -87,8 +87,8 @@ function authorize(req, res, next) {
 	}
 }
 
-function checkPermissions(checkPermissionObj, callback) {
-	let validationResults = validation(checkPermissionObj);
+export function checkPermissions(checkPermissionObj: any, callback: any) {
+	let validationResults = (validation as any).default ? (validation as any).default(checkPermissionObj) : (validation as any)(checkPermissionObj);
 
 	if (validationResults) {
 		callback(validationResults);
@@ -163,7 +163,4 @@ function checkPermissions(checkPermissionObj, callback) {
 	return callback(null, authoriziationObj);
 }
 
-module.exports = {
-	authorize,
-	checkPermissions,
-};
+
