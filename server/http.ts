@@ -7,7 +7,7 @@ import { Scope } from '../components/Scope.ts';
 import { Socket } from 'node:net';
 import harperLogger from '../utility/logging/harper_logger.js';
 import { parentPort } from 'node:worker_threads';
-import env from '../utility/environment/environmentManager.js';
+import * as env from '../utility/environment/environmentManager.js';
 import * as terms from '../utility/hdbTerms.ts';
 import { getConfigPath } from '../config/configUtils.js';
 import { getTicketKeys, getWorkerIndex } from './threads/manageThreads.js';

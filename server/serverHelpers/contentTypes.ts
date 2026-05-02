@@ -6,7 +6,7 @@ import { ClientError } from '../../utility/errors/hdbError.js';
 import stream, { Readable, Transform } from 'node:stream';
 import { server } from '../Server.ts';
 import { _assignPackageExport } from '../../globals.js';
-import envMgr from '../../utility/environment/environmentManager.js';
+import * as envMgr from '../../utility/environment/environmentManager.js';
 import { CONFIG_PARAMS } from '../../utility/hdbTerms.ts';
 import * as YAML from 'yaml';
 import { logger } from '../../utility/logging/logger.ts';

@@ -1,6 +1,6 @@
 import cluster from 'cluster';
 import zlib from 'node:zlib';
-import env from '../utility/environment/environmentManager.js';
+import * as env from '../utility/environment/environmentManager.js';
 env.initSync();
 import * as terms from '../utility/hdbTerms.ts';
 import harperLogger from '../utility/logging/harper_logger.js';

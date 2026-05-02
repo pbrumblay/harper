@@ -1,54 +1,57 @@
 'use strict';
 
-const path = require('path');
-const { watch } = require('chokidar');
-const fs = require('fs-extra');
-const forge = require('node-forge');
-const net = require('net');
-let { generateKeyPair, X509Certificate, createPrivateKey, randomBytes } = require('node:crypto');
-const util = require('util');
-generateKeyPair = util.promisify(generateKeyPair);
+import * as path from 'path';
+import { watch } from 'chokidar';
+import * as fs from 'fs-extra';
+import * as forge from 'node-forge';
+import * as net from 'net';
+import { generateKeyPair as generateKeyPairOrig, X509Certificate, createPrivateKey, randomBytes } from 'node:crypto';
+const generateKeyPair = util.promisify(generateKeyPairOrig);
+import * as util from 'util';
+
 const pki = forge.pki;
-const { v4: uuidv4 } = require('uuid');
-const { forComponent } = require('../utility/logging/harper_logger.js');
-const envManager = require('../utility/environment/environmentManager.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
-const { CONFIG_PARAMS } = hdbTerms;
-const certificatesTerms = require('../utility/terms/certificates.js');
-const tls = require('node:tls');
-const { relative, join } = require('node:path');
-const { CERTIFICATE_VALUES } = certificatesTerms;
-const assignCmdenvVars = require('../utility/assignCmdEnvVariables.js');
-const configUtils = require('../config/configUtils.js');
-const { table, getDatabases, databases } = require('../resources/databases.ts');
+import { v4 as uuidv4 } from 'uuid';
+import { forComponent } from '../utility/logging/harper_logger.js';
+import * as envManager from '../utility/environment/environmentManager.js';
+import * as hdbTerms from '../utility/hdbTerms.js';
+
+import * as certificatesTerms from '../utility/terms/certificates.js';
+import * as tls from 'node:tls';
+import { relative, join } from 'node:path';
+
+import assignCmdenvVars from '../utility/assignCmdEnvVariables.js';
+import * as configUtils from '../config/configUtils.js';
+import { table, getDatabases, databases } from '../resources/databases.js';
 const logger = forComponent('tls').conditional;
-const { getThisNodeName, getThisNodeUrl, urlToNodeName, clearThisNodeName } = require('../server/nodeName.ts');
+const { CONFIG_PARAMS } = hdbTerms;
+const { CERTIFICATE_VALUES } = certificatesTerms;
+import { getThisNodeName, getThisNodeUrl, urlToNodeName, clearThisNodeName } from '../server/nodeName.js';
 
-exports.generateKeys = generateKeys;
-exports.updateConfigCert = updateConfigCert;
-exports.setCertTable = setCertTable;
-exports.getCertTable = getCertTable;
-exports.loadCertificates = loadCertificates;
-exports.reviewSelfSignedCert = reviewSelfSignedCert;
-exports.createTLSSelector = createTLSSelector;
-exports.listCertificates = listCertificates;
-exports.generateCertsKeys = generateCertsKeys;
-exports.getReplicationCert = getReplicationCert;
-exports.getReplicationCertAuth = getReplicationCertAuth;
-exports.renewSelfSigned = renewSelfSigned;
-exports.hostnamesFromCert = hostnamesFromCert;
-exports.getHostnamesFromCertificate = getHostnamesFromCertificate;
-exports.getPrimaryHostName = getPrimaryHostName;
-exports.generateSerialNumber = generateSerialNumber;
-exports.getPrivateKeys = () => privateKeys;
-exports.getCertAuthority = getCertAuthority;
-exports.certExtensions = certExtensions;
-exports.getCommonName = getCommonName;
 
-const { readFileSync, statSync } = require('node:fs');
-const { getTicketKeys, onMessageFromWorkers } = require('../server/threads/manageThreads.js');
-const { isMainThread } = require('worker_threads');
-const { TLSSocket } = require('node:tls');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const getPrivateKeys = () => privateKeys;
+
+
+
+
+import { readFileSync, statSync } from 'node:fs';
+import { getTicketKeys, onMessageFromWorkers } from '../server/threads/manageThreads.js';
+import { isMainThread } from 'worker_threads';
+import { TLSSocket } from 'node:tls';
 
 const CERT_VALIDITY_DAYS = 3650;
 const CERT_DOMAINS = ['127.0.0.1', 'localhost', '::1'];
@@ -58,7 +61,7 @@ const CERT_ATTRIBUTES = [
 	{ name: 'localityName', value: 'Denver' },
 	{ name: 'organizationName', value: 'HarperDB, Inc.' },
 ];
-exports.CERT_ATTRIBUTES = CERT_ATTRIBUTES;
+
 
 /**
  * Generates a cryptographically secure serial number for X.509 certificates.
@@ -68,7 +71,7 @@ exports.CERT_ATTRIBUTES = CERT_ATTRIBUTES;
  *
  * @returns {string} 16-character hex string
  */
-function generateSerialNumber() {
+export function generateSerialNumber() {
 	const bytes = randomBytes(8);
 	bytes[0] = (bytes[0] & 0x7f) | 0x01; // Clear high bit with bitmask 0x7F (01111111) and ensure that it is non-zero
 	return bytes.toString('hex');
@@ -83,7 +86,7 @@ onMessageFromWorkers(async (message) => {
 });
 
 let certificateTable;
-function getCertTable() {
+export function getCertTable() {
 	if (!certificateTable) {
 		certificateTable = getDatabases()['system']['hdb_certificate'];
 		if (!certificateTable) {
@@ -124,13 +127,13 @@ function getCertTable() {
 	return certificateTable;
 }
 
-async function getReplicationCert() {
-	const SNICallback = createTLSSelector('replication');
+export async function getReplicationCert() {
+	const SNICallback = createTLSSelector('replication', undefined);
 	const secureTarget = {
 		secureContexts: null,
 		setSecureContext: (_ctx) => {},
 	};
-	await SNICallback.initialize(secureTarget);
+	await (SNICallback as any).initialize(secureTarget);
 	const cert = secureTarget.secureContexts.get(getThisNodeName());
 	if (!cert) return;
 	const certParsed = new X509Certificate(cert.options.cert);
@@ -140,7 +143,7 @@ async function getReplicationCert() {
 	return cert;
 }
 
-async function getReplicationCertAuth() {
+export async function getReplicationCertAuth() {
 	getCertTable();
 	const certPem = (await getReplicationCert()).options.cert;
 	const repCert = new X509Certificate(certPem);
@@ -155,7 +158,7 @@ const privateKeys = new Map();
  * This is responsible for loading any certificates that are in the harperdb-config.yaml file and putting them into the hdbCertificate table.
  * @return {*}
  */
-function loadCertificates() {
+export function loadCertificates() {
 	if (configuredCertsLoaded) return;
 	configuredCertsLoaded = true;
 	// these are the sections of the config to check
@@ -170,9 +173,9 @@ function loadCertificates() {
 		if (configs) {
 			// the configs can be an array, so normalize to an array
 			if (!Array.isArray(configs)) {
-				configs = [configs];
+				configs = [configs] as any;
 			}
-			for (let config of configs) {
+			for (let config of configs as any) {
 				const privateKeyPath = config.privateKey;
 				// need to relativize the paths so they aren't exposed
 				let private_key_name = privateKeyPath && relative(join(rootPath, 'keys'), privateKeyPath);
@@ -300,7 +303,7 @@ function getHost() {
 	return urlToNodeName(url);
 }
 
-function getCommonName() {
+export function getCommonName() {
 	let node_name = getThisNodeName();
 	if (node_name == null) {
 		const host = CERT_DOMAINS[0];
@@ -310,7 +313,7 @@ function getCommonName() {
 	return node_name;
 }
 
-function certExtensions() {
+export function certExtensions() {
 	const altName = CERT_DOMAINS.includes(getCommonName()) ? CERT_DOMAINS : [...CERT_DOMAINS, getCommonName()];
 	if (!altName.includes(getHost())) altName.push(getHost());
 	return [
@@ -368,7 +371,7 @@ async function createCertificateTable(cert, caCert) {
 	});
 }
 
-async function setCertTable(certRecord) {
+export async function setCertTable(certRecord) {
 	let cert;
 	try {
 		cert = new X509Certificate(certRecord.certificate);
@@ -383,7 +386,7 @@ async function setCertTable(certRecord) {
 			`Invalid certificate format for ${certRecord.name}: ${error.message}. ` +
 				`This may be due to corrupted certificate data during transfer or encoding issues.`
 		);
-		certError.code = 'INVALID_CERTIFICATE_FORMAT';
+		(certError as any).code = 'INVALID_CERTIFICATE_FORMAT';
 		certError.cause = error;
 		throw certError;
 	}
@@ -401,7 +404,7 @@ async function setCertTable(certRecord) {
 	await certificateTable.patch(certRecord);
 }
 
-async function generateKeys() {
+export async function generateKeys() {
 	const keys = await generateKeyPair('rsa', {
 		modulusLength: 4096,
 		publicKeyEncoding: {
@@ -454,7 +457,7 @@ async function generateCertificates(caPrivateKey, publicKey, caCert) {
 	return pki.certificateToPem(publicCert);
 }
 
-async function getCertAuthority() {
+export async function getCertAuthority() {
 	const allCerts = await listCertificates();
 	let match;
 	for (let cert of allCerts) {
@@ -512,7 +515,7 @@ async function generateCertAuthority(private_key, publicKey, writeKey = true) {
 	return caCert;
 }
 
-async function generateCertsKeys() {
+export async function generateCertsKeys() {
 	const { privateKey, publicKey } = await generateKeys();
 	const caCert = await generateCertAuthority(privateKey, publicKey);
 	const publicCert = await generateCertificates(privateKey, publicKey, caCert);
@@ -524,7 +527,7 @@ async function generateCertsKeys() {
  * Delete any existing self-signed certs (including CA) and create new ones
  * @returns {Promise<void>}
  */
-async function renewSelfSigned() {
+export async function renewSelfSigned() {
 	getCertTable();
 	for await (const cert of certificateTable.search([{ attribute: 'is_self_signed', value: true }])) {
 		await certificateTable.delete(cert.name);
@@ -533,7 +536,7 @@ async function renewSelfSigned() {
 	await reviewSelfSignedCert();
 }
 
-async function reviewSelfSignedCert() {
+export async function reviewSelfSignedCert() {
 	// Clear any cached node name var
 	clearThisNodeName();
 	await loadCertificates();
@@ -632,7 +635,7 @@ async function reviewSelfSignedCert() {
 
 // Update the cert config in harperdb-config.yaml
 // If CLI or Env values are present it will use those values, else it will use default private key.
-function updateConfigCert() {
+export function updateConfigCert() {
 	const cliEnvArgs = assignCmdenvVars(Object.keys(hdbTerms.CONFIG_PARAM_MAP), true);
 	const keysPath = path.join(envManager.getHdbBasePath(), hdbTerms.LICENSE_KEY_DIR_NAME);
 	const private_key = path.join(keysPath, certificatesTerms.PRIVATEKEY_PEM_NAME);
@@ -680,7 +683,7 @@ function readPEM(path) {
 }
 // this horrifying hack is brought to you by https://github.com/nodejs/node/issues/36655
 const origCreateSecureContext = tls.createSecureContext;
-tls.createSecureContext = function (options) {
+(tls as any).createSecureContext = function (options: any) {
 	if (!options.cert || !options.key) {
 		return origCreateSecureContext(options);
 	}
@@ -696,8 +699,8 @@ tls.createSecureContext = function (options) {
 // so we have to assign the default certificate during the cert callback, because the default SNI callback isn't
 // consistently called for all TLS connections (isn't called if no SNI server name is provided).
 // first we have interrupt the socket initialization to add our own cert callback
-const originalInit = TLSSocket.prototype._init;
-TLSSocket.prototype._init = function (socket, wrap) {
+const originalInit = (TLSSocket as any).prototype._init;
+(TLSSocket as any).prototype._init = function (socket: any, wrap: any) {
 	originalInit.call(this, socket, wrap);
 	let tlsSocket = this;
 	this._handle.oncertcb = function (info) {
@@ -719,17 +722,17 @@ let caCerts = new Map();
  * @param mtlsOptions
  * @return {(function(*, *): (*|undefined))|*}
  */
-function createTLSSelector(type, mtlsOptions) {
+export function createTLSSelector(type, mtlsOptions) {
 	let secureContexts = new Map();
 	let defaultContext;
 	let hasWildcards = false;
-	SNICallback.initialize = (server) => {
-		if (SNICallback.ready) return SNICallback.ready;
+	(SNICallback as any).initialize = (server: any) => {
+		if ((SNICallback as any).ready) return (SNICallback as any).ready;
 		if (server) {
 			server.secureContexts = secureContexts;
 			server.secureContextsListeners = [];
 		}
-		return (SNICallback.ready = new Promise((resolve, reject) => {
+		return ((SNICallback as any).ready = new Promise<void>((resolve, reject) => {
 			function updateTLS() {
 				try {
 					secureContexts.clear();
@@ -743,7 +746,7 @@ function createTLSSelector(type, mtlsOptions) {
 						const certificate = cert.certificate;
 						const certParsed = new X509Certificate(certificate);
 						if (cert.is_authority) {
-							certParsed.asString = certificate;
+							(certParsed as any).asString = certificate;
 							caCerts.set(certParsed.subject, certificate);
 						}
 					}
@@ -780,19 +783,19 @@ function createTLSSelector(type, mtlsOptions) {
 								key_file: cert.private_key_name,
 								is_self_signed: cert.is_self_signed,
 							};
-							if (server) secureOptions.sessionIdContext = server.sessionIdContext;
+							if (server) (secureOptions as any).sessionIdContext = server.sessionIdContext;
 							let hostnames = cert.hostnames ?? hostnamesFromCert(certParsed);
 							if (!Array.isArray(hostnames)) hostnames = [hostnames];
 							for (let hostname of hostnames) {
 								if (hostname === getHost()) quality += 0.1; // prefer a certificate that has our hostname in the SANs
 							}
 							let secureContext = tls.createSecureContext(secureOptions);
-							secureContext.name = cert.name;
-							secureContext.options = secureOptions;
-							secureContext.quality = quality;
-							secureContext.certificateAuthorities = Array.from(caCerts);
+							(secureContext as any).name = cert.name;
+							(secureContext as any).options = secureOptions;
+							(secureContext as any).quality = quality;
+							(secureContext as any).certificateAuthorities = Array.from(caCerts);
 							// we store the first 100 bytes of the certificate just for debug logging
-							secureContext.certStart = certificate.toString().slice(0, 100);
+							(secureContext as any).certStart = certificate.toString().slice(0, 100);
 							// we want to configure SNI handling to pick the right certificate based on all the registered SANs
 							// in the certificate
 							for (let hostname of hostnames) {
@@ -808,12 +811,12 @@ function createTLSSelector(type, mtlsOptions) {
 										secureContexts.set(hostname, secureContext);
 									}
 								} else {
-									logger.error?.('No hostname found for certificate at', tls.certificate);
+									logger.error?.('No hostname found for certificate at', (tls as any).certificate);
 								}
 							}
 							logger.trace?.(
 								'Adding TLS',
-								secureContext.name,
+								(secureContext as any).name,
 								'for',
 								server.ports || 'client',
 								'cert named',
@@ -827,7 +830,7 @@ function createTLSSelector(type, mtlsOptions) {
 							);
 							if (quality > bestQuality /* && hasIpAddress*/) {
 								// we use this certificate as the default if it has a higher quality than the existing one
-								SNICallback.defaultContext = defaultContext = secureContext;
+								(SNICallback as any).defaultContext = defaultContext = secureContext;
 								bestQuality = quality;
 								if (server) {
 									server.defaultContext = secureContext;
@@ -850,7 +853,7 @@ function createTLSSelector(type, mtlsOptions) {
 			databases?.system.hdb_certificate.subscribe({
 				listener: () => setTimeout(() => updateTLS(), 1500).unref(),
 				omitCurrent: true,
-			});
+			} as any);
 			updateTLS();
 		}));
 	};
@@ -900,7 +903,7 @@ function getPrivateKeyByName(private_key_name) {
  * List all the records in hdbCertificate table
  * @returns {Promise<*[]>}
  */
-async function listCertificates() {
+export async function listCertificates() {
 	getCertTable();
 	let response = [];
 	for await (const cert of certificateTable.search([])) {
@@ -909,13 +912,13 @@ async function listCertificates() {
 	return response;
 }
 
-function getPrimaryHostName(cert /*X509Certificate*/) {
+export function getPrimaryHostName(cert /*X509Certificate*/) {
 	const commonName = cert.subject?.match(/CN=(.*)/)?.[1];
 	if (commonName) return commonName;
 	return hostnamesFromCert(cert)[0];
 }
 
-function hostnamesFromCert(cert /*X509Certificate*/) {
+export function hostnamesFromCert(cert /*X509Certificate*/) {
 	if (cert.subjectAltName) {
 		return cert.subjectAltName
 			.split(',')
@@ -946,7 +949,7 @@ function hostnamesFromCert(cert /*X509Certificate*/) {
 	return commonName ? [commonName] : [];
 }
 
-function getHostnamesFromCertificate(certificate) {
+export function getHostnamesFromCertificate(certificate) {
 	return [
 		certificate.subject?.CN, // use the subject if it exists
 		...certificate.subjectaltname // otherwise use the subject alternative names

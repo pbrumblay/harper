@@ -21,7 +21,7 @@ const env = require('../utility/environment/environmentManager.js');
 const opFuncCaller = require('../utility/OperationFunctionCaller.js');
 const AWSConnector = require('../utility/AWS/AWSConnector.js');
 const { BulkLoadFileObject, BulkLoadDataObject } = require('./dataObjects/BulkLoadObjects.js');
-const PermissionResponseObject = require('../security/data_objects/PermissionResponseObject.js');
+import PermissionResponseObject from '../security/data_objects/PermissionResponseObject.js';
 const { verifyBulkLoadAttributePerms } = require('../utility/operation_authorization.js');
 const { databases } = require('../resources/databases.ts');
 const { coerceType } = require('../resources/Table.ts');

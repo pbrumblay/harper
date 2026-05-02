@@ -1,14 +1,14 @@
 'use strict';
 
-const fs = require('fs-extra');
-const path = require('path');
-const os = require('os');
-const PropertiesReader = require('properties-reader');
-const log = require('../logging/harper_logger.js');
-const commonUtils = require('../common_utils.js');
-const hdbTerms = require('../hdbTerms.ts');
-const configUtils = require('../../config/configUtils.js');
-const { mkdirSync } = require('node:fs');
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import * as os from 'os';
+import PropertiesReader from 'properties-reader';
+import log from '../logging/harper_logger.js';
+import * as commonUtils from '../common_utils.js';
+import * as hdbTerms from '../hdbTerms.js';
+import * as configUtils from '../../config/configUtils.js';
+import { mkdirSync } from 'node:fs';
 
 const INIT_ERR = 'Error initializing environment manager';
 const BOOT_PROPS_FILE_PATH = 'BOOT_PROPS_FILE_PATH';
@@ -21,26 +21,15 @@ const installPropsToSave = {
 	[hdbTerms.HDB_SETTINGS_NAMES.HDB_ROOT_KEY]: true,
 	BOOT_PROPS_FILE_PATH: true,
 };
-let installProps = {};
-Object.assign(
-	exports,
-	(module.exports = {
-		BOOT_PROPS_FILE_PATH,
-		getHdbBasePath,
-		setHdbBasePath,
-		get,
-		initSync,
-		setProperty,
-		initTestEnvironment,
-	})
-);
+let installProps: any = {};
+export { BOOT_PROPS_FILE_PATH };
 
 /**
  * The base path of the HDB install is often referenced, but is referenced as a const variable at the top of many
  * modules.  This is a problem during install, as the path may not yet be defined.  We offer a function to get the
  * currently known base path here to help with this case.
  */
-function getHdbBasePath() {
+export function getHdbBasePath() {
 	return installProps[hdbTerms.HDB_SETTINGS_NAMES.HDB_ROOT_KEY];
 }
 
@@ -49,7 +38,7 @@ function getHdbBasePath() {
  * This is mainly used by install during a stage where the config file doesn't exist.
  * @param hdbPath
  */
-function setHdbBasePath(hdbPath) {
+export function setHdbBasePath(hdbPath: string) {
 	installProps[hdbTerms.HDB_SETTINGS_NAMES.HDB_ROOT_KEY] = hdbPath;
 }
 
@@ -58,7 +47,7 @@ function setHdbBasePath(hdbPath) {
  * @param propName
  * @returns {*}
  */
-function get(propName) {
+export function get(propName: string): any {
 	const value = configUtils.getConfigValue(propName);
 	if (value === undefined) {
 		return installProps[propName];
@@ -77,7 +66,7 @@ function get(propName) {
  * @param propName
  * @param value
  */
-function setProperty(propName, value) {
+export function setProperty(propName: string, value: any) {
 	if (installPropsToSave[propName]) {
 		installProps[propName] = value;
 	}
@@ -115,7 +104,7 @@ function doesPropFileExist() {
  * Synchronously initializes our config environment.
  * @param force
  */
-function initSync(force = false) {
+export function initSync(force: boolean = false) {
 	try {
 		if (propFileExists || doesPropFileExist() || commonUtils.noBootFile() || force) {
 			configUtils.initConfig(force);
@@ -138,7 +127,7 @@ function initSync(force = false) {
  * Most of this is legacy code from before the yaml config refactor.
  * @param testConfigObj
  */
-function initTestEnvironment(testConfigObj = {}) {
+export function initTestEnvironment(testConfigObj: any = {}) {
 	try {
 		const {
 			keep_alive_timeout,
@@ -163,7 +152,7 @@ function initTestEnvironment(testConfigObj = {}) {
 		setProperty(hdbTerms.HDB_SETTINGS_NAMES.LOG_DAILY_ROTATE_KEY, false);
 		setProperty(hdbTerms.HDB_SETTINGS_NAMES.HDB_ROOT_KEY, TEST_HDB_PATH);
 		setProperty(hdbTerms.CONFIG_PARAMS.STORAGE_PATH, TEST_HDB_PATH);
-		const systemPath = typeof databases !== 'undefined' && databases.system?.hdb_user?.primaryStore?.path;
+		const systemPath = typeof (globalThis as any).databases !== 'undefined' && (globalThis as any).databases.system?.hdb_user?.primaryStore?.path;
 		if (systemPath) {
 			setProperty(hdbTerms.CONFIG_PARAMS.DATABASES, { system: { path: path.dirname(systemPath) } });
 		}

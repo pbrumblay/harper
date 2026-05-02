@@ -19,7 +19,7 @@ import { update } from '../dataLayer/insert.js';
 import UpdateObject from '../dataLayer/UpdateObject.js';
 import signalling from '../utility/signalling.js';
 import { UserEventMsg } from '../server/threads/itc.js';
-import env from '../utility/environment/environmentManager.js';
+import * as env from '../utility/environment/environmentManager.js';
 env.initSync();
 
 type StringValue = SignOptions['expiresIn'];
