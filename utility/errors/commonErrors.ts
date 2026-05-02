@@ -1,10 +1,10 @@
 'use strict';
 
-const hdb_terms = require('../hdbTerms.ts');
-const lmdb_terms = require('../lmdb/terms.js');
+import * as hdb_terms from '../hdbTerms.js';
+import * as lmdb_terms from '../lmdb/terms.js';
 
 // A subset of HTTP error codes that we may use in code.
-const HTTP_STATUS_CODES = {
+export const HTTP_STATUS_CODES = {
 	CONTINUE: 100,
 	OK: 200,
 	CREATED: 201,
@@ -30,7 +30,7 @@ const HTTP_STATUS_CODES = {
 // one error message to send to the API (with this wrapper) and log without having to define log message separately
 const CHECK_LOGS_WRAPPER = (err) => `${err} Check logs and try again.`;
 
-const DEFAULT_ERROR_MSGS = {
+export const DEFAULT_ERROR_MSGS = {
 	500: CHECK_LOGS_WRAPPER('There was an error processing your request.'),
 	400: 'Invalid request',
 };
@@ -237,7 +237,7 @@ const CUSTOM_FUNCTIONS_ERROR_MSGS = {
 };
 
 //into a single export while still allowing us to group them here in a more readable/searchable way
-const HDB_ERROR_MSGS = {
+export const HDB_ERROR_MSGS = {
 	...AUTHENTICATION_ERROR_MSGS,
 	...BULK_LOAD_ERROR_MSGS,
 	...COMMON_ERROR_MSGS,
@@ -254,12 +254,9 @@ const HDB_ERROR_MSGS = {
 };
 
 // All error messages should be added to the HDB_ERROR_MSGS ENUM for export - this helps to organize all error messages
-module.exports = {
+export {
 	CHECK_LOGS_WRAPPER,
-	HDB_ERROR_MSGS,
-	DEFAULT_ERROR_MSGS,
 	DEFAULT_ERROR_RESP,
-	HTTP_STATUS_CODES,
 	LMDB_ERRORS_ENUM,
 	AUTHENTICATION_ERROR_MSGS,
 	VALIDATION_ERROR_MSGS,

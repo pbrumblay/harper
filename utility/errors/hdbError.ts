@@ -1,13 +1,19 @@
 'use strict';
-const hdbErrors = require('./commonErrors.js');
-const hdbTerms = require('../hdbTerms.ts');
+import logger from '../logging/harper_logger.js';
+import * as hdbErrors from './commonErrors.js';
+import { HTTP_STATUS_CODES, DEFAULT_ERROR_MSGS } from './commonErrors.js';
+import * as hdbTerms from '../hdbTerms.js';
 
 /**
  * Custom error class used for better error and log handling.  Caught errors that evaluate to an instanceof HdbError can
  * be handled differently - e.g. in most cases caught HdbError likely would not need to be logged since that should have
  * already been handled when the custom error was constructed.
  */
-class HdbError extends Error {
+export class HdbError extends Error {
+	statusCode: number;
+	http_resp_msg: string;
+	type: string;
+	logLevel: string;
 	/**
 	 * @param {Error} errOrig -  Error to be translated into HdbError. If manually throwing an error, pass `new Error()` to ensure stack trace is maintained
 	 * @param {String} [httpMsg] - optional -  response message that will be returned via the API
@@ -15,7 +21,7 @@ class HdbError extends Error {
 	 * @param {String} [logLevel] - optional -  log level that will be used for logging of this error
 	 * @param {String} [logMsg] - optional - log message that, if provided, will be logged at the `logLevel` above
 	 */
-	constructor(errOrig, httpMsg, httpCode, logLevel, logMsg) {
+	constructor(errOrig: any, httpMsg?: any, httpCode?: number, logLevel?: string, logMsg?: string) {
 		super();
 
 		//This line ensures the original stack trace is captured and does not include the 'handle' or 'constructor' methods
@@ -37,25 +43,27 @@ class HdbError extends Error {
 		}
 
 		if (logMsg) {
-			const logger = require('../logging/harper_logger.js');
-			logger[logLevel](logMsg);
+			logger.default[logLevel](logMsg);
+			
 		}
 	}
 }
-class ClientError extends Error {
-	constructor(message, statusCode) {
+export class ClientError extends Error {
+	statusCode: number;
+	constructor(message: string | Error, statusCode?: number) {
 		if (message instanceof Error) {
-			message.statusCode = statusCode || 400;
-			return message;
+			(message as any).statusCode = statusCode || 400;
+			return message as any;
 		}
-		super(message);
+		super(message as any);
 		this.statusCode = statusCode || 400;
 	}
 }
 
-class ServerError extends Error {
-	constructor(message, statusCode) {
-		super(message);
+export class ServerError extends Error {
+	statusCode: number;
+	constructor(message: string | Error, statusCode?: number) {
+		super(message as any);
 		this.statusCode = statusCode || 500;
 	}
 }
@@ -73,13 +81,13 @@ class ServerError extends Error {
  * @param deleteStack
  * @returns {HdbError|*}
  */
-function handleHDBError(
-	e,
-	httpMsg,
-	httpCode,
-	logLevel = hdbTerms.LOG_LEVELS.ERROR,
-	logMsg = null,
-	deleteStack = false
+export function handleHDBError(
+	e: any,
+	httpMsg?: any,
+	httpCode?: number,
+	logLevel: string = (hdbTerms as any).LOG_LEVELS.ERROR,
+	logMsg: any = null,
+	deleteStack: boolean = false
 ) {
 	if (isHDBError(e)) {
 		return e;
@@ -102,14 +110,12 @@ function handleHDBError(
  * @param {Object} user - user object that caused the access violation
  * @constructor
  */
-function Violation(message) {
-	this.message = message;
+export class Violation extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = this.constructor.name;
+	}
 }
-Violation.prototype = Object.create(Error.prototype);
-Violation.prototype.constructor = Violation;
-Violation.prototype.toString = function () {
-	return `${this.constructor.name}: ${this.message}`;
-};
 
 /**
  * Represents an access violation. This is used to return a 403 or 401 response to the client. Uses fast Violation class
@@ -117,8 +123,9 @@ Violation.prototype.toString = function () {
  * @param {Object} user - user object that caused the access violation
  * @constructor
  */
-class AccessViolation extends Violation {
-	constructor(user) {
+export class AccessViolation extends Violation {
+	statusCode: number;
+	constructor(user?: any) {
 		if (user) {
 			super('Unauthorized access to resource');
 			this.statusCode = 403;
@@ -130,17 +137,10 @@ class AccessViolation extends Violation {
 	}
 }
 
-function isHDBError(e) {
+export function isHDBError(e: any) {
 	return e.__proto__.constructor.name === HdbError.name;
 }
 
-module.exports = {
-	isHDBError,
-	handleHDBError,
-	ClientError,
-	ServerError,
-	AccessViolation,
-	Violation,
-	//Including common hdbErrors here so that they can be brought into modules on the same line where the handler method is brought in
-	hdbErrors,
-};
+
+
+export { hdbErrors };
