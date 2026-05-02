@@ -9,8 +9,6 @@ const KEY_STRING_LENGTH = 64;
 const IV_STRING_LENGTH = 32;
 const ENCRYPTED_STRING_START = KEY_STRING_LENGTH + IV_STRING_LENGTH;
 
-
-
 export function encrypt(text: string): string {
 	let key = crypto.randomBytes(KEY_BYTE_LENGTH);
 	let iv = crypto.randomBytes(IV_BYTE_LENGTH);

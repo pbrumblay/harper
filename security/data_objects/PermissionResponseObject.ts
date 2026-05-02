@@ -114,5 +114,3 @@ export default class PermissionResponseObject {
 		return null;
 	}
 }
-
-

@@ -29,5 +29,3 @@ export function signalUserChange(message: any) {
 		hdbLogger.error(err);
 	}
 }
-
-

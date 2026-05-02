@@ -44,7 +44,6 @@ export class HdbError extends Error {
 
 		if (logMsg) {
 			logger[logLevel](logMsg);
-			
 		}
 	}
 }
@@ -140,7 +139,5 @@ export class AccessViolation extends Violation {
 export function isHDBError(e: any) {
 	return e.__proto__.constructor.name === HdbError.name;
 }
-
-
 
 export { hdbErrors };

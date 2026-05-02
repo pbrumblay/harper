@@ -28,26 +28,7 @@ const { CONFIG_PARAMS } = hdbTerms;
 const { CERTIFICATE_VALUES } = certificatesTerms;
 import { getThisNodeName, getThisNodeUrl, urlToNodeName, clearThisNodeName } from '../server/nodeName.js';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 export const getPrivateKeys = () => privateKeys;
-
-
-
 
 import { readFileSync, statSync } from 'node:fs';
 import { getTicketKeys, onMessageFromWorkers } from '../server/threads/manageThreads.js';
@@ -62,7 +43,6 @@ const CERT_ATTRIBUTES = [
 	{ name: 'localityName', value: 'Denver' },
 	{ name: 'organizationName', value: 'HarperDB, Inc.' },
 ];
-
 
 /**
  * Generates a cryptographically secure serial number for X.509 certificates.

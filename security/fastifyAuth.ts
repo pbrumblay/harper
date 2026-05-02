@@ -88,7 +88,9 @@ export function authorize(req: any, res: any, next: any) {
 }
 
 export function checkPermissions(checkPermissionObj: any, callback: any) {
-	let validationResults = (validation as any).default ? (validation as any).default(checkPermissionObj) : (validation as any)(checkPermissionObj);
+	let validationResults = (validation as any).default
+		? (validation as any).default(checkPermissionObj)
+		: (validation as any)(checkPermissionObj);
 
 	if (validationResults) {
 		callback(validationResults);
@@ -162,5 +164,3 @@ export function checkPermissions(checkPermissionObj: any, callback: any) {
 
 	return callback(null, authoriziationObj);
 }
-
-

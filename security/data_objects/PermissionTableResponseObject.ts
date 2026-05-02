@@ -20,5 +20,3 @@ export default class PermissionTableResponseObject {
 		this.required_attribute_permissions = requiredAttrPerms;
 	}
 }
-
-

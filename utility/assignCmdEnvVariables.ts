@@ -2,8 +2,6 @@
 
 import minimist from 'minimist';
 
-
-
 /**
  * This function receives a list of keys used to find if they exist in command line args &/or environment variables (command line always supercedes env vars).
  * if found they key/value is assigned to the return object

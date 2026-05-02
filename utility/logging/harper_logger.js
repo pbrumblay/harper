@@ -406,11 +406,11 @@ function initLogSettings(forceInit = false) {
 		}
 
 		console.error(err);
-		
-                if (mainLogger) error('Error initializing log settings');
+
+		if (mainLogger) error('Error initializing log settings');
 		else console.error('Error initializing log settings');
 		if (mainLogger) error(err);
-		
+
 		throw err;
 	}
 	if (process.env.DEV_MODE) logToStdstreams = true;
@@ -855,7 +855,6 @@ function getLogConfig(hdbConfigPath) {
 
 		console.error('Error accessing config file for logging');
 		console.error(err);
-		
 	}
 }
 
@@ -878,7 +877,6 @@ function getDefaultConfig() {
 	} catch (err) {
 		console.error('Error accessing default config file for logging');
 		console.error(err);
-		
 	}
 }
 

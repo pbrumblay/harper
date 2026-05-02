@@ -13,5 +13,3 @@ export default class PermissionAttributeResponseObject {
 		this.required_permissions = requiredPerms;
 	}
 }
-
-
