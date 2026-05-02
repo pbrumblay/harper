@@ -1,30 +1,25 @@
 'use strict';
 
-const insert = require('../dataLayer/insert.js');
-const search = require('../dataLayer/search.js');
-const delete_ = require('../dataLayer/delete.js');
-const validation = require('../validation/role_validation.js');
-const signalling = require('../utility/signalling.js');
-const util = require('util');
+import * as insert from '../dataLayer/insert.js';
+import * as search from '../dataLayer/search.js';
+import * as delete_ from '../dataLayer/delete.js';
+import * as validation from '../validation/role_validation.js';
+import * as signalling from '../utility/signalling.js';
+import * as util from 'util';
 const terms = require('../utility/hdbTerms.ts');
-const hdbUtils = require('../utility/common_utils.js');
+import * as hdbUtils from '../utility/common_utils.js';
 const { databases } = require('../resources/databases.ts');
 const pSearchSearchByValue = search.searchByValue;
 const pSearchSearchByHash = search.searchByHash;
 const pDeleteDelete = util.promisify(delete_.delete);
-const SearchObject = require('../dataLayer/SearchObject.js');
-const SearchByHashObject = require('../dataLayer/SearchByHashObject.js');
-const { hdbErrors, handleHDBError } = require('../utility/errors/hdbError.js');
-const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
-const { UserEventMsg } = require('../server/threads/itc.js');
+import SearchObject from '../dataLayer/SearchObject.js';
+import SearchByHashObject from '../dataLayer/SearchByHashObject.js';
+import { hdbErrors, handleHDBError } from '../utility/errors/hdbError.js';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
-module.exports = {
-	addRole,
-	alterRole,
-	dropRole,
-	listRoles,
-	getRoleByName,
-};
+import { UserEventMsg } from '../server/threads/itc.js';
+
+
 
 function scrubRoleDetails(role) {
 	try {
@@ -46,7 +41,7 @@ function scrubRoleDetails(role) {
 	return role;
 }
 
-async function addRole(role) {
+export async function addRole(role: any) {
 	let validationResp = validation.addRoleValidation(role);
 	if (validationResp) {
 		throw validationResp;
@@ -68,7 +63,7 @@ async function addRole(role) {
 		// here, and for other interactions, need convert to real array
 		searchRole = Array.from((await pSearchSearchByValue(searchObj)) || []);
 	} catch (err) {
-		throw handleHDBError(err);
+		throw handleHDBError(err as any, undefined, undefined, undefined, undefined, undefined);
 	}
 
 	if (searchRole && searchRole.length > 0) {
@@ -100,7 +95,7 @@ async function addRole(role) {
 	return role;
 }
 
-async function alterRole(role) {
+export async function alterRole(role: any) {
 	let validationResp = validation.alterRoleValidation(role);
 	if (validationResp) {
 		throw validationResp;
@@ -119,7 +114,7 @@ async function alterRole(role) {
 	try {
 		updateResponse = await insert.update(updateObject);
 	} catch (err) {
-		throw handleHDBError(err);
+		throw handleHDBError(err as any, undefined, undefined, undefined, undefined, undefined);
 	}
 
 	if (updateResponse && updateResponse?.message === 'updated 0 of 1 records') {
@@ -130,13 +125,13 @@ async function alterRole(role) {
 	return role;
 }
 
-async function dropRole(role) {
+export async function dropRole(role: any) {
 	let validationResp = validation.dropRoleValidation(role);
 	if (validationResp) {
 		throw handleHDBError(new Error(), validationResp, HTTP_STATUS_CODES.BAD_REQUEST, undefined, undefined, true);
 	}
 
-	let roleIdSearch = new SearchByHashObject(
+	let roleIdSearch = new (SearchByHashObject as any)(
 		terms.SYSTEM_SCHEMA_NAME,
 		terms.SYSTEM_TABLE_NAMES.ROLE_TABLE_NAME,
 		[role.id],
@@ -155,7 +150,7 @@ async function dropRole(role) {
 		);
 	}
 
-	let searchUserByRoleid = new SearchObject(
+	let searchUserByRoleid = new (SearchObject as any)(
 		terms.SYSTEM_SCHEMA_NAME,
 		terms.SYSTEM_TABLE_NAMES.USER_TABLE_NAME,
 		'role',
@@ -197,14 +192,14 @@ async function dropRole(role) {
 	return `${roleName[0].role} successfully deleted`;
 }
 
-async function getRoleByName(roleName) {
-	for await (const role of databases.system.hdb_role.search([{ attribute: 'role', value: roleName }])) {
+export async function getRoleByName(roleName: string) {
+	for await (const role of databases.system.hdb_role.search([{ attribute: 'role', value: roleName } as any])) {
 		return role;
 	}
 	return null;
 }
 
-async function listRoles() {
+export async function listRoles() {
 	let searchObj = {
 		table: 'hdb_role',
 		schema: 'system',
