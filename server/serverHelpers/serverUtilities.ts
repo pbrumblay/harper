@@ -1,5 +1,5 @@
 import search from '../../dataLayer/search.js';
-import bulkLoad from '../../dataLayer/bulkLoad.js';
+const bulkLoad = require('../../dataLayer/bulkLoad.js');
 import schema from '../../dataLayer/schema.js';
 import schemaDescribe from '../../dataLayer/schemaDescribe.js';
 import delete_ from '../../dataLayer/delete.js';

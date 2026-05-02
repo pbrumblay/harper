@@ -6,8 +6,9 @@ import * as fs from 'fs-extra';
 import * as forge from 'node-forge';
 import * as net from 'net';
 import { generateKeyPair as generateKeyPairOrig, X509Certificate, createPrivateKey, randomBytes } from 'node:crypto';
-const generateKeyPair = util.promisify(generateKeyPairOrig);
+
 import * as util from 'util';
+const generateKeyPair = util.promisify(generateKeyPairOrig);
 
 const pki = forge.pki;
 import { v4 as uuidv4 } from 'uuid';
