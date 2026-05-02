@@ -17,7 +17,7 @@ import * as password from '../utility/password.ts';
 import { findAndValidateUser, type User } from './user.ts';
 import { update } from '../dataLayer/insert.js';
 import UpdateObject from '../dataLayer/UpdateObject.js';
-import signalling from '../utility/signalling.js';
+import * as signalling from '../utility/signalling.js';
 import { UserEventMsg } from '../server/threads/itc.js';
 import * as env from '../utility/environment/environmentManager.js';
 env.initSync();

@@ -1,17 +1,17 @@
 'use strict';
 
-const { mkdirpSync, copySync } = require('fs-extra');
-const path = require('path');
-const terms = require('../utility/hdbTerms.ts');
-const hdbLogger = require('../utility/logging/harper_logger.js');
-const bridge = require('../dataLayer/harperBridge/harperBridge.js');
-const systemSchema = require('../json/systemSchema.json');
-const initPaths = require('../dataLayer/harperBridge/lmdbBridge/lmdbUtility/initializePaths.js');
-const { PACKAGE_ROOT } = require('../utility/packageUtils');
+import { mkdirpSync, copySync } from 'fs-extra';
+import * as path from 'path';
+import * as terms from '../utility/hdbTerms.js';
+import hdbLogger from '../utility/logging/harper_logger.js';
+import * as bridge from '../dataLayer/harperBridge/harperBridge.js';
+import systemSchema from '../json/systemSchema.json';
+import * as initPaths from '../dataLayer/harperBridge/lmdbBridge/lmdbUtility/initializePaths.js';
+import { PACKAGE_ROOT } from '../utility/packageUtils.js';
 
-module.exports = mountHdb;
 
-async function mountHdb(hdbPath) {
+
+export default async function mountHdb(hdbPath: string) {
 	hdbLogger.trace('Mounting Harper');
 
 	makeDirectory(hdbPath);
@@ -35,11 +35,11 @@ async function createTables() {
 	let tables = Object.keys(systemSchema);
 
 	for (const tableName of tables) {
-		let hash_attribute = systemSchema[tableName].hash_attribute;
+		let hash_attribute = (systemSchema as any)[tableName].hash_attribute;
 		try {
 			initPaths.initSystemSchemaPaths(terms.SYSTEM_SCHEMA_NAME, tableName);
-			let createTable = new CreateTableObject(terms.SYSTEM_SCHEMA_NAME, tableName, hash_attribute);
-			createTable.attributes = systemSchema[tableName].attributes;
+			let createTable = new (CreateTableObject as any)(terms.SYSTEM_SCHEMA_NAME, tableName, hash_attribute);
+			createTable.attributes = (systemSchema as any)[tableName].attributes;
 			let primaryKeyAttribute = createTable.attributes.find(({ attribute }) => attribute === hash_attribute);
 			primaryKeyAttribute.isPrimaryKey = true;
 
@@ -53,7 +53,7 @@ async function createTables() {
 	}
 }
 
-function makeDirectory(targetDir) {
+function makeDirectory(targetDir: string) {
 	mkdirpSync(targetDir, { mode: terms.HDB_FILE_PERMISSIONS });
 	hdbLogger.info(`Directory ${targetDir} created`);
 }

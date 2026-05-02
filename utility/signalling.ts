@@ -1,12 +1,12 @@
 'use strict';
 
-const hdbTerms = require('./hdbTerms.ts');
-const hdbLogger = require('../utility/logging/harper_logger.js');
-const ITCEventObject = require('../server/itc/utility/ITCEventObject.js');
+import * as hdbTerms from './hdbTerms.js';
+import hdbLogger from '../utility/logging/harper_logger.js';
+import ITCEventObject from '../server/itc/utility/ITCEventObject.js';
 let serverItcHandlers;
-const { sendItcEvent } = require('../server/threads/itc.js');
+import { sendItcEvent } from '../server/threads/itc.js';
 
-function signalSchemaChange(message) {
+export function signalSchemaChange(message: any) {
 	try {
 		hdbLogger.debug('signalSchemaChange called with message:', message);
 		serverItcHandlers = serverItcHandlers || require('../server/itc/serverHandlers.js');
@@ -18,7 +18,7 @@ function signalSchemaChange(message) {
 	}
 }
 
-function signalUserChange(message) {
+export function signalUserChange(message: any) {
 	try {
 		hdbLogger.trace('signalUserChange called with message:', message);
 		serverItcHandlers = serverItcHandlers || require('../server/itc/serverHandlers.js');
@@ -30,7 +30,4 @@ function signalUserChange(message) {
 	}
 }
 
-module.exports = {
-	signalSchemaChange,
-	signalUserChange,
-};
+

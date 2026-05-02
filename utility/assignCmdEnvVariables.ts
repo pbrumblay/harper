@@ -1,8 +1,8 @@
 'use strict';
 
-const minimist = require('minimist');
+import minimist from 'minimist';
 
-module.exports = assignCMDENVVariables;
+
 
 /**
  * This function receives a list of keys used to find if they exist in command line args &/or environment variables (command line always supercedes env vars).
@@ -12,13 +12,13 @@ module.exports = assignCMDENVVariables;
  * @param isConfigParam
  * @returns {{}}
  */
-function assignCMDENVVariables(keys = [], isConfigParam = false) {
+export default function assignCMDENVVariables(keys: string[] = [], isConfigParam: boolean = false) {
 	if (!Array.isArray(keys)) {
 		return {};
 	}
 
-	let envArgs;
-	let cmdArgs;
+	let envArgs: any;
+	let cmdArgs: any;
 	if (isConfigParam) {
 		// Lowercase keys to make mapping to config params work
 		envArgs = objKeysToLowerCase(process.env);
@@ -28,7 +28,7 @@ function assignCMDENVVariables(keys = [], isConfigParam = false) {
 		cmdArgs = minimist(process.argv);
 	}
 
-	let hdbSettings = {};
+	let hdbSettings: any = {};
 	for (let x = 0, length = keys.length; x < length; x++) {
 		let setting = keys[x];
 
@@ -47,7 +47,7 @@ function assignCMDENVVariables(keys = [], isConfigParam = false) {
  * @param obj
  * @returns {{}}
  */
-function objKeysToLowerCase(obj) {
+function objKeysToLowerCase(obj: any) {
 	let key,
 		keys = Object.keys(obj);
 	let i = keys.length;

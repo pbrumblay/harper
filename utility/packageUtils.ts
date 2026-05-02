@@ -1,5 +1,5 @@
-const { join, dirname } = require('node:path');
-const { existsSync, readFileSync } = require('node:fs');
+import { join, dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 
 /**
  * A naive find-up implementation to find the root package.json, and
@@ -49,7 +49,4 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
  */
 const PACKAGE_ROOT = dirname(packageJsonPath);
 
-module.exports = {
-	packageJson,
-	PACKAGE_ROOT,
-};
+export { packageJson, PACKAGE_ROOT };
