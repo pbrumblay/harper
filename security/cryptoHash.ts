@@ -1,6 +1,6 @@
 'use strict';
 
-const crypto = require('crypto');
+import * as crypto from 'crypto';
 
 const CRYPTO_ALGORITHM = 'aes-256-cbc';
 const KEY_BYTE_LENGTH = 32;
@@ -9,12 +9,9 @@ const KEY_STRING_LENGTH = 64;
 const IV_STRING_LENGTH = 32;
 const ENCRYPTED_STRING_START = KEY_STRING_LENGTH + IV_STRING_LENGTH;
 
-module.exports = {
-	encrypt,
-	decrypt,
-};
 
-function encrypt(text) {
+
+export function encrypt(text: string): string {
 	let key = crypto.randomBytes(KEY_BYTE_LENGTH);
 	let iv = crypto.randomBytes(IV_BYTE_LENGTH);
 
@@ -28,7 +25,7 @@ function encrypt(text) {
 	return keyString + ivString + encryptedString;
 }
 
-function decrypt(text) {
+export function decrypt(text: string): string {
 	let keyString = text.substr(0, KEY_STRING_LENGTH);
 	let ivString = text.substr(KEY_STRING_LENGTH, IV_STRING_LENGTH);
 	let encrptedString = text.substr(ENCRYPTED_STRING_START, text.length);
