@@ -4,7 +4,7 @@ import { mkdirpSync, copySync } from 'fs-extra';
 import * as path from 'path';
 import * as terms from '../utility/hdbTerms.js';
 import hdbLogger from '../utility/logging/harper_logger.js';
-import * as bridge from '../dataLayer/harperBridge/harperBridge.js';
+const bridge = require('../dataLayer/harperBridge/harperBridge.js');
 import systemSchema from '../json/systemSchema.json';
 import * as initPaths from '../dataLayer/harperBridge/lmdbBridge/lmdbUtility/initializePaths.js';
 import { PACKAGE_ROOT } from '../utility/packageUtils.js';
