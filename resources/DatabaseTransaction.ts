@@ -215,7 +215,7 @@ export class DatabaseTransaction implements Transaction {
 		let transaction = options.transaction ?? this.transaction; // we need to preserve this transaction as we might to resurrect it if we have to retry
 		for (let i = 0; i < this.writes.length; i++) {
 			let operation = this.writes[i];
-			if (this.retries === 0 && operation.saved) continue;
+			if (!operation || (this.retries === 0 && operation.saved) ) continue;
 			this.save(operation, transaction, i < this.validated);
 		}
 		this.validated = this.writes.length;
