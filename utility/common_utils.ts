@@ -1,24 +1,26 @@
 'use strict';
-const path = require('path');
-const fs = require('fs-extra');
-const log = require('./logging/harper_logger.js');
-const fsExtra = require('fs-extra');
-const os = require('os');
-const net = require('net');
-const RecursiveIterator = require('recursive-iterator');
-const terms = require('./hdbTerms.ts');
-const { PACKAGE_ROOT } = require('./packageUtils.js');
-const papaParse = require('papaparse');
-const moment = require('moment');
-const isNumber = require('is-number');
-const minimist = require('minimist');
-const https = require('https');
-const http = require('http');
+import * as path from 'path';
+import * as fs from 'fs-extra';
+import log from './logging/harper_logger.js';
+import * as fsExtra from 'fs-extra';
+import * as os from 'os';
+import * as net from 'net';
+import RecursiveIterator from 'recursive-iterator';
+import * as terms from './hdbTerms.js';
+import { PACKAGE_ROOT } from './packageUtils.js';
+export { PACKAGE_ROOT };
+import * as papaParse from 'papaparse';
+import moment from 'moment';
+import isNumber from 'is-number';
+import minimist from 'minimist';
+import * as https from 'https';
+import * as http from 'http';
 
 const ISO_DATE =
 	/^((\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+([+-][0-2]\d:[0-5]\d|Z))|(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d([+-][0-2]\d:[0-5]\d|Z))|(\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d([+-][0-2]\d:[0-5]\d|Z)))$/;
 
-const asyncSetTimeout = require('util').promisify(setTimeout);
+import * as util from 'util';
+export const asyncSetTimeout = util.promisify(setTimeout);
 
 const EMPTY_STRING = '';
 const FILE_EXTENSION_LENGTH = 4;
@@ -34,56 +36,56 @@ const AUTOCAST_COMMON_STRINGS = {
 	NULL: null,
 	NaN: NaN,
 };
-exports.isEmpty = isEmpty;
-exports.isEmptyOrZeroLength = isEmptyOrZeroLength;
-exports.arrayHasEmptyValues = arrayHasEmptyValues;
-exports.arrayHasEmptyOrZeroLengthValues = arrayHasEmptyOrZeroLengthValues;
-exports.buildFolderPath = buildFolderPath;
-exports.isBoolean = isBoolean;
-exports.errorizeMessage = errorizeMessage;
-exports.stripFileExtension = stripFileExtension;
-exports.autoCast = autoCast;
-exports.autoCastJSON = autoCastJSON;
-exports.autoCastJSONDeep = autoCastJSONDeep;
-exports.removeDir = removeDir;
-exports.compareVersions = compareVersions;
-exports.isCompatibleDataVersion = isCompatibleDataVersion;
-exports.escapeRawValue = escapeRawValue;
-exports.unescapeValue = unescapeValue;
-exports.stringifyProps = stringifyProps;
-exports.timeoutPromise = timeoutPromise;
-exports.checkGlobalSchemaTable = checkGlobalSchemaTable;
-exports.getHomeDir = getHomeDir;
-exports.getPropsFilePath = getPropsFilePath;
-exports.promisifyPapaParse = promisifyPapaParse;
-exports.removeBOM = removeBOM;
-exports.createEventPromise = createEventPromise;
-exports.checkSchemaTableExist = checkSchemaTableExist;
-exports.checkSchemaExists = checkSchemaExists;
-exports.checkTableExists = checkTableExists;
-exports.getStartOfTomorrowInSeconds = getStartOfTomorrowInSeconds;
-exports.getLimitKey = getLimitKey;
-exports.isObject = isObject;
-exports.isNotEmptyAndHasValue = isNotEmptyAndHasValue;
-exports.autoCasterIsNumberCheck = autoCasterIsNumberCheck;
-exports.backtickASTSchemaItems = backtickASTSchemaItems;
-exports.isPortTaken = isPortTaken;
-exports.createForkArgs = createForkArgs;
-exports.autoCastBoolean = autoCastBoolean;
-exports.autoCastBooleanStrict = autoCastBooleanStrict;
-exports.asyncSetTimeout = asyncSetTimeout;
-exports.getTableHashAttribute = getTableHashAttribute;
-exports.doesSchemaExist = doesSchemaExist;
-exports.doesTableExist = doesTableExist;
-exports.stringifyObj = stringifyObj;
-exports.ms_to_time = ms_to_time;
-exports.changeExtension = changeExtension;
-exports.getEnvCliRootPath = getEnvCliRootPath;
-exports.noBootFile = noBootFile;
-exports.httpRequest = httpRequest;
-exports.transformReq = transformReq;
-exports.convertToMS = convertToMS;
-exports.PACKAGE_ROOT = PACKAGE_ROOT;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * Converts a message to an error containing the error as a message. Will always return an error if the passed in error is
@@ -91,7 +93,7 @@ exports.PACKAGE_ROOT = PACKAGE_ROOT;
  * @param message
  * @returns {*}
  */
-function errorizeMessage(message) {
+export function errorizeMessage(message: any) {
 	if (!(message instanceof Error)) {
 		return new Error(message);
 	}
@@ -103,11 +105,11 @@ function errorizeMessage(message) {
  * @param value - the value to test
  * @returns {boolean}
  */
-function isEmpty(value) {
+export function isEmpty(value: any) {
 	return value === undefined || value === null;
 }
 
-function isNotEmptyAndHasValue(value) {
+export function isNotEmptyAndHasValue(value: any) {
 	return !isEmpty(value) && (value || value === 0 || value === '' || isBoolean(value));
 }
 
@@ -116,7 +118,7 @@ function isNotEmptyAndHasValue(value) {
  * @param value - the value to test
  * @returns {boolean}
  */
-function isEmptyOrZeroLength(value) {
+export function isEmptyOrZeroLength(value: any) {
 	return isEmpty(value) || value.length === 0 || value.size === 0;
 }
 
@@ -125,7 +127,7 @@ function isEmptyOrZeroLength(value) {
  * @param valuesList - An array of values
  * @returns {boolean}
  */
-function arrayHasEmptyValues(valuesList) {
+export function arrayHasEmptyValues(valuesList: any) {
 	if (isEmpty(valuesList)) {
 		return true;
 	}
@@ -142,7 +144,7 @@ function arrayHasEmptyValues(valuesList) {
  * @param valuesList - An array of values
  * @returns {boolean}
  */
-function arrayHasEmptyOrZeroLengthValues(valuesList) {
+export function arrayHasEmptyOrZeroLengthValues(valuesList: any) {
 	if (isEmptyOrZeroLength(valuesList)) {
 		return true;
 	}
@@ -158,7 +160,7 @@ function arrayHasEmptyOrZeroLengthValues(valuesList) {
  * takes an array of strings and joins them with the folder separator to return a path
  * @param pathElements
  */
-function buildFolderPath(...pathElements) {
+export function buildFolderPath(...pathElements: any[]) {
 	try {
 		return pathElements.join(path.sep);
 	} catch {
@@ -171,7 +173,7 @@ function buildFolderPath(...pathElements) {
  * @param value
  * @returns {boolean}
  */
-function isBoolean(value) {
+export function isBoolean(value: any) {
 	if (isEmpty(value)) {
 		return false;
 	}
@@ -185,7 +187,7 @@ function isBoolean(value) {
  * @param value
  * @returns {boolean}
  */
-function isObject(value) {
+export function isObject(value: any) {
 	if (isEmpty(value)) {
 		return false;
 	}
@@ -199,7 +201,7 @@ function isObject(value) {
  * @param fileName - the filename.
  * @returns {string}
  */
-function stripFileExtension(fileName) {
+export function stripFileExtension(fileName: any) {
 	if (isEmptyOrZeroLength(fileName)) {
 		return EMPTY_STRING;
 	}
@@ -211,7 +213,7 @@ function stripFileExtension(fileName) {
  * @param data
  * @returns
  */
-function autoCast(data) {
+export function autoCast(data: any) {
 	if (isEmpty(data) || data === '') {
 		return data;
 	}
@@ -235,7 +237,7 @@ function autoCast(data) {
 	return data;
 }
 
-function autoCastJSON(data) {
+export function autoCastJSON(data: any) {
 	//in order to handle json and arrays we test the string to see if it seems minimally like an object or array and perform a JSON.parse on it.
 	//if it fails we assume it is just a regular string
 	if (
@@ -250,7 +252,7 @@ function autoCastJSON(data) {
 	}
 	return data;
 }
-function autoCastJSONDeep(data) {
+export function autoCastJSONDeep(data: any) {
 	if (data && typeof data === 'object') {
 		if (Array.isArray(data)) {
 			for (let i = 0, l = data.length; i < l; i++) {
@@ -274,7 +276,7 @@ function autoCastJSONDeep(data) {
  * @param {string} data
  * @returns {boolean}
  */
-function autoCasterIsNumberCheck(data) {
+export function autoCasterIsNumberCheck(data: any) {
 	if (data.startsWith('0.') && isNumber(data)) {
 		return true;
 	}
@@ -289,7 +291,7 @@ function autoCasterIsNumberCheck(data) {
  * @param dirPath
  * @returns {Promise<[any]>}
  */
-async function removeDir(dirPath) {
+export async function removeDir(dirPath: string) {
 	if (isEmptyOrZeroLength(dirPath)) {
 		throw new Error(`Directory path: ${dirPath} does not exist`);
 	}
@@ -311,7 +313,7 @@ async function removeDir(dirPath) {
  * @param newVersion - Newest version As an UpgradeDirective object or just a version number as a string
  * @returns {*}
  */
-function compareVersions(oldVersion, newVersion) {
+export function compareVersions(oldVersion: any, newVersion: any) {
 	if (isEmptyOrZeroLength(oldVersion)) {
 		log.info('Invalid current version sent as parameter.');
 		return;
@@ -343,7 +345,7 @@ function compareVersions(oldVersion, newVersion) {
  * @param newVersion
  * @returns {boolean}
  */
-function isCompatibleDataVersion(oldVersion, newVersion, checkMinor = false) {
+export function isCompatibleDataVersion(oldVersion: any, newVersion: any, checkMinor = false) {
 	let oldParts = oldVersion.toString().split('.');
 	let newParts = newVersion.toString().split('.');
 	return oldParts[0] === newParts[0] && (!checkMinor || oldParts[1] === newParts[1]);
@@ -355,7 +357,7 @@ function isCompatibleDataVersion(oldVersion, newVersion, checkMinor = false) {
  * @param value
  * @returns {string}
  */
-function escapeRawValue(value) {
+export function escapeRawValue(value: any) {
 	if (isEmpty(value)) {
 		return value;
 	}
@@ -377,7 +379,7 @@ function escapeRawValue(value) {
  * @param value
  * @returns {string}
  */
-function unescapeValue(value) {
+export function unescapeValue(value: any) {
 	if (isEmpty(value)) {
 		return value;
 	}
@@ -402,7 +404,7 @@ function unescapeValue(value) {
  * The key is the variable name (PROJECT_DIR) and the value will be the string comment.
  * @returns {string}
  */
-function stringifyProps(propReaderObject, comments) {
+export function stringifyProps(propReaderObject: any, comments?: any) {
 	if (isEmpty(propReaderObject)) {
 		log.info('Properties object is null');
 		return '';
@@ -429,7 +431,7 @@ function stringifyProps(propReaderObject, comments) {
 	return lines;
 }
 
-function getHomeDir() {
+export function getHomeDir() {
 	let homeDir = undefined;
 	try {
 		homeDir = os.homedir();
@@ -444,7 +446,7 @@ function getHomeDir() {
  * This function will attempt to find the hdbBootProperties.file path.  IT IS SYNCHRONOUS, SO SHOULD ONLY BE
  * CALLED IN CERTAIN SITUATIONS (startup, upgrade, etc).
  */
-function getPropsFilePath() {
+export function getPropsFilePath() {
 	let bootPropsFilePath = path.join(getHomeDir(), terms.HDB_HOME_DIR_NAME, terms.BOOT_PROPS_FILE_NAME);
 	// this checks how we used to store the boot props file for older installations.
 	if (!fs.existsSync(bootPropsFilePath)) {
@@ -459,7 +461,7 @@ function getPropsFilePath() {
  * @param msg - The message to resolve the promise with should it timeout
  * @returns {{promise: (Promise|Promise<any>), cancel: cancel}}
  */
-function timeoutPromise(ms, msg) {
+export function timeoutPromise(ms: number, msg?: any) {
 	let timeout, promise;
 
 	promise = new Promise(function (resolve) {
@@ -481,7 +483,7 @@ function timeoutPromise(ms, msg) {
  * @param port
  * @returns {Promise<unknown>}
  */
-async function isPortTaken(port) {
+export async function isPortTaken(port: number) {
 	if (!port) {
 		throw new Error(`Invalid port passed as parameter`);
 	}
@@ -491,7 +493,7 @@ async function isPortTaken(port) {
 		const tester = net
 			.createServer()
 			.once('error', (err) => {
-				err.code === 'EADDRINUSE' ? resolve(true) : reject(err);
+				(err as any).code === 'EADDRINUSE' ? resolve(true) : reject(err);
 			})
 			.once('listening', () => tester.once('close', () => resolve(false)).close())
 			.listen(port);
@@ -504,7 +506,7 @@ async function isPortTaken(port) {
  * @param tableName
  * @returns string returns a thrown message if schema and or table does not exist
  */
-function checkGlobalSchemaTable(schemaName, tableName) {
+export function checkGlobalSchemaTable(schemaName: string, tableName: string) {
 	let databases = require('../resources/databases.ts').getDatabases();
 	if (!databases[schemaName]) {
 		return hdbErrors.HDB_ERROR_MSGS.SCHEMA_NOT_FOUND(schemaName);
@@ -520,7 +522,7 @@ function checkGlobalSchemaTable(schemaName, tableName) {
  * In the case of an error, reject promise object must be called from chunking-function, it will bubble up
  * through bind to this function.
  */
-function promisifyPapaParse() {
+export function promisifyPapaParse() {
 	papaParse.parsePromise = function (stream, chunkFunc, typingFunction) {
 		return new Promise(function (resolve, reject) {
 			papaParse.parse(stream, {
@@ -542,7 +544,7 @@ function promisifyPapaParse() {
  * @returns a string minus any byte order marks
  * @param dataString
  */
-function removeBOM(dataString) {
+export function removeBOM(dataString: any) {
 	if (typeof dataString !== 'string') {
 		throw new TypeError(`Expected a string, got ${typeof dataString}`);
 	}
@@ -554,7 +556,7 @@ function removeBOM(dataString) {
 	return dataString;
 }
 
-function createEventPromise(eventName, eventEmitterObject, timeout_promise) {
+export function createEventPromise(eventName: string, eventEmitterObject: any, timeout_promise?: any) {
 	return new Promise((resolve) => {
 		eventEmitterObject.once(eventName, (msg) => {
 			let currTimeoutPromise = timeout_promise;
@@ -573,7 +575,7 @@ function createEventPromise(eventName, eventEmitterObject, timeout_promise) {
  * @param schema
  * @param table
  */
-function checkSchemaTableExist(schema, table) {
+export function checkSchemaTableExist(schema: string, table: string) {
 	let schemaNotExist = checkSchemaExists(schema);
 	if (schemaNotExist) {
 		return schemaNotExist;
@@ -590,7 +592,7 @@ function checkSchemaTableExist(schema, table) {
  * @param schema
  * @returns {string}
  */
-function checkSchemaExists(schema) {
+export function checkSchemaExists(schema: string) {
 	const { getDatabases } = require('../resources/databases.ts');
 	if (!getDatabases()[schema]) {
 		return hdbErrors.HDB_ERROR_MSGS.SCHEMA_NOT_FOUND(schema);
@@ -603,7 +605,7 @@ function checkSchemaExists(schema) {
  * @param table
  * @returns {string}
  */
-function checkTableExists(schema, table) {
+export function checkTableExists(schema: string, table: string) {
 	const { getDatabases } = require('../resources/databases.ts');
 	if (!getDatabases()[schema][table]) {
 		return hdbErrors.HDB_ERROR_MSGS.TABLE_NOT_FOUND(schema, table);
@@ -614,7 +616,7 @@ function checkTableExists(schema, table) {
  * Returns the first second of the next day in seconds.
  * @returns {number}
  */
-function getStartOfTomorrowInSeconds() {
+export function getStartOfTomorrowInSeconds() {
 	let tomorowSeconds = moment().utc().add(1, 'd').startOf('d').unix();
 	let nowSeconds = moment().utc().unix();
 	return tomorowSeconds - nowSeconds;
@@ -624,7 +626,7 @@ function getStartOfTomorrowInSeconds() {
  * Returns the key used by limits for this cycle.
  * @returns {string}
  */
-function getLimitKey() {
+export function getLimitKey() {
 	return moment().utc().format('DD-MM-YYYY');
 }
 
@@ -633,7 +635,7 @@ function getLimitKey() {
  * a reserved word with backticks as an escape to allow a schema element which is named the same as a reserved word to be used.
  * The issue is once alasql parses the sql the backticks are removed and we need them when we execute the final SQL.
  */
-function backtickASTSchemaItems(statement) {
+export function backtickASTSchemaItems(statement: any) {
 	try {
 		let iterator = new RecursiveIterator(statement);
 		for (let { node } of iterator) {
@@ -671,7 +673,7 @@ function backtickASTSchemaItems(statement) {
  * @param modulePath
  * @returns {*[]}
  */
-function createForkArgs(modulePath) {
+export function createForkArgs(modulePath: string) {
 	return [modulePath];
 }
 
@@ -680,7 +682,7 @@ function createForkArgs(modulePath) {
  * @param boolean
  * @returns {boolean}
  */
-function autoCastBoolean(boolean) {
+export function autoCastBoolean(boolean: any) {
 	return boolean === true || (typeof boolean === 'string' && boolean.toLowerCase() === 'true');
 }
 
@@ -691,7 +693,7 @@ function autoCastBoolean(boolean) {
  * @returns any
  *
  */
-function autoCastBooleanStrict(value) {
+export function autoCastBooleanStrict(value: any) {
 	if (typeof value === 'string') {
 		const lcValue = value.toLowerCase();
 		if (lcValue === 'true') {
@@ -707,7 +709,7 @@ function autoCastBooleanStrict(value) {
 /**
  * Gets a tables hash attribute from the global schema
  */
-function getTableHashAttribute(schema, table) {
+export function getTableHashAttribute(schema: string, table: string) {
 	const { getDatabases } = require('../resources/databases.ts');
 	let tableObj = getDatabases()[schema]?.[table];
 	return tableObj?.primaryKey || tableObj?.hash_attribute;
@@ -718,7 +720,7 @@ function getTableHashAttribute(schema, table) {
  * @param schema
  * @returns {boolean} - returns true if schema exists
  */
-function doesSchemaExist(schema) {
+export function doesSchemaExist(schema: string) {
 	const { getDatabases } = require('../resources/databases.ts');
 	return getDatabases()[schema] !== undefined;
 }
@@ -729,7 +731,7 @@ function doesSchemaExist(schema) {
  * @param table
  * @returns {boolean} - returns true if table exists
  */
-function doesTableExist(schema, table) {
+export function doesTableExist(schema: string, table: string) {
 	const { getDatabases } = require('../resources/databases.ts');
 	return getDatabases()[schema]?.[table] !== undefined;
 }
@@ -739,7 +741,7 @@ function doesTableExist(schema, table) {
  * @param value
  * @returns {any}
  */
-function stringifyObj(value) {
+export function stringifyObj(value: any) {
 	try {
 		return JSON.stringify(value);
 	} catch {
@@ -752,7 +754,7 @@ function stringifyObj(value) {
  * @param ms
  * @returns {*}
  */
-function ms_to_time(ms) {
+export function ms_to_time(ms: number) {
 	const duration = moment.duration(ms);
 	const sec = duration.seconds() > 0 ? duration.seconds() + 's' : '';
 	const min = duration.minutes() > 0 ? duration.minutes() + 'm ' : '';
@@ -769,7 +771,7 @@ function ms_to_time(ms) {
  * @param extension
  * @returns {string}
  */
-function changeExtension(file, extension) {
+export function changeExtension(file: string, extension: string) {
 	const basename = path.basename(file, path.extname(file));
 	return path.join(path.dirname(file), basename + extension);
 }
@@ -777,7 +779,7 @@ function changeExtension(file, extension) {
 /**
  * Checks ENV and CLI for ROOTPATH arg
  */
-function getEnvCliRootPath() {
+export function getEnvCliRootPath() {
 	if (process.env[terms.CONFIG_PARAMS.ROOTPATH.toUpperCase()])
 		return process.env[terms.CONFIG_PARAMS.ROOTPATH.toUpperCase()];
 	const cliArgs = minimist(process.argv);
@@ -789,7 +791,7 @@ function getEnvCliRootPath() {
  * This is used for running HDB without a boot file
  */
 let noBootFileChecked;
-function noBootFile() {
+export function noBootFile() {
 	if (noBootFileChecked) return noBootFileChecked;
 	const cliEnvRoot = getEnvCliRootPath();
 	if (
@@ -802,7 +804,7 @@ function noBootFile() {
 	}
 }
 
-function httpRequest(options, data) {
+export function httpRequest(options: any, data: any) {
 	let client;
 	if (options.protocol === 'http:') client = http;
 	else client = https;
@@ -832,7 +834,7 @@ function httpRequest(options, data) {
  * Will set default schema/database or set database to schema
  * @param req
  */
-function transformReq(req) {
+export function transformReq(req: any) {
 	if (!req.schema && !req.database) {
 		req.schema = terms.DEFAULT_DATABASE_NAME;
 		return;
@@ -840,7 +842,7 @@ function transformReq(req) {
 	if (req.database) req.schema = req.database;
 }
 
-function convertToMS(interval) {
+export function convertToMS(interval: any) {
 	let seconds = 0;
 	if (typeof interval === 'number') seconds = interval;
 	if (typeof interval === 'string') {
@@ -864,4 +866,4 @@ function convertToMS(interval) {
 	}
 	return seconds * 1000;
 }
-const hdbErrors = require('./errors/commonErrors.js');
+import * as hdbErrors from './errors/commonErrors.js';
