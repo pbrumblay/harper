@@ -1,7 +1,7 @@
 'use strict';
 
-const log = require('./logging/harper_logger.js');
-const terms = require('./hdbTerms.ts');
+import log from './logging/harper_logger.js';
+import * as terms from './hdbTerms.js';
 
 /**
  * Calls the operation function specified in the parameter with the input specified in the parameter.  Once complete,
@@ -11,7 +11,7 @@ const terms = require('./hdbTerms.ts');
  * @param followupAsyncFunc - The response function that will be called with the operation function response as an input.  The function is expected to be promisifed, callbacks not supported.
  * @returns {Promise<{}>}
  */
-async function callOperationFunctionAsAwait(promisifiedFunction, functionInput, followupAsyncFunc) {
+export async function callOperationFunctionAsAwait(promisifiedFunction: any, functionInput: any, followupAsyncFunc?: any) {
 	if (!promisifiedFunction || typeof promisifiedFunction !== 'function') {
 		throw new Error('Invalid function parameter');
 	}
@@ -58,6 +58,4 @@ async function callOperationFunctionAsAwait(promisifiedFunction, functionInput, 
 	}
 }
 
-module.exports = {
-	callOperationFunctionAsAwait,
-};
+

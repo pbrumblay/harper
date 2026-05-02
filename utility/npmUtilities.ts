@@ -1,28 +1,27 @@
 'use strict';
 
-const Joi = require('joi');
-const path = require('path');
+import Joi from 'joi';
+import * as path from 'path';
 
-const { handleHDBError, hdbErrors } = require('./errors/hdbError.js');
+import { handleHDBError, hdbErrors } from './errors/hdbError.js';
+
 const { HTTP_STATUS_CODES } = hdbErrors;
 
-const validator = require('../validation/validationWrapper.js');
-const harperLogger = require('./logging/harper_logger.js');
+import * as validator from '../validation/validationWrapper.js';
+import harperLogger from './logging/harper_logger.js';
 
-module.exports = {
-	installModules,
-};
 
-const { CONFIG_PARAMS } = require('./hdbTerms.ts');
-const { getConfigPath } = require('../config/configUtils.js');
-const { nonInteractiveSpawn } = require('../components/Application.ts');
+
+import { CONFIG_PARAMS } from './hdbTerms.js';
+import { getConfigPath } from '../config/configUtils.js';
+import { nonInteractiveSpawn } from '../components/Application.js';
 
 /**
  * Executes npm install against specified custom function projects
  * @param {Object} req
  * @returns {Promise<{}>}
  */
-async function installModules(req) {
+export async function installModules(req: any) {
 	const deprecationWarning =
 		'install_node_modules is deprecated. Dependencies are automatically installed on' +
 		' deploy, and install_node_modules can lead to inconsistent behavior';
@@ -36,7 +35,7 @@ async function installModules(req) {
 
 	const componentsRootDirPath = getConfigPath(CONFIG_PARAMS.COMPONENTSROOT);
 
-	const responseObject = {};
+	const responseObject: any = {};
 
 	const args = ['install', '--force', '--omit=dev', '--json'];
 	if (dryRun) args.push('--dry-run');
@@ -45,7 +44,7 @@ async function installModules(req) {
 		responseObject[project] = { npm_output: null, npm_error: null };
 		const projectPath = path.join(componentsRootDirPath, project);
 		try {
-			let { stdout, stderr } = nonInteractiveSpawn(project, 'npm', args, projectPath);
+			let { stdout, stderr } = await nonInteractiveSpawn(project, 'npm', args, projectPath);
 			stdout = stdout ? stdout.replace('\n', '') : null;
 			stderr = stderr ? stderr.replace('\n', '') : null;
 
@@ -75,7 +74,7 @@ async function installModules(req) {
 	return responseObject;
 }
 
-function parseNPMStdErr(stderr) {
+function parseNPMStdErr(stderr: string) {
 	//npm returns errors inconsistently, on 6 it returns json, on 8 it returns json stringified inside of a larger string
 	let startSearchString = '"error": {';
 	let start = stderr.indexOf('"error": {');
@@ -92,7 +91,7 @@ function parseNPMStdErr(stderr) {
  * @param {Object} req
  * @returns {*}
  */
-function modulesValidator(req) {
+function modulesValidator(req: any) {
 	const funcSchema = Joi.object({
 		projects: Joi.array().min(1).items(Joi.string()).required(),
 		dry_run: Joi.boolean().default(false),
