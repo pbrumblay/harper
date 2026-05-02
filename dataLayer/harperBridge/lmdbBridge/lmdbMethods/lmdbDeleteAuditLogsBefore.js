@@ -3,7 +3,7 @@
 const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');
 const { getTransactionAuditStorePath } = require('../lmdbUtility/initializePaths.js');
 // eslint-disable-next-line no-unused-vars
-const DeleteBeforeObject = require('../../../DeleteBeforeObject.js');
+const DeleteBeforeObject = require('../../../DeleteBeforeObject.js').default || require('../../../DeleteBeforeObject.js');
 const lmdbTerms = require('../../../../utility/lmdb/terms.js');
 const hdbUtils = require('../../../../utility/common_utils.js');
 const DeleteAuditLogsBeforeResults = require('./DeleteAuditLogsBeforeResults.js');

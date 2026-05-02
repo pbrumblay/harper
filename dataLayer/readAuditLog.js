@@ -2,7 +2,7 @@
 
 const harperBridge = require('./harperBridge/harperBridge.js');
 // eslint-disable-next-line no-unused-vars
-const ReadAuditLogObject = require('./ReadAuditLogObject.js');
+const ReadAuditLogObject = require('./ReadAuditLogObject.js').default || require('./ReadAuditLogObject.js');
 const hdbUtils = require('../utility/common_utils.js');
 const hdbTerms = require('../utility/hdbTerms.ts');
 const envMgr = require('../utility/environment/environmentManager.js');

@@ -1,8 +1,8 @@
 'use strict';
 
 // eslint-disable-next-line no-unused-vars
-const { SearchByConditionsObject, SearchCondition } = require('../../../SearchByConditionsObject.js');
-const SearchObject = require('../../../SearchObject.js');
+const { SearchByConditionsObject, SearchCondition } = require('../../../SearchByConditionsObject.js').default || require('../../../SearchByConditionsObject.js');
+const SearchObject = require('../../../SearchObject.js').default || require('../../../SearchObject.js');
 const searchValidator = require('../../../../validation/searchValidator.js');
 const searchUtility = require('../../../../utility/lmdb/searchUtility.js');
 const lmdbTerms = require('../../../../utility/lmdb/terms.js');

@@ -1,7 +1,7 @@
 'use strict';
 
-const SearchObject = require('../../../SearchObject.js');
-const DeleteObject = require('../../../DeleteObject.js');
+const SearchObject = require('../../../SearchObject.js').default || require('../../../SearchObject.js');
+const DeleteObject = require('../../../DeleteObject.js').default || require('../../../DeleteObject.js');
 const searchByValue = require('./lmdbSearchByValue.js');
 const deleteRecords = require('./lmdbDeleteRecords.js');
 const hdbTerms = require('../../../../utility/hdbTerms.ts');

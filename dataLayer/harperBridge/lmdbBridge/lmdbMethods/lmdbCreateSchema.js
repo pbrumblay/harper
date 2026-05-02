@@ -2,7 +2,7 @@
 
 const hdbTerms = require('../../../../utility/hdbTerms.ts');
 const lmdbCreateRecords = require('./lmdbCreateRecords.js');
-const InsertObject = require('../../../InsertObject.js');
+const InsertObject = require('../../../InsertObject.js').default || require('../../../InsertObject.js');
 const fs = require('fs-extra');
 const { getSchemaPath } = require('../lmdbUtility/initializePaths.js');
 

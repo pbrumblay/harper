@@ -5,7 +5,7 @@ const environmentUtility = require('../../../../utility/lmdb/environmentUtility.
 const writeUtility = require('../../../../utility/lmdb/writeUtility.js');
 const { getSystemSchemaPath, getSchemaPath } = require('../lmdbUtility/initializePaths.js');
 const lmdbCreateAttribute = require('./lmdbCreateAttribute.js');
-const LMDBCreateAttributeObject = require('../lmdbUtility/LMDBCreateAttributeObject.js');
+const LMDBCreateAttributeObject = require('../lmdbUtility/LMDBCreateAttributeObject.js').default || require('../lmdbUtility/LMDBCreateAttributeObject.js');
 const log = require('../../../../utility/logging/harper_logger.js');
 const createTxnEnvironments = require('../lmdbUtility/lmdbCreateTransactionsAuditEnvironment.js');
 

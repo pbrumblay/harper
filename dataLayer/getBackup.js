@@ -6,7 +6,7 @@
 
 const harperBridge = require('./harperBridge/harperBridge.js');
 // eslint-disable-next-line no-unused-vars
-const GetBackupObject = require('./GetBackupObject.js');
+const GetBackupObject = require('./GetBackupObject.js').default || require('./GetBackupObject.js');
 const hdbUtils = require('../utility/common_utils.js');
 const hdbTerms = require('../utility/hdbTerms.ts');
 const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
