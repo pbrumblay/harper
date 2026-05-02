@@ -4109,6 +4109,12 @@ export function makeTable(options) {
 							key: id,
 							version,
 							value: updatedRecord,
+							expiresAt: sourceContext.expiresAt,
+							metadataFlags: 0,
+							size: 0,
+							localTime: 0,
+							nodeId: 0,
+							residencyId: 0,
 						} as any;
 						// Give the plain object the RecordObject prototype so getExpiresAt/getUpdatedTime
 						// are available on the immediately-resolved entry. We mutate the prototype

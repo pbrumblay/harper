@@ -225,7 +225,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		function (resource: any, query: RequestTarget, _request: Context, data: any) {
 			return resource.update(query, data);
 		},
-		{ hasContent: true, type: 'update', method: 'update' }
+		{ type: 'update', method: 'update' }
 	);
 
 	static connect = transactional(
@@ -243,7 +243,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 		function (resource: any, query: RequestTarget, _request: Context, _data: any) {
 			return resource.subscribe ? resource.subscribe(query) : missingMethod(resource, 'subscribe');
 		},
-		{ hasContent: false, type: 'read', method: 'subscribe', syncAllowed: true }
+		{ type: 'read', method: 'subscribe', syncAllowed: true }
 	);
 
 	static publish = transactional(
@@ -268,7 +268,7 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 			}
 			return result;
 		},
-		{ hasContent: false, type: 'read', method: 'search', syncAllowed: true }
+		{ type: 'read', method: 'search', hasContent: false, syncAllowed: true }
 	);
 
 	static query = transactional(
