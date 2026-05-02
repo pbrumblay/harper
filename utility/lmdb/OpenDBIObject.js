@@ -21,7 +21,6 @@ class OpenDBIObject {
 		this.sharedStructuresKey = Symbol.for('structures');
 		if (isPrimary) {
 			this.cache = LMDB_CACHING && { validated: true };
-			this.randomAccessStructure = true;
 			this.freezeData = true;
 			this.encoder = { Encoder: RecordEncoder };
 		}
