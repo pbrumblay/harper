@@ -1,10 +1,11 @@
 'use strict';
-const OPERATIONS_ENUM = require('../utility/hdbTerms.ts').OPERATIONS_ENUM;
+import { OPERATIONS_ENUM } from '../utility/hdbTerms.js';
 
 /**
  * object representing an upsert operation
  */
 class UpsertObject {
+	[key: string]: any;
 	/**
 	 * @param {String} schema
 	 * @param {string} table
@@ -20,4 +21,4 @@ class UpsertObject {
 	}
 }
 
-module.exports = UpsertObject;
+export default UpsertObject;

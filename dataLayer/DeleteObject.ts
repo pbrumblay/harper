@@ -1,11 +1,12 @@
 'use strict';
 
-const OPERATIONS_ENUM = require('../utility/hdbTerms.ts').OPERATIONS_ENUM;
+import { OPERATIONS_ENUM } from '../utility/hdbTerms.js';
 
 /**
  * This class represents the data that is passed into the delete functions.
  */
 class DeleteObject {
+	[key: string]: any;
 	/**
 	 *
 	 * @param {string} schema
@@ -22,4 +23,4 @@ class DeleteObject {
 	}
 }
 
-module.exports = DeleteObject;
+export default DeleteObject;

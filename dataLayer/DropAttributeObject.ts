@@ -1,6 +1,7 @@
 'use strict';
 
 class DropAttributeObject {
+	[key: string]: any;
 	constructor(schema, table, attribute) {
 		this.schema = schema;
 		this.table = table;
@@ -8,4 +9,4 @@ class DropAttributeObject {
 	}
 }
 
-module.exports = DropAttributeObject;
+export default DropAttributeObject;

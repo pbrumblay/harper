@@ -4,6 +4,7 @@
  * This class represents the data that is passed into NoSQL search by hashes.
  */
 class SearchByHashObject {
+	[key: string]: any;
 	/**
 	 * @param {String} schema
 	 * @param {String} table
@@ -18,4 +19,4 @@ class SearchByHashObject {
 	}
 }
 
-module.exports = SearchByHashObject;
+export default SearchByHashObject;

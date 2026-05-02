@@ -563,7 +563,7 @@ export class ResourceBridge extends BridgeMethods {
 	}
 }
 
-function getSelect({ get_attributes }, table) {
+function getSelect({ get_attributes }: any, table: any) {
 	if (get_attributes) {
 		if (get_attributes[0] === '*') {
 			if (table.schemaDefined) return;

@@ -7,6 +7,7 @@
  * @param {Date|Number|String} timestamp
  */
 class DeleteBeforeObject {
+	[key: string]: any;
 	/**
 	 * @param {string} schema
 	 * @param {string} table
@@ -19,4 +20,4 @@ class DeleteBeforeObject {
 	}
 }
 
-module.exports = DeleteBeforeObject;
+export default DeleteBeforeObject;

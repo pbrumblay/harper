@@ -4,6 +4,7 @@
  * This class represents the data that is passed into NoSQL searches.
  */
 class SearchObject {
+	[key: string]: any;
 	/**
 	 *
 	 * @param {String} schema
@@ -42,4 +43,4 @@ class SearchObject {
 	}
 }
 
-module.exports = SearchObject;
+export default SearchObject;

@@ -1,11 +1,12 @@
 'use strict';
 
-const { OPERATIONS_ENUM } = require('../utility/hdbTerms.ts');
+import { OPERATIONS_ENUM } from '../utility/hdbTerms.js';
 
 /**
  * class that represents the readAuditLog operation
  */
 class GetBackupObject {
+	[key: string]: any;
 	/**
 	 * @param {string} schema
 	 * @param {string} table
@@ -19,4 +20,4 @@ class GetBackupObject {
 	}
 }
 
-module.exports = GetBackupObject;
+export default GetBackupObject;

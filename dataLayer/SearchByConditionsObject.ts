@@ -1,12 +1,13 @@
 'use strict';
 
 // eslint-disable-next-line no-unused-vars
-const lmdbTerms = require('../utility/lmdb/terms.js');
+import * as lmdbTerms from '../utility/lmdb/terms.js';
 
 /**
  * This class represents the data that is passed into NoSQL searches.
  */
 class SearchByConditionsObject {
+	[key: string]: any;
 	/**
 	 *
 	 * @param {String} schema
@@ -29,6 +30,7 @@ class SearchByConditionsObject {
 }
 
 class SearchCondition {
+	[key: string]: any;
 	/**
 	 *
 	 * @param {String|Number} attribute
@@ -43,6 +45,7 @@ class SearchCondition {
 }
 
 class SortAttribute {
+	[key: string]: any;
 	/**
 	 *
 	 * @param {string|number} attribute
@@ -54,7 +57,7 @@ class SortAttribute {
 	}
 }
 
-module.exports = {
+export {
 	SearchByConditionsObject,
 	SearchCondition,
 	SortAttribute,

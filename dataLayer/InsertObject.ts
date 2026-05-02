@@ -1,9 +1,10 @@
 'use strict';
-const OPERATIONS_ENUM = require('../utility/hdbTerms.ts').OPERATIONS_ENUM;
+import { OPERATIONS_ENUM } from '../utility/hdbTerms.js';
 /**
  * This class represents the data that is passed into the Insert functions.
  */
 class InsertObject {
+	[key: string]: any;
 	/**
 	 * @param {String} schema
 	 * @param {String} table
@@ -21,4 +22,4 @@ class InsertObject {
 	}
 }
 
-module.exports = InsertObject;
+export default InsertObject;

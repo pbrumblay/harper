@@ -1,6 +1,7 @@
 'use strict';
 
 class CreateTableObject {
+	[key: string]: any;
 	constructor(schema, table, primary_key) {
 		this.schema = schema;
 		this.table = table;
@@ -8,4 +9,4 @@ class CreateTableObject {
 	}
 }
 
-module.exports = CreateTableObject;
+export default CreateTableObject;

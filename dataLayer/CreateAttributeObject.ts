@@ -1,11 +1,12 @@
 'use strict';
 
-const uuid = require('uuid');
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Constructor class for inserting an attirbute in HDB
  */
 class CreateAttributeObject {
+	[key: string]: any;
 	/**
 	 *
 	 * @param schema
@@ -17,9 +18,9 @@ class CreateAttributeObject {
 		this.schema = schema;
 		this.table = table;
 		this.attribute = attribute;
-		this.id = id ? id : uuid.v4();
+		this.id = id ? id : uuidv4();
 		this.schema_table = `${this.schema}.${this.table}`;
 	}
 }
 
-module.exports = CreateAttributeObject;
+export default CreateAttributeObject;
