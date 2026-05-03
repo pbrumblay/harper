@@ -11,7 +11,7 @@ const cbUpdateUpdate = util.callbackify(update);
 import { convertDelete as deleteTranslator } from './deleteTranslator.js';
 import * as alasql from 'alasql';
 import * as opAuth from '../utility/operation_authorization.js';
-import logger from '../utility/logging/harper_logger.js';
+const logger = require('../utility/logging/harper_logger.js').default || require('../utility/logging/harper_logger.js');
 import alasqlFunctionImporter from './alasqlFunctionImporter.js';
 import * as hdbUtils from '../utility/common_utils.js';
 import * as terms from '../utility/hdbTerms.js';

@@ -7,7 +7,7 @@ const assert = require('assert');
 const rewire = require('rewire');
 const sinon = require('sinon');
 const hdb_term = require('#src/utility/hdbTerms');
-const JobObject = require('#js/server/jobs/JobObject');
+const JobObject = require('#js/server/jobs/JobObject').default || require('#js/server/jobs/JobObject');
 const file_load_validator = require('#js/validation/fileLoadValidator');
 const jobs = rewire('#js/server/jobs/jobs');
 

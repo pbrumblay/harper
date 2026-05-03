@@ -5,25 +5,26 @@
  * exposed method to simplify the interaction.
  */
 
-const uuidV4 = require('uuid').v4;
-const insert = require('../../dataLayer/insert.js');
-const search = require('../../dataLayer/search.js');
-const Search_Object = require('../../dataLayer/SearchObject.js').default || require('../../dataLayer/SearchObject.js');
-const searchByHashObj = require('../../dataLayer/SearchByHashObject.js').default || require('../../dataLayer/SearchByHashObject.js');
-const SQL_Search_Object = require('../../dataLayer/SqlSearchObject.js').default || require('../../dataLayer/SqlSearchObject.js').default || require('../../dataLayer/SqlSearchObject.js');
-const hdbTerms = require('../../utility/hdbTerms.js');
-const JobObject = require('./JobObject.js');
-const UpdateObject = require('../../dataLayer/UpdateObject.js').default || require('../../dataLayer/UpdateObject.js');
-const log = require('../../utility/logging/harper_logger.js');
-const Insert_Object = require('../../dataLayer/InsertObject.js').default || require('../../dataLayer/InsertObject.js');
-const hdbUtil = require('../../utility/common_utils.js');
-const { promisify } = require('util');
-const moment = require('moment');
-const fileLoadValidator = require('../../validation/fileLoadValidator.js').default || require('../../validation/fileLoadValidator.js');
-const bulkDeleteValidator = require('../../validation/bulkDeleteValidator.js').default || require('../../validation/bulkDeleteValidator.js');
-const { deleteTransactionLogsBeforeValidator } = require('../../validation/transactionLogValidator.js');
-const { handleHDBError, hdbErrors, ClientError } = require('../../utility/errors/hdbError.js');
-const { HTTP_STATUS_CODES } = hdbErrors;
+import { v4 as uuidV4 } from 'uuid';
+import * as insert from '../../dataLayer/insert.js';
+import * as search from '../../dataLayer/search.js';
+import Search_Object from '../../dataLayer/SearchObject.js';
+import searchByHashObj from '../../dataLayer/SearchByHashObject.js';
+import SQL_Search_Object from '../../dataLayer/SqlSearchObject.js';
+import * as hdbTerms from '../../utility/hdbTerms.js';
+import JobObject from './JobObject.js';
+import UpdateObject from '../../dataLayer/UpdateObject.js';
+import log from '../../utility/logging/harper_logger.js';
+import Insert_Object from '../../dataLayer/InsertObject.js';
+import * as hdbUtil from '../../utility/common_utils.js';
+import { promisify } from 'util';
+import moment from 'moment';
+import * as fileLoadValidator from '../../validation/fileLoadValidator.js';
+import bulkDeleteValidator from '../../validation/bulkDeleteValidator.js';
+import { deleteTransactionLogsBeforeValidator } from '../../validation/transactionLogValidator.js';
+import { handleHDBError, hdbErrors, ClientError } from '../../utility/errors/hdbError.js';
+import { HTTP_STATUS_CODES } from '../../utility/errors/commonErrors.js';
+
 
 //Promisified functions
 const pSearchByValue = search.searchByValue;
@@ -32,15 +33,9 @@ const pInsert = insert.insert;
 const pInsertUpdate = insert.update;
 let pSqlEvaluate;
 
-module.exports = {
-	addJob,
-	updateJob,
-	handleGetJob,
-	handleGetJobsByStartDate,
-	getJobById,
-};
 
-async function handleGetJob(jsonBody) {
+
+export async function handleGetJob(jsonBody: any) {
 	if (jsonBody.id === undefined) throw new ClientError("'id' is required");
 	let result = await getJobById(jsonBody.id);
 	if (!hdbUtil.isEmptyOrZeroLength(result)) {
@@ -53,7 +48,7 @@ async function handleGetJob(jsonBody) {
 	return result;
 }
 
-async function handleGetJobsByStartDate(jsonBody) {
+export async function handleGetJobsByStartDate(jsonBody: any) {
 	try {
 		let result = await getJobsInDateRange(jsonBody);
 		log.trace(`Searching for jobs from ${jsonBody.from_date} to ${jsonBody.to_date}`);
@@ -84,7 +79,7 @@ async function handleGetJobsByStartDate(jsonBody) {
  * @param jsonBody - job descriptor defined in the endpoint.
  * @returns {Promise<*>}
  */
-async function addJob(jsonBody) {
+export async function addJob(jsonBody: any) {
 	let result = { message: '', error: '', success: false, createdJob: undefined };
 	if (!jsonBody || Object.keys(jsonBody).length === 0 || hdbUtil.isEmptyOrZeroLength(jsonBody.operation)) {
 		let errMsg = `job parameter is invalid`;
@@ -144,14 +139,14 @@ async function addJob(jsonBody) {
 		);
 	}
 
-	let newJob = new JobObject();
+	let newJob = new (JobObject as any)();
 	newJob.type =
 		jsonBody.operation === hdbTerms.OPERATIONS_ENUM.DELETE_RECORDS_BEFORE
 			? hdbTerms.OPERATIONS_ENUM.DELETE_FILES_BEFORE
 			: jsonBody.operation;
 	newJob.type = jsonBody.operation;
 	newJob.user = jsonBody.hdb_user?.username;
-	let searchObj = new Search_Object(
+	let searchObj = new (Search_Object as any)(
 		hdbTerms.SYSTEM_SCHEMA_NAME,
 		hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME,
 		'id',
@@ -195,7 +190,7 @@ async function addJob(jsonBody) {
 	// Sending the request via IPC to the job process was causing some messages to be lost under load.
 	newJob.request = jsonBody;
 
-	let insertObject = new Insert_Object(hdbTerms.SYSTEM_SCHEMA_NAME, hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME, 'id', [
+	let insertObject = new (Insert_Object as any)(hdbTerms.SYSTEM_SCHEMA_NAME, hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME, 'id', [
 		newJob,
 	]);
 	let insertResult;
@@ -224,7 +219,7 @@ async function addJob(jsonBody) {
  * @param jsonBody - The inbound message
  * @returns {Promise<*>}
  */
-async function getJobsInDateRange(jsonBody) {
+export async function getJobsInDateRange(jsonBody: any) {
 	let parsedFromDate = moment(jsonBody.from_date, moment.ISO_8601);
 	let parsedToDate = moment(jsonBody.to_date, moment.ISO_8601);
 
@@ -236,11 +231,11 @@ async function getJobsInDateRange(jsonBody) {
 	}
 
 	let jobSearchSql = `select * from system.hdb_job where start_datetime > '${parsedFromDate.valueOf()}' and start_datetime < '${parsedToDate.valueOf()}'`;
-	let sqlSearchObj = new SQL_Search_Object(jobSearchSql, jsonBody.hdb_user);
+	let sqlSearchObj = new (SQL_Search_Object as any)(jobSearchSql, jsonBody.hdb_user);
 
 	try {
 		if (!pSqlEvaluate) {
-			const hdbSql = require('../../sqlTranslator');
+			const hdbSql = require('../../sqlTranslator/index.js');
 			pSqlEvaluate = promisify(hdbSql.evaluateSQL);
 		}
 		return await pSqlEvaluate(sqlSearchObj);
@@ -257,12 +252,12 @@ async function getJobsInDateRange(jsonBody) {
  * @param jsonBody - The inbound message
  * @returns {Promise<*>}
  */
-async function getJobById(job_id) {
+export async function getJobById(job_id: any) {
 	if (hdbUtil.isEmptyOrZeroLength(job_id)) {
 		return hdbUtil.errorizeMessage('Invalid job ID specified.');
 	}
 
-	const searchObj = new searchByHashObj(
+	const searchObj = new (searchByHashObj as any)(
 		hdbTerms.SYSTEM_SCHEMA_NAME,
 		hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME,
 		[job_id],
@@ -283,7 +278,7 @@ async function getJobById(job_id) {
  * @param jobObject - The object representing the desired record.
  * @returns {Promise<*>}
  */
-async function updateJob(jobObject) {
+export async function updateJob(jobObject: any) {
 	if (Object.keys(jobObject).length === 0) {
 		throw new Error('invalid job object passed to updateJob');
 	}
@@ -295,7 +290,7 @@ async function updateJob(jobObject) {
 		jobObject.end_datetime = moment().valueOf();
 	}
 
-	let updateObject = new UpdateObject(hdbTerms.SYSTEM_SCHEMA_NAME, hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME, [
+	let updateObject = new (UpdateObject as any)(hdbTerms.SYSTEM_SCHEMA_NAME, hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME, [
 		jobObject,
 	]);
 	let updateResult = undefined;

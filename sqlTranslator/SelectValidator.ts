@@ -11,17 +11,7 @@ const { getDatabases } = require('../resources/databases.js');
 //exclusion list for validation on group bys
 const customAggregators = ['DISTINCT_ARRAY'];
 
-const validateTables = Symbol('validateTables'),
-	validateTable = Symbol('validateTable'),
-	validateAllColumns = Symbol('validateAllColumns'),
-	findColumn = Symbol('findColumn'),
-	validateOrderBy = Symbol('validateOrderBy'),
-	validateSegment = Symbol('validateSegment'),
-	validateColumn = Symbol('validateColumn'),
-	setColumnsForTable = Symbol('setColumnsForTable'),
-	checkColumnsForAsterisk = Symbol('checkColumnsForAsterisk'),
-	validateGroupBy = Symbol('validateGroupBy'),
-	hasColumns = Symbol('hasColumns');
+
 
 /**
  * Validates the tables and attributes against the actual schema
@@ -46,7 +36,7 @@ class SelectValidator {
 			throw new Error('invalid sql statement');
 		}
 
-		this[validateTables]();
+		this.validateTables();
 		this.checkColumnsForAsterisk();
 		this.validateAllColumns();
 	}
@@ -55,7 +45,7 @@ class SelectValidator {
 	 * if the statement has columns in it:
 	 * loops thru the from and join arrays of the AST and passes individual entries into validateTable
 	 */
-	[validateTables]() {
+	validateTables() {
 		if (this.hasColumns()) {
 			if (!this.statement.from || this.statement.from.length === 0) {
 				throw `no from clause`;

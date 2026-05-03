@@ -1,19 +1,20 @@
 'use strict';
 
-const hdbTerms = require('../../utility/hdbTerms.js');
-const hdbUtils = require('../../utility/common_utils.js');
-const harperLogger = require('../../utility/logging/harper_logger.js');
-const globalSchema = require('../../utility/globalSchema.js');
-const user = require('../../security/user.js');
-const serverUtils = require('../serverHelpers/serverUtilities.js');
-const moment = require('moment');
-const jobs = require('./jobs.js');
-const { cloneDeep } = require('lodash');
-const { getEnvBuiltInComponents } = require('../../components/Application.js');
-const { pathToFileURL } = require('node:url');
-const { join } = require('node:path');
-const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
-const JOB_NAME = process.env[hdbTerms.PROCESS_NAME_ENV_PROP];
+import * as hdbTerms from '../../utility/hdbTerms.js';
+import * as hdbUtils from '../../utility/common_utils.js';
+import harperLogger from '../../utility/logging/harper_logger.js';
+import * as globalSchema from '../../utility/globalSchema.js';
+import * as user from '../../security/user.js';
+import * as serverUtils from '../serverHelpers/serverUtilities.js';
+import moment from 'moment';
+import * as jobs from './jobs.js';
+import { cloneDeep } from 'lodash';
+
+import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { getEnvBuiltInComponents } from './../../components/Application.js';
+import { PACKAGE_ROOT } from '../../utility/packageUtils.js';
+const JOB_NAME = process.env[(hdbTerms as any).PROCESS_NAME_ENV_PROP] as string;
 const JOB_ID = JOB_NAME.substring(4);
 
 /**
@@ -23,7 +24,7 @@ const JOB_ID = JOB_NAME.substring(4);
  */
 (async function job() {
 	// The request value could potentially be quite large so it's set to undefined to clear it out after being processed.
-	let jobObj = { id: JOB_ID, request: undefined };
+	let jobObj: any = { id: JOB_ID, request: undefined };
 	let exitCode = 0;
 	try {
 		harperLogger.notify('Starting job:', JOB_ID);

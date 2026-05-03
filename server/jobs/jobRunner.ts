@@ -1,22 +1,24 @@
 'use strict';
 
-const { join } = require('node:path');
+import { join } from 'node:path';
 
-const hdbUtil = require('../../utility/common_utils.js');
-const hdbTerms = require('../../utility/hdbTerms.js');
-const moment = require('moment');
-const bulkLoad = require('../../dataLayer/bulkLoad.js');
-const log = require('../../utility/logging/harper_logger.js');
-const jobs = require('./jobs.js');
-const hdbExport = require('../../dataLayer/export.js');
-const hdbDelete = require('../../dataLayer/delete.js');
-const threadsStart = require('../threads/manageThreads.js');
-const transactionLog = require('../../utility/logging/transactionLog.js');
-const restart = require('../../bin/restart.js');
-const { parentPort, isMainThread } = require('worker_threads');
-const { onMessageByType } = require('../threads/manageThreads.js');
+import * as hdbUtil from '../../utility/common_utils.js';
+import * as hdbTerms from '../../utility/hdbTerms.js';
+import moment from 'moment';
+import * as bulkLoad from '../../dataLayer/bulkLoad.js';
+import log from '../../utility/logging/harper_logger.js';
+import * as jobs from './jobs.js';
+import * as hdbExport from '../../dataLayer/export.js';
+import * as hdbDelete from '../../dataLayer/delete.js';
+import * as threadsStart from '../threads/manageThreads.js';
+import * as transactionLog from '../../utility/logging/transactionLog.js';
+import * as restart from '../../bin/restart.js';
+import { parentPort, isMainThread } from 'worker_threads';
+import { onMessageByType } from '../threads/manageThreads.js';
 
 class RunnerMessage {
+	job: any;
+	json: any;
 	constructor(jobObject, messageJson) {
 		this.job = jobObject;
 		this.json = messageJson;
@@ -28,7 +30,7 @@ class RunnerMessage {
  * @param runnerMessage
  * @throws Error
  */
-async function parseMessage(runnerMessage) {
+async function parseMessage(runnerMessage: any) {
 	if (!runnerMessage || Object.keys(runnerMessage).length === 0) {
 		throw new Error('Empty runner passed to parseMessage');
 	}
@@ -91,7 +93,7 @@ async function parseMessage(runnerMessage) {
  * @param runnerMessage - The RunnerMessage created by the signal flow
  * @param operation - The operation to run.
  */
-async function runJob(runnerMessage, operation) {
+async function runJob(runnerMessage: any, operation: any) {
 	try {
 		runnerMessage.job.status = hdbTerms.JOB_STATUS_ENUM.IN_PROGRESS;
 		runnerMessage.job.start_datetime = moment().valueOf();
@@ -128,7 +130,7 @@ async function runJob(runnerMessage, operation) {
  * @param job_id
  * @returns {Promise<void>}
  */
-async function launchJobThread(job_id) {
+async function launchJobThread(job_id: any) {
 	log.trace('launching job thread:', job_id);
 	if (isMainThread) {
 		threadsStart.startWorker(join(__dirname, './jobProcess.js'), {
@@ -157,7 +159,4 @@ if (isMainThread) {
 	});
 }
 
-module.exports = {
-	parseMessage,
-	RunnerMessage,
-};
+export { parseMessage, RunnerMessage };

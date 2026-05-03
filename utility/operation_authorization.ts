@@ -287,7 +287,7 @@ export function verifyPermsAST(ast, userObject, operation) {
 		throw handleHDBError(new Error());
 	}
 	try {
-		const bucket = require('../sqlTranslator/sql_statement_bucket.js');
+		const bucket = require('../sqlTranslator/sql_statement_bucket.js').default || require('../sqlTranslator/sql_statement_bucket.js');
 		const alasql = require('alasql');
 
 		const permsResponse = new PermissionResponseObject();

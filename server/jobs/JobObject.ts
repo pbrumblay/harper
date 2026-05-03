@@ -1,13 +1,22 @@
 'use strict';
 
-const hdbTerm = require('../../utility/hdbTerms.js');
-const moment = require('moment');
-const uuidV4 = require('uuid').v4;
+import * as hdbTerm from '../../utility/hdbTerms.js';
+import moment from 'moment';
+import { v4 as uuidV4 } from 'uuid';
 
 /**
  * This class represents a Job as it resides in the jobs table.
  */
-class JobObject {
+export default class JobObject {
+	id: string;
+	type: any;
+	start_datetime: number;
+	created_datetime: number;
+	end_datetime: any;
+	status: any;
+	message: any;
+	user: any;
+	request: any;
 	constructor() {
 		this.id = uuidV4();
 		this.type = undefined;
@@ -21,4 +30,4 @@ class JobObject {
 	}
 }
 
-module.exports = JobObject;
+

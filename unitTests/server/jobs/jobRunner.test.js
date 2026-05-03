@@ -10,7 +10,7 @@ const jobs = require('#js/server/jobs/jobs');
 const sinon = require('sinon');
 const hdb_term = require('#src/utility/hdbTerms');
 const bulk_load = require('#js/dataLayer/bulkLoad');
-const JobObject = require('#js/server/jobs/JobObject');
+const JobObject = require('#js/server/jobs/JobObject').default || require('#js/server/jobs/JobObject');
 const threads_start = require('#js/server/threads/manageThreads');
 
 const DATA_LOAD_MESSAGE = {
