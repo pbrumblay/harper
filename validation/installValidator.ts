@@ -5,7 +5,7 @@ const { string, number } = Joi.types();
 const fs = require('fs-extra');
 import * as hdbTerms from '../utility/hdbTerms.js';
 const path = require('path');
-const validator = require('../validation/validationWrapper.js');
+import * as validator from './validationWrapper.js';
 
 export default installValidator;
 
