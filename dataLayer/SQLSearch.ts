@@ -14,7 +14,7 @@ import clone from 'clone';
 import RecursiveIterator from 'recursive-iterator';
 import log from '../utility/logging/harper_logger.js';
 import * as commonUtils from '../utility/common_utils.js';
-const harperBridge = require('./harperBridge/harperBridge.js');
+const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 const hdbTerms = require('../utility/hdbTerms.js');
 import { hdbErrors } from '../utility/errors/hdbError.js';
 const { getDatabases } = require('../resources/databases.js');
@@ -1344,4 +1344,4 @@ class SQLSearch {
 	}
 }
 
-export default SQLSearch;
+console.log("HARPER BRIDGE IN SQLSEARCH", Object.keys(harperBridge)); export default SQLSearch;

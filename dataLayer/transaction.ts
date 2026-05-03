@@ -1,6 +1,6 @@
 'use strict';
 
-const harperBridge = require('./harperBridge/harperBridge.js');
+const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 
 
 /**

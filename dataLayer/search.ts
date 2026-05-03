@@ -2,7 +2,7 @@
 
 
 
-const harperBridge = require('./harperBridge/harperBridge.js');
+const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 import { transformReq } from '../utility/common_utils.js';
 
 export async function searchByConditions(searchObject: any) {

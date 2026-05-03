@@ -11,7 +11,7 @@ const sinon_chai = require('sinon-chai').default;
 chai.use(sinon_chai);
 const rewire = require('rewire');
 let bulkLoad_rewire = rewire('#js/dataLayer/bulkLoad');
-const PermissionResponseObject = require('#js/security/data_objects/PermissionResponseObject');
+const PermissionResponseObject = require('#js/security/data_objects/PermissionResponseObject').default || require('#js/security/data_objects/PermissionResponseObject');
 const hdb_terms = require('#src/utility/hdbTerms');
 const hdb_utils = require('#js/utility/common_utils');
 const validator = require('#js/validation/fileLoadValidator');
@@ -179,7 +179,7 @@ describe.skip('Test bulkLoad.js', () => {
 		let verify_attr_perms_stub = sandbox.stub().returns();
 		let verify_attr_perms_rw;
 
-		let PermissionResponseObject_rw = bulkLoad_rewire.__get__('PermissionResponseObject');
+		let PermissionResponseObject_rw = PermissionResponseObject;
 		const getPerms_orig = PermissionResponseObject_rw.prototype.getPermsResponse;
 		const perms_err_msg = 'Perms error msg';
 		let get_perms_resp_stub = sandbox.stub().returns(perms_err_msg);
@@ -227,7 +227,7 @@ describe.skip('Test bulkLoad.js', () => {
 
 		it('Test csvDataLoad with attr-level perms issues - returns errors', async function () {
 			PermissionResponseObject_rw.prototype.getPermsResponse = () => get_perms_resp_stub();
-			const getPermsError_rw = bulkLoad_rewire.__set__('PermissionResponseObject', PermissionResponseObject_rw);
+			const getPermsError_rw = bulkLoad_rewire.__set__('PermissionResponseObject_js_1', { default: PermissionResponseObject_rw });
 			let result;
 
 			try {

@@ -13,7 +13,7 @@ import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 import { streamAsJSON } from '../server/serverHelpers/JSONStream.js';
-import { Upload } from '@aws-sdk/lib-storage';
+let { Upload } = require('@aws-sdk/lib-storage');
 import { toCsvStream } from '../server/serverHelpers/contentTypes.js';
 
 const VALID_SEARCH_OPERATIONS = ['search_by_value', 'search_by_hash', 'sql', 'search_by_conditions'];

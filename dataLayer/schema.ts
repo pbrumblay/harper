@@ -9,7 +9,7 @@ import { v4 as uuidV4 } from 'uuid';
 import * as signalling from '../utility/signalling.js';
 const hdbTerms = require('../utility/hdbTerms.js');
 import * as util from 'util';
-const harperBridge = require('./harperBridge/harperBridge.js');
+const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 import { handleHDBError, hdbErrors, ClientError } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 

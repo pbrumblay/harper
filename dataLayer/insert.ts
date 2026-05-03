@@ -10,7 +10,7 @@ import insertValidator from '../validation/insertValidator.js';
 import * as hdbUtils from '../utility/common_utils.js';
 import * as util from 'util';
 // Leave this unused signalling import here. Due to circular dependencies we bring it in early to load it before the bridge
-const harperBridge = require('./harperBridge/harperBridge.js');
+const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 import * as globalSchema from '../utility/globalSchema.js';
 import log from '../utility/logging/harper_logger.js';
 import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
