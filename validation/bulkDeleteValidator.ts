@@ -1,5 +1,5 @@
-const validator = require('./validationWrapper.js');
-const Joi = require('joi');
+import * as validator from './validationWrapper.js';
+import Joi from 'joi';
 const { hdbTable, hdbDatabase } = require('./common_validators.js');
 
 const validationSchema = {
@@ -16,7 +16,7 @@ const timestampSchema = {
 	timestamp: Joi.date().timestamp().required().messages({ 'date.format': "'timestamp' is invalid" }),
 };
 
-module.exports = function (deleteObject, dateFormat) {
+export default function (deleteObject: any, dateFormat: any) {
 	const finalSchema =
 		dateFormat === 'timestamp' ? { ...validationSchema, ...timestampSchema } : { ...validationSchema, ...dateSchema };
 	const bulkDeleteSchema = Joi.object(finalSchema);

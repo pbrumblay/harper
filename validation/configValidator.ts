@@ -1,15 +1,15 @@
 'use strict';
 
 const fs = require('fs-extra');
-const Joi = require('joi');
+import Joi from 'joi';
 const os = require('os');
 const { boolean, string, number, array } = Joi.types();
 const { totalmem } = require('os');
 const path = require('path');
 const hdbLogger = require('../utility/logging/harper_logger.js');
-const hdbUtils = require('../utility/common_utils.js');
-const hdbTerms = require('../utility/hdbTerms.js');
-const validator = require('./validationWrapper.js');
+import * as hdbUtils from '../utility/common_utils.js';
+import * as hdbTerms from '../utility/hdbTerms.js';
+import * as validator from './validationWrapper.js';
 
 const DEFAULT_LOG_FOLDER = 'log';
 const DEFAULT_COMPONENTS_FOLDER = 'components';
@@ -24,7 +24,7 @@ const UNDEFINED_OPS_API = 'rootPath config parameter is undefined';
 const portConstraints = Joi.alternatives([number.min(0), string])
 	.optional()
 	.empty(null);
-const routeConstraints = Joi.alternatives([
+export const routeConstraints = Joi.alternatives([
 	array
 		.items(
 			string,
@@ -44,13 +44,9 @@ const routeConstraints = Joi.alternatives([
 let hdbRoot;
 let skipFsVal = false;
 
-module.exports = {
-	configValidator,
-	routesValidator,
-	routeConstraints,
-};
 
-function configValidator(configJson, skipFsValidation = false) {
+
+export function configValidator(configJson, skipFsValidation = false) {
 	skipFsVal = skipFsValidation;
 	hdbRoot = configJson.rootPath;
 	if (hdbUtils.isEmpty(hdbRoot)) {
@@ -331,7 +327,7 @@ function setDefaultRoot(parent, helpers) {
  * @param routesArray
  * @returns {*}
  */
-function routesValidator(routesArray) {
+export function routesValidator(routesArray) {
 	const schema = Joi.object({
 		routes: routeConstraints,
 	});

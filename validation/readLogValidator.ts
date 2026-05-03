@@ -1,19 +1,19 @@
 'use strict';
 
-const Joi = require('joi');
-const validator = require('./validationWrapper.js');
+import Joi from 'joi';
+import * as validator from './validationWrapper.js';
 const moment = require('moment');
 const fs = require('fs-extra');
 const path = require('path');
 const _ = require('lodash');
 const { getConfigPath } = require('../config/configUtils.js');
-const hdbTerms = require('../utility/hdbTerms.js');
+import * as hdbTerms from '../utility/hdbTerms.js';
 const { LOG_LEVELS } = require('../utility/hdbTerms.js');
 
 const LOG_DATE_FORMAT = 'YYYY-MM-DD hh:mm:ss';
 const INSTALL_LOG_LOCATION = path.resolve(__dirname, `../logs`);
 
-module.exports = function (object) {
+export default function (object: any) {
 	return validator.validateBySchema(object, readLogSchema);
 };
 

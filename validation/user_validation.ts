@@ -1,4 +1,4 @@
-const validator = require('./validationWrapper.js');
+import * as validator from './validationWrapper.js';
 
 const constraints = {
 	username: {
@@ -24,7 +24,7 @@ const constraints = {
 	},
 };
 
-function addUserValidation(object) {
+export function addUserValidation(object) {
 	constraints.password.presence = true;
 	constraints.username.presence = true;
 	constraints.role.presence = true;
@@ -32,7 +32,7 @@ function addUserValidation(object) {
 	return validator.validateObject(object, constraints);
 }
 
-function alterUserValidation(object) {
+export function alterUserValidation(object) {
 	constraints.password.presence = false;
 	constraints.username.presence = true;
 	constraints.role.presence = false;
@@ -40,7 +40,7 @@ function alterUserValidation(object) {
 	return validator.validateObject(object, constraints);
 }
 
-function dropUserValidation(object) {
+export function dropUserValidation(object) {
 	constraints.password.presence = false;
 	constraints.username.presence = true;
 	constraints.role.presence = false;
@@ -48,8 +48,4 @@ function dropUserValidation(object) {
 	return validator.validateObject(object, constraints);
 }
 
-module.exports = {
-	addUserValidation,
-	alterUserValidation,
-	dropUserValidation,
-};
+

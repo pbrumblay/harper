@@ -1,11 +1,11 @@
 'use strict';
 
-const hdbUtils = require('../utility/common_utils.js');
-const hdbTerms = require('../utility/hdbTerms.js');
-const schemaRegex = /^[\x20-\x2E|\x30-\x5F|\x61-\x7E]*$/;
-const Joi = require('joi');
+import * as hdbUtils from '../utility/common_utils.js';
+import * as hdbTerms from '../utility/hdbTerms.js';
+export const schemaRegex = /^[\x20-\x2E|\x30-\x5F|\x61-\x7E]*$/;
+import Joi from 'joi';
 
-const commonValidators = {
+export const commonValidators = {
 	schema_format: {
 		pattern: schemaRegex,
 		message: 'names cannot include backticks or forward slashes',
@@ -18,7 +18,7 @@ const commonValidators = {
 };
 
 // A Joi schema that can be used to validate hdb schemas and tables.
-const hdbSchemaTable = Joi.alternatives(
+export const hdbSchemaTable = Joi.alternatives(
 	Joi.string()
 		.min(1)
 		.max(commonValidators.schema_length.maximum)
@@ -28,7 +28,7 @@ const hdbSchemaTable = Joi.alternatives(
 	Joi.array()
 ).required();
 
-const hdbDatabase = Joi.alternatives(
+export const hdbDatabase = Joi.alternatives(
 	Joi.string()
 		.min(1)
 		.max(commonValidators.schema_length.maximum)
@@ -37,7 +37,7 @@ const hdbDatabase = Joi.alternatives(
 	Joi.number()
 );
 
-const hdbTable = Joi.alternatives(
+export const hdbTable = Joi.alternatives(
 	Joi.string()
 		.min(1)
 		.max(commonValidators.schema_length.maximum)
@@ -46,7 +46,7 @@ const hdbTable = Joi.alternatives(
 	Joi.number()
 ).required();
 
-function checkValidTable(propertyName, value) {
+export function checkValidTable(propertyName, value) {
 	if (!value) return `'${propertyName}' is required`;
 	if (typeof value !== 'string') return `'${propertyName}' must be a string`;
 	if (!value.length) return `'${propertyName}' must be at least one character`;
@@ -55,7 +55,7 @@ function checkValidTable(propertyName, value) {
 	return '';
 }
 
-function validateSchemaExists(value, helpers) {
+export function validateSchemaExists(value, helpers) {
 	if (!hdbUtils.doesSchemaExist(value)) {
 		return helpers.message(`Database '${value}' does not exist`);
 	}
@@ -63,7 +63,7 @@ function validateSchemaExists(value, helpers) {
 	return value;
 }
 
-function validateTableExists(value, helpers) {
+export function validateTableExists(value, helpers) {
 	const schema = helpers.state.ancestors[0].schema;
 	if (!hdbUtils.doesTableExist(schema, value)) {
 		return helpers.message(`Table '${value}' does not exist`);
@@ -72,7 +72,7 @@ function validateTableExists(value, helpers) {
 	return value;
 }
 
-function validateSchemaName(value, helpers) {
+export function validateSchemaName(value, helpers) {
 	if (value.toLowerCase() === hdbTerms.SYSTEM_SCHEMA_NAME) {
 		return helpers.message(
 			`'subscriptions[${helpers.state.path[1]}]' invalid database name, '${hdbTerms.SYSTEM_SCHEMA_NAME}' name is reserved`
@@ -82,14 +82,4 @@ function validateSchemaName(value, helpers) {
 	return value;
 }
 
-module.exports = {
-	commonValidators,
-	schemaRegex,
-	hdbSchemaTable,
-	validateSchemaExists,
-	validateTableExists,
-	validateSchemaName,
-	checkValidTable,
-	hdbDatabase,
-	hdbTable,
-};
+

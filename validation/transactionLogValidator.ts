@@ -1,14 +1,11 @@
 'use strict';
 
-const Joi = require('joi');
-const validator = require('./validationWrapper.js');
+import Joi from 'joi';
+import * as validator from './validationWrapper.js';
 
-module.exports = {
-	readTransactionLogValidator,
-	deleteTransactionLogsBeforeValidator,
-};
 
-function readTransactionLogValidator(req) {
+
+export function readTransactionLogValidator(req) {
 	const schema = Joi.object({
 		schema: Joi.string(),
 		database: Joi.string(),
@@ -21,7 +18,7 @@ function readTransactionLogValidator(req) {
 	return validator.validateBySchema(req, schema);
 }
 
-function deleteTransactionLogsBeforeValidator(req) {
+export function deleteTransactionLogsBeforeValidator(req) {
 	// `table` will need to be required for lmdb, but not for rocksdb
 	const schema = Joi.object({
 		schema: Joi.string(),

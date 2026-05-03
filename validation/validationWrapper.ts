@@ -52,13 +52,9 @@ validate.validators.hasValidFileExt = function (value, options) {
 		: `must include one of the following valid file extensions - '${options.join("', '")}'`;
 };
 
-module.exports = {
-	validateObject,
-	validateObjectAsync,
-	validateBySchema,
-};
 
-function validateObject(object, fileConstraints) {
+
+export function validateObject(object, fileConstraints) {
 	if (!object || !fileConstraints) {
 		return new Error('validateObject parameters were null');
 	}
@@ -74,7 +70,7 @@ function validateObject(object, fileConstraints) {
  * @param fileConstraints - validation rules for the json object
  * @returns {Promise<Error|null>}
  */
-async function validateObjectAsync(object, fileConstraints) {
+export async function validateObjectAsync(object, fileConstraints) {
 	if (!object || !fileConstraints) {
 		return new Error('validateObject parameters were null');
 	}
@@ -96,7 +92,7 @@ async function validateObjectAsync(object, fileConstraints) {
  * @param {Joi.ObjectSchema} schema
  * @returns {*}
  */
-function validateBySchema(object, schema) {
+export function validateBySchema(object, schema) {
 	let result = schema.validate(object, { allowUnknown: true, abortEarly: false, errors: { wrap: { label: "'" } } });
 
 	if (result.error) {

@@ -1,14 +1,10 @@
 'use strict';
 
-const schemaDescribe = require('../dataLayer/schemaDescribe.js');
+export const schemaDescribe = require('../dataLayer/schemaDescribe.js');
 const { hdbErrors } = require('../utility/errors/hdbError.js');
 const { getDatabases } = require('../resources/databases.js');
 
-module.exports = {
-	checkSchemaExists,
-	checkSchemaTableExists,
-	schemaDescribe,
-};
+
 
 /**
  * Checks the global hdbSchema for a schema and table
@@ -16,7 +12,7 @@ module.exports = {
  * @param tableName
  * @returns string returns a thrown message if schema and or table does not exist
  */
-async function checkSchemaExists(schemaName) {
+export async function checkSchemaExists(schemaName) {
 	let databases = getDatabases();
 	if (!databases[schemaName]) {
 		return hdbErrors.HDB_ERROR_MSGS.SCHEMA_NOT_FOUND(schemaName);
@@ -29,7 +25,7 @@ async function checkSchemaExists(schemaName) {
  * @param tableName
  * @returns string returns a thrown message if schema and or table does not exist
  */
-async function checkSchemaTableExists(schemaName, tableName) {
+export async function checkSchemaTableExists(schemaName, tableName) {
 	let invalidSchema = await checkSchemaExists(schemaName);
 	if (invalidSchema) {
 		return invalidSchema;

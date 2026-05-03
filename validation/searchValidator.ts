@@ -1,7 +1,7 @@
 const _ = require('lodash'),
 	validator = require('./validationWrapper.js');
-const Joi = require('joi');
-const hdbUtils = require('../utility/common_utils.js');
+import Joi from 'joi';
+import * as hdbUtils from '../utility/common_utils.js';
 const { hdbSchemaTable, checkValidTable, hdbTable, hdbDatabase } = require('./common_validators.js');
 const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
 const { getDatabases } = require('../resources/databases.js');
@@ -70,7 +70,7 @@ const searchByConditionsSchema = Joi.object({
 		.required(),
 });
 
-module.exports = function (searchObject, type) {
+export default function (searchObject: any, type: any) {
 	let validationError = null;
 	switch (type) {
 		case 'value':

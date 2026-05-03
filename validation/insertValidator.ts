@@ -1,6 +1,6 @@
 const { hdbTable, hdbDatabase } = require('./common_validators.js');
-const validator = require('./validationWrapper.js');
-const Joi = require('joi');
+import * as validator from './validationWrapper.js';
+import Joi from 'joi';
 const INVALID_ATTRIBUTE_NAMES = {
 	undefined: 'undefined',
 	null: 'null',
@@ -35,6 +35,6 @@ const insertSchema = Joi.object({
 	records: Joi.array().items(Joi.object().custom(customRecordsVal)).required(),
 });
 
-module.exports = function (insertObject) {
+export default function (insertObject: any) {
 	return validator.validateBySchema(insertObject, insertSchema);
 };

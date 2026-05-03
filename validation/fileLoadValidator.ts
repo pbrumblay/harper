@@ -1,14 +1,14 @@
 const clone = require('clone');
-const validator = require('./validationWrapper.js');
+import * as validator from './validationWrapper.js';
 const commonUtils = require('../utility/common_utils.js');
-const hdbTerms = require('../utility/hdbTerms.js');
+import * as hdbTerms from '../utility/hdbTerms.js';
 const fs = require('fs');
 const joi = require('joi');
 const { string } = joi.types();
 const { hdbErrors, handleHDBError } = require('../utility/errors/hdbError.js');
 const { HTTP_STATUS_CODES } = hdbErrors;
 
-const { commonValidators } = require('./common_validators.js');
+import { commonValidators } from './common_validators.js';
 
 const isRequiredString = ' is required';
 
@@ -96,22 +96,22 @@ const urlSchema = clone(baseJoiSchema);
 urlSchema.csv_url = string.uri().messages({ 'string.uri': "'csv_url' must be a valid url" }).required();
 urlSchema.passthrough_headers = joi.object();
 
-function dataObject(object) {
+export function dataObject(object) {
 	let validateRes = validator.validateObject(object, dataConstraints);
 	return postValidateChecks(object, validateRes);
 }
 
-function urlObject(object) {
+export function urlObject(object) {
 	let validateRes = validator.validateBySchema(object, joi.object(urlSchema));
 	return postValidateChecks(object, validateRes);
 }
 
-function fileObject(object) {
+export function fileObject(object) {
 	let validateRes = validator.validateObject(object, fileConstraints);
 	return postValidateChecks(object, validateRes);
 }
 
-function s3FileObject(object) {
+export function s3FileObject(object) {
 	let validateRes = validator.validateObject(object, s3FileConstraints);
 	return postValidateChecks(object, validateRes);
 }
@@ -145,9 +145,4 @@ function postValidateChecks(object, validateRes) {
 	return validateRes;
 }
 
-module.exports = {
-	dataObject,
-	urlObject,
-	fileObject,
-	s3FileObject,
-};
+
