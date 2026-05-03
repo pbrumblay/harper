@@ -1,17 +1,17 @@
 'use strict';
 
 // Note - do not import/use commonUtils.js in this module, it will cause circular dependencies.
-const fs = require('fs-extra');
-const { workerData, threadId, isMainThread } = require('worker_threads');
-const pathModule = require('path');
-const YAML = require('yaml');
-const PropertiesReader = require('properties-reader');
-const hdbTerms = require('../hdbTerms.js');
-const assignCMDENVVariables = require('../assignCmdEnvVariables.js').default || require('../assignCmdEnvVariables.js');
-const os = require('os');
-const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
-const { _assignPackageExport } = require('../../globals.js');
-const { Console } = require('console');
+import * as fs from 'fs-extra';
+import { workerData, threadId, isMainThread } from 'worker_threads';
+import * as pathModule from 'path';
+import * as YAML from 'yaml';
+import * as PropertiesReader from 'properties-reader';
+import * as hdbTerms from '../hdbTerms.js';
+import assignCMDENVVariables from '../assignCmdEnvVariables.js';
+import * as os from 'os';
+import { PACKAGE_ROOT } from '../../utility/packageUtils.js';
+import { _assignPackageExport } from '../../globals.js';
+import { Console } from 'console';
 // store the native write function so we can call it after we write to the log file (and store it on process.stdout
 // because unit tests will create multiple instances of this module)
 let nativeStdWrite = process.env.IS_SCRIPTED_SERVICE
@@ -19,7 +19,7 @@ let nativeStdWrite = process.env.IS_SCRIPTED_SERVICE
 			// if this is a child process started by a start/restart
 			// command, we can't write to stdout/stderr, we make this a noop
 		}
-	: process.stdout.nativeWrite || (process.stdout.nativeWrite = process.stdout.write);
+	: (process.stdout as any).nativeWrite || ((process.stdout as any).nativeWrite = process.stdout.write);
 let fileLoggers = new Map();
 const { join } = pathModule;
 
@@ -34,7 +34,7 @@ const LOG_LEVEL_HIERARCHY = {
 	trace: 1,
 };
 
-const OUTPUTS = {
+export const OUTPUTS = {
 	STDOUT: 'stdOut',
 	STDERR: 'stdErr',
 };
@@ -48,12 +48,12 @@ let logConsole;
 let log_to_file;
 let logToStdstreams;
 let colorMode;
-let logLevel;
+export let logLevel: any;
 let logName;
 let logRoot;
 let logFilePath;
 let mainLogger;
-let externalLogger; // default logger used for the global used by external components
+ // default logger used for the global used by external components
 let mainLogFd;
 let writeToLogFile;
 let logImmediately;
@@ -64,7 +64,7 @@ let hdbProperties;
 
 let rootConfig;
 
-function updateLogger(logger, logOptions, name) {
+function updateLogger(logger: any, logOptions: any, name?: string) {
 	logger.rotation = logOptions.rotation;
 	let path = logOptions.path;
 	if (path) {
@@ -88,7 +88,7 @@ function updateLogger(logger, logOptions, name) {
 // Using this conditional logger means that every method call must be optional like log.trace?.('message),
 // but there can be performance benefits to using this since it means that the arguments
 // do not need to be evaluated at all.
-function updateConditional(logger) {
+function updateConditional(logger: any) {
 	const conditional = logger.conditional ?? (logger.conditional = {});
 	conditional.notify = LOG_LEVEL_HIERARCHY.notify >= logger.level ? logger.notify.bind(logger) : undefined;
 	conditional.fatal = LOG_LEVEL_HIERARCHY.fatal >= logger.level ? logger.fatal.bind(logger) : undefined;
@@ -101,7 +101,7 @@ function updateConditional(logger) {
 /**
  * Resolve a config path value against rootPath if it is relative.
  */
-function resolveLogPath(configPath, rootPath) {
+function resolveLogPath(configPath: string, rootPath: string) {
 	if (!configPath || !rootPath) return configPath;
 	if (pathModule.isAbsolute(configPath)) return configPath;
 	return pathModule.resolve(rootPath, configPath);
@@ -148,6 +148,7 @@ async function updateLogSettings() {
 }
 
 class HarperLogger extends Console {
+	[key: string]: any;
 	constructor(streams, level) {
 		streams.stdout.removeListener = () => {};
 		streams.stderr.removeListener = () => {};
@@ -263,10 +264,10 @@ module.exports = {
 /**
  * We call this if stdio is not functional
  */
-function disableStdio() {
+export function disableStdio(unused?: any) {
 	nativeStdWrite = function () {}; // make this a noop
 }
-module.exports.externalLogger = {
+export let externalLogger: any = {
 	notify(...args) {
 		externalLogger.notify(...args);
 	},
@@ -294,18 +295,18 @@ module.exports.externalLogger = {
 	loggerWithTag(tag) {
 		return externalLogger.withTag(tag);
 	},
-	forComponent(name) {
-		return externalLogger.forComponent(name);
-	},
+	forComponent(name: string) {
+			return externalLogger.forComponent(name);
+		}
 };
-_assignPackageExport('logger', module.exports.externalLogger);
+_assignPackageExport('logger', externalLogger);
 
 /**
  * Check if the current log level is at or below the given level.
  * @param level
  * @return {boolean}
  */
-function logsAtLevel(level) {
+export function logsAtLevel(level: any) {
 	return LOG_LEVEL_HIERARCHY[logLevel] <= LOG_LEVEL_HIERARCHY[level];
 }
 
@@ -314,7 +315,7 @@ function logsAtLevel(level) {
  * If the settings file doesn't exist (during install) check for command or env vars, if there aren't
  * any, use default values.
  */
-function initLogSettings(forceInit = false) {
+export function initLogSettings(forceInit = false) {
 	try {
 		if (hdbProperties === undefined || forceInit) {
 			closeLogFile();
@@ -445,7 +446,7 @@ function stdioLogging() {
 	}
 }
 
-function loggerWithTag(tag, conditional, logger = mainLogger) {
+export function loggerWithTag(tag: string, conditional?: boolean, logger: any = mainLogger) {
 	tag = tag.replace(/ /g, '-'); // tag can't have spaces
 	return {
 		notify: logWithTag(logger.notify, 'notify'),
@@ -470,7 +471,7 @@ function loggerWithTag(tag, conditional, logger = mainLogger) {
 	}
 }
 
-function suppressLogging(callback) {
+export function suppressLogging(callback) {
 	try {
 		loggingEnabled = false;
 		callback();
@@ -485,7 +486,8 @@ const SERVICE_NAME = workerData?.name?.replace(/ /g, '-') || 'main';
 let currentLevel = 'info'; // default is info
 let currentServiceName;
 let currentTag;
-function createLogger({
+export function createLogger(options: any = {} as any) {
+let {
 	path: logFilePath,
 	level: logLevel,
 	stdStreams: logToStdstreams,
@@ -493,7 +495,7 @@ function createLogger({
 	isExternalInstance,
 	writeToLog,
 	component,
-}) {
+}: any = options;
 	if (!logLevel) logLevel = 'info';
 	let level = typeof logLevel === 'number' ? logLevel : LOG_LEVEL_HIERARCHY[logLevel];
 	let logger;
@@ -649,7 +651,7 @@ function getFileLogger(path, rotation, isExternalInstance) {
 			}
 			if (logImmediately) {
 				clearTimeout(logTimer);
-				logQueuedData();
+				logQueuedData(undefined);
 			}
 		} else {
 			if (logImmediately || logTimeUsage < performance.now() + LOG_TIME_USAGE_THRESHOLD) {
@@ -663,8 +665,8 @@ function getFileLogger(path, rotation, isExternalInstance) {
 		}
 	}
 	// this is called on a timer, and will write the log buffer to the file
-	function logQueuedData(entry) {
-		openLogFile();
+	function logQueuedData(entry?: any) {
+		openLogFile(undefined);
 		if (logFD) {
 			let startTime = performance.now();
 			fs.appendFileSync(logFD, logBuffer ? logBuffer.join('') : entry);
@@ -676,7 +678,7 @@ function getFileLogger(path, rotation, isExternalInstance) {
 		if (logBuffer) logBuffer = null;
 	}
 
-	function closeLogFile() {
+	function closeLogFile(unused?: any) {
 		try {
 			fs.closeSync(logFD);
 		} catch {}
@@ -684,7 +686,7 @@ function getFileLogger(path, rotation, isExternalInstance) {
 		if (isExternalInstance) mainLogFd = null;
 	}
 
-	function openLogFile(isRetry) {
+	function openLogFile(isRetry?: any) {
 		if (!logFD) {
 			try {
 				logFD = fs.openSync(path, 'a');
@@ -711,7 +713,7 @@ function getFileLogger(path, rotation, isExternalInstance) {
  * @param args - rest parameter syntax (...args), allows function to accept indefinite number of args as an array of log messages(strings/objects).
  * Provide args separated by commas. No need to stringify objects. Console will do that
  */
-function info(...args) {
+export function info(...args) {
 	mainLogger.info(...args);
 }
 
@@ -720,7 +722,7 @@ function info(...args) {
  * @param args - rest parameter syntax (...args), allows function to accept indefinite number of args as an array of log messages(strings/objects).
  * Provide args separated by commas. No need to stringify objects. Console will do that
  */
-function trace(...args) {
+export function trace(...args) {
 	mainLogger.trace(...args);
 }
 
@@ -729,7 +731,7 @@ function trace(...args) {
  * @param args - rest parameter syntax (...args), allows function to accept indefinite number of args as an array of log messages(strings/objects).
  * Provide args separated by commas. No need to stringify objects. Console will do that
  */
-function error(...args) {
+export function error(...args) {
 	mainLogger.error(...args);
 }
 
@@ -738,7 +740,7 @@ function error(...args) {
  * @param args - rest parameter syntax (...args), allows function to accept indefinite number of args as an array of log messages(strings/objects).
  * Provide args separated by commas. No need to stringify objects. Console will do that
  */
-function debug(...args) {
+export function debug(...args) {
 	mainLogger.debug(...args);
 }
 
@@ -747,7 +749,7 @@ function debug(...args) {
  * @param args - rest parameter syntax (...args), allows function to accept indefinite number of args as an array of log messages(strings/objects).
  * Provide args separated by commas. No need to stringify objects. Console will do that
  */
-function notify(...args) {
+export function notify(...args) {
 	mainLogger.notify(...args);
 }
 
@@ -756,7 +758,7 @@ function notify(...args) {
  * @param args - rest parameter syntax (...args), allows function to accept indefinite number of args as an array of log messages(strings/objects).
  * Provide args separated by commas. No need to stringify objects. Console will do that
  */
-function fatal(...args) {
+export function fatal(...args) {
 	mainLogger.fatal(...args);
 }
 
@@ -765,11 +767,11 @@ function fatal(...args) {
  * @param args - rest parameter syntax (...args), allows function to accept indefinite number of args as an array of log messages(strings/objects).
  * Provide args separated by commas. No need to stringify objects. Console will do that
  */
-function warn(...args) {
+export function warn(...args) {
 	mainLogger.warn(...args);
 }
 
-function logCustomLevel(level, output, options, ...args) {
+export function logCustomLevel(level: any, output: any, options: any, ...args: any[]) {
 	currentServiceName = options.service_name;
 	try {
 		mainLogger[level](...args);
@@ -783,7 +785,7 @@ function logCustomLevel(level, output, options, ...args) {
  * that happens when commonUtils is imported.
  * @returns {*}
  */
-function getPropsFilePath() {
+export function getPropsFilePath() {
 	let homeDir = undefined;
 	try {
 		homeDir = os.homedir();
@@ -827,15 +829,15 @@ function getLogConfig(hdbConfigPath) {
 		const configDoc = YAML.parseDocument(fs.readFileSync(hdbConfigPath, 'utf8'));
 		const rootPath = configDoc.getIn(['rootPath']);
 		const level = configDoc.getIn(['logging', 'level']);
-		const configLogPath = resolveLogPath(configDoc.getIn(['logging', 'root']), rootPath);
+		const configLogPath = resolveLogPath(configDoc.getIn(['logging', 'root']) as any, rootPath as any);
 		const toFile = configDoc.getIn(['logging', 'file']);
 		const toStream = configDoc.getIn(['logging', 'stdStreams']);
 		const logConsole = configDoc.getIn(['logging', 'console']);
 		const colorMode = configDoc.getIn(['logging', 'colors']) ?? true; // default to true
-		const rotation = configDoc.getIn(['logging', 'rotation'])?.toJSON();
+		const rotation = ((configDoc.getIn(['logging', 'rotation'])) as any)?.toJSON();
 		// Resolve rotation path if relative
 		if (rotation?.path) {
-			rotation.path = resolveLogPath(rotation.path, rootPath);
+			rotation.path = resolveLogPath(rotation.path, rootPath as any);
 		}
 
 		return {
@@ -887,11 +889,11 @@ function getDefaultConfig() {
  * @param error
  * @return {string|string}
  */
-function errorToString(error) {
+export function errorToString(error: any) {
 	return typeof error.message === 'string' ? `${error.constructor.name}: ${error.message}` : error.toString();
 }
 
-function setMainLogger(logger) {
+export function setMainLogger(logger: any) {
 	mainLogger = logger;
 }
 function closeLogFile() {
@@ -901,7 +903,7 @@ function closeLogFile() {
 	mainLogFd = null;
 }
 
-function AuthAuditLog(username, status, type, originatingIp, requestMethod, path) {
+export function AuthAuditLog(this: any, username: any, status: any, type: any, originatingIp: any, requestMethod: any, path: any) {
 	this.username = username;
 	this.status = status;
 	this.type = type;
@@ -910,4 +912,33 @@ function AuthAuditLog(username, status, type, originatingIp, requestMethod, path
 	this.path = path;
 }
 // we have to load this at the end to avoid circular dependencies problems
-const { RootConfigWatcher } = require('../../config/RootConfigWatcher.js');
+import { RootConfigWatcher } from '../../config/RootConfigWatcher.js';
+
+export const getLogFilePath = () => logFilePath;
+export const forComponent = (name: string, isExternal?: boolean) => mainLogger.forComponent(name, isExternal);
+export default {
+	notify,
+	fatal,
+	error,
+	warn,
+	info,
+	debug,
+	trace,
+	get logLevel() { return logLevel; },
+	loggerWithTag,
+	suppressLogging,
+	initLogSettings,
+	logCustomLevel,
+	closeLogFile,
+	createLogger,
+	logsAtLevel,
+	getLogFilePath,
+	forComponent,
+	setMainLogger,
+	setLogLevel,
+	OUTPUTS,
+	disableStdio,
+	externalLogger,
+	AuthAuditLog,
+	errorToString
+};

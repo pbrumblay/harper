@@ -70,9 +70,9 @@ export async function processLocalTransaction(req: OperationRequest, operationFu
 	try {
 		if (
 			req.body.operation !== 'read_log' &&
-			(harperLogger.log_level === terms.LOG_LEVELS.INFO ||
-				harperLogger.log_level === terms.LOG_LEVELS.DEBUG ||
-				harperLogger.log_level === terms.LOG_LEVELS.TRACE)
+			(harperLogger.logLevel === terms.LOG_LEVELS.INFO ||
+				harperLogger.logLevel === terms.LOG_LEVELS.DEBUG ||
+				harperLogger.logLevel === terms.LOG_LEVELS.TRACE)
 		) {
 			// Need to remove auth variables, but we don't want to create an object unless
 			// the logging is actually going to happen.
