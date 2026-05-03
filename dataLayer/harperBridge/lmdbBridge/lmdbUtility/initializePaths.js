@@ -1,6 +1,6 @@
 'use strict';
 
-const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.js');
 const hdbUtils = require('../../../../utility/common_utils.js');
 const env = require('../../../../utility/environment/environmentManager.js');
 const path = require('path');

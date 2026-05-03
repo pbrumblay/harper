@@ -1,7 +1,7 @@
 'use strict';
 
 const pm2Utils = require('../processManagement/processManagement.js');
-const hdbTerms = require('../hdbTerms.ts');
+const hdbTerms = require('../hdbTerms.js');
 
 /**
  * Gets a list of all the running Harper processes and calls reload on each one.

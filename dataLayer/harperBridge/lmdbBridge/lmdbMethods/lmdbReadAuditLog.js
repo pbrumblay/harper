@@ -2,7 +2,7 @@
 
 const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');
 const lmdbTerms = require('../../../../utility/lmdb/terms.js');
-const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.js');
 const hdbUtils = require('../../../../utility/common_utils.js');
 const { getTransactionAuditStorePath } = require('../lmdbUtility/initializePaths.js');
 const searchUtility = require('../../../../utility/lmdb/searchUtility.js');

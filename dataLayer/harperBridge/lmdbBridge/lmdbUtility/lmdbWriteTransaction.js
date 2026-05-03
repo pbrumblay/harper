@@ -8,11 +8,11 @@ const LMDBDeleteTransactionObject = require('./LMDBDeleteTransactionObject.js');
 
 const lmdbTerms = require('../../../../utility/lmdb/terms.js');
 const hdbUtil = require('../../../../utility/common_utils.js');
-const { CONFIG_PARAMS } = require('../../../../utility/hdbTerms.ts');
+const { CONFIG_PARAMS } = require('../../../../utility/hdbTerms.js');
 const envMngr = require('../../../../utility/environment/environmentManager.js');
 envMngr.initSync();
 
-const OPERATIONS_ENUM = require('../../../../utility/hdbTerms.ts').OPERATIONS_ENUM;
+const OPERATIONS_ENUM = require('../../../../utility/hdbTerms.js').OPERATIONS_ENUM;
 const { getTransactionAuditStorePath } = require('./initializePaths.js');
 
 module.exports = writeTransaction;

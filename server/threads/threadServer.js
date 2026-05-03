@@ -11,15 +11,15 @@ exports.whenComponentsLoaded = new Promise((resolve) => {
 
 const harperLogger = require('../../utility/logging/harper_logger.js');
 const env = require('../../utility/environment/environmentManager.js');
-const terms = require('../../utility/hdbTerms.ts');
-const { server } = require('../Server.ts');
+const terms = require('../../utility/hdbTerms.js');
+const { server } = require('../Server.js');
 let { createServer: createSecureSocketServer } = require('node:tls');
 const { restartNumber, getWorkerIndex } = require('./manageThreads.js');
-const { createReuseportFd } = require('../serverHelpers/Request.ts');
+const { createReuseportFd } = require('../serverHelpers/Request.js');
 const { createTLSSelector } = require('../../security/keys.js');
 const { startupLog } = require('../../bin/run.js');
-const { SERVERS, setPortServerMap, portServer } = require('../serverRegistry.ts');
-const httpComponent = require('../http.ts');
+const { SERVERS, setPortServerMap, portServer } = require('../serverRegistry.js');
+const httpComponent = require('../http.js');
 const globals = require('../../globals.js');
 
 const debugThreads = env.get(terms.CONFIG_PARAMS.THREADS_DEBUG);
@@ -248,7 +248,7 @@ if (!isMainThread && !workerData?.noServerStart) {
  * @param options
  */
 function onSocket(listener, options) {
-	let getComponentName = require('../../components/componentLoader.ts').getComponentName;
+	let getComponentName = require('../../components/componentLoader.js').getComponentName;
 	let socketServer;
 	if (options.securePort) {
 		setPortServerMap(options.securePort, { protocol_name: 'TLS', name: getComponentName() });

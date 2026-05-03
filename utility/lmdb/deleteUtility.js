@@ -7,7 +7,7 @@ const log = require('../logging/harper_logger.js');
 // eslint-disable-next-line no-unused-vars
 const lmdb = require('lmdb');
 const DeleteRecordsResponseObject = require('./DeleteRecordsResponseObject.js');
-const hdbTerms = require('../hdbTerms.ts');
+const hdbTerms = require('../hdbTerms.js');
 const UPDATED_TIME_ATTRIBUTE_NAME = hdbTerms.TIME_STAMP_NAMES_ENUM.UPDATED_TIME;
 
 /**

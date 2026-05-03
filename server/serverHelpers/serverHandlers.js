@@ -1,6 +1,6 @@
 'use strict';
 
-const terms = require('../../utility/hdbTerms.ts');
+const terms = require('../../utility/hdbTerms.js');
 const hdbUtil = require('../../utility/common_utils.js');
 const harperLogger = require('../../utility/logging/harper_logger.js');
 const { handleHDBError, hdbErrors } = require('../../utility/errors/hdbError.js');
@@ -12,8 +12,8 @@ const util = require('util');
 
 const auth = require('../../security/fastifyAuth.js');
 const pAuthorize = util.promisify(auth.authorize);
-const serverUtilities = require('./serverUtilities.ts');
-const { applyImpersonation } = require('../../security/impersonation.ts');
+const serverUtilities = require('./serverUtilities.js');
+const { applyImpersonation } = require('../../security/impersonation.js');
 const { createGzip, constants } = require('zlib');
 
 const NO_AUTH_OPERATIONS = [

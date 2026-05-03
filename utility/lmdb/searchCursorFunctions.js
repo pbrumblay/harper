@@ -1,6 +1,6 @@
 'use strict';
 
-const hdbTerms = require('../hdbTerms.ts');
+const hdbTerms = require('../hdbTerms.js');
 
 function parseRow(originalObject, attributes) {
 	let returnObject = Object.create(null);

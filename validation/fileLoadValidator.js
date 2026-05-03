@@ -1,7 +1,7 @@
 const clone = require('clone');
 const validator = require('./validationWrapper.js');
 const commonUtils = require('../utility/common_utils.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const fs = require('fs');
 const joi = require('joi');
 const { string } = joi.types();

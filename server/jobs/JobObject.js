@@ -1,6 +1,6 @@
 'use strict';
 
-const hdbTerm = require('../../utility/hdbTerms.ts');
+const hdbTerm = require('../../utility/hdbTerms.js');
 const moment = require('moment');
 const uuidV4 = require('uuid').v4;
 

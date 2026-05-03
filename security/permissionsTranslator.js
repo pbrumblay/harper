@@ -1,7 +1,7 @@
 'use strict';
 
 const _ = require('lodash');
-const terms = require('../utility/hdbTerms.ts');
+const terms = require('../utility/hdbTerms.js');
 const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
 const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
 const logger = require('../utility/logging/harper_logger.js');

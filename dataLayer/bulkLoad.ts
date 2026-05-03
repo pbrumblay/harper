@@ -3,7 +3,7 @@
 import * as insert from './insert.js';
 import * as validator from '../validation/fileLoadValidator.js';
 import needle from 'needle';
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 import * as hdbUtils from '../utility/common_utils.js';
 import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
 import { HTTP_STATUS_CODES, HDB_ERROR_MSGS, CHECK_LOGS_WRAPPER } from '../utility/errors/commonErrors.js';
@@ -24,7 +24,7 @@ import * as AWSConnector from '../utility/AWS/AWSConnector.js';
 import { BulkLoadFileObject, BulkLoadDataObject } from './dataObjects/BulkLoadObjects.js';
 import PermissionResponseObject from '../security/data_objects/PermissionResponseObject.js';
 import { verifyBulkLoadAttributePerms } from '../utility/operation_authorization.js';
-const { databases } = require('../resources/databases.ts');
+const { databases } = require('../resources/databases.js');
 import { coerceType } from '../resources/Table.js';
 
 const CSV_NO_RECORDS_MSG = 'No records parsed from csv file.';

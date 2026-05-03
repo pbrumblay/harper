@@ -2,7 +2,7 @@
 
 const env = require('../../../utility/environment/environmentManager.js');
 env.initSync();
-const { CONFIG_PARAMS } = require('../../../utility/hdbTerms.ts');
+const { CONFIG_PARAMS } = require('../../../utility/hdbTerms.js');
 
 /**
  * Builds CORS options object to pass to cors plugin when/if it needs to be registered with Fastify

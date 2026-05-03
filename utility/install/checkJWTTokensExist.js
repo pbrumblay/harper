@@ -4,7 +4,7 @@ const env = require('../../utility/environment/environmentManager.js');
 env.initSync();
 const fs = require('fs-extra');
 const path = require('path');
-const terms = require('../../utility/hdbTerms.ts');
+const terms = require('../../utility/hdbTerms.js');
 const crypto = require('crypto');
 const uuid = require('uuid').v4;
 

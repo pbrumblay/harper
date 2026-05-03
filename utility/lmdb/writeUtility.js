@@ -6,7 +6,7 @@ const UpdateRecordsResponseObject = require('./UpdateRecordsResponseObject.js');
 const UpsertRecordsResponseObject = require('./UpsertRecordsResponseObject.js');
 const common = require('./commonUtility.js');
 const LMDB_ERRORS = require('../errors/commonErrors.js').LMDB_ERRORS_ENUM;
-const hdbTerms = require('../hdbTerms.ts');
+const hdbTerms = require('../hdbTerms.js');
 const hdbUtils = require('../common_utils.js');
 const uuid = require('uuid');
 // eslint-disable-next-line no-unused-vars

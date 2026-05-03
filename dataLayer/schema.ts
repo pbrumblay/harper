@@ -7,14 +7,14 @@ import Joi from 'joi';
 import logger from '../utility/logging/harper_logger.js';
 import { v4 as uuidV4 } from 'uuid';
 import * as signalling from '../utility/signalling.js';
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 import * as util from 'util';
 const harperBridge = require('./harperBridge/harperBridge.js');
 import { handleHDBError, hdbErrors, ClientError } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 import { SchemaEventMsg } from '../server/threads/itc.js';
-const { getDatabases, dropTableMeta } = require('../resources/databases.ts');
+const { getDatabases, dropTableMeta } = require('../resources/databases.js');
 import { transformReq } from '../utility/common_utils.js';
 import { server } from '../server/Server.js';
 import { cleanupOrphans } from '../resources/blob.js';

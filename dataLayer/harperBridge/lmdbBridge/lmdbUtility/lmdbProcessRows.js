@@ -2,7 +2,7 @@
 
 // eslint-disable-next-line no-unused-vars
 const InsertObject = require('../../../InsertObject.js').default || require('../../../InsertObject.js');
-const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.js');
 const hdbUtils = require('../../../../utility/common_utils.js');
 const log = require('../../../../utility/logging/harper_logger.js');
 const uuid = require('uuid');

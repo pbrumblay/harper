@@ -2,10 +2,10 @@
 
 const { Worker, MessageChannel, parentPort, isMainThread, threadId, workerData } = require('worker_threads');
 const { join, isAbsolute, extname } = require('path');
-const { server } = require('../Server.ts');
+const { server } = require('../Server.js');
 const { totalmem } = require('os');
 const { setHeapSnapshotNearHeapLimit } = require('v8');
-const hdbTerms = require('../../utility/hdbTerms.ts');
+const hdbTerms = require('../../utility/hdbTerms.js');
 const envMgr = require('../../utility/environment/environmentManager.js');
 const harperLogger = require('../../utility/logging/harper_logger.js');
 const { randomBytes } = require('crypto');
@@ -243,7 +243,7 @@ async function restartWorkers(
 			harperLogger.error('Unable to reestablish current working directory', e);
 		}
 		// problematic cyclic dependency, bind late
-		const { resetRestartNeeded } = require('../../components/requestRestart.ts');
+		const { resetRestartNeeded } = require('../../components/requestRestart.js');
 		resetRestartNeeded();
 		// This is here to prevent circular dependencies
 		if (startReplacementThreads) {

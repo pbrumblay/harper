@@ -8,7 +8,7 @@ const alasql = require('alasql');
 const RecursiveIterator = require('recursive-iterator');
 const harperLogger = require('../utility/logging/harper_logger.js');
 const hdbUtils = require('../utility/common_utils.js');
-const terms = require('../utility/hdbTerms.ts');
+const terms = require('../utility/hdbTerms.js');
 
 class sqlStatementBucket {
 	constructor(ast) {

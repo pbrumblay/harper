@@ -7,7 +7,7 @@
  * Any time a directive file is added to the project, it must be required in this manager.
  */
 const hdbUtils = require('../../utility/common_utils.js');
-const hdbTerms = require('../../utility/hdbTerms.ts');
+const hdbTerms = require('../../utility/hdbTerms.js');
 const hdbLog = require('../../utility/logging/harper_logger.js');
 const { DATA_VERSION, UPGRADE_VERSION } = hdbTerms.UPGRADE_JSON_FIELD_NAMES_ENUM;
 

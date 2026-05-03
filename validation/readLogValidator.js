@@ -7,8 +7,8 @@ const fs = require('fs-extra');
 const path = require('path');
 const _ = require('lodash');
 const { getConfigPath } = require('../config/configUtils.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
-const { LOG_LEVELS } = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
+const { LOG_LEVELS } = require('../utility/hdbTerms.js');
 
 const LOG_DATE_FORMAT = 'YYYY-MM-DD hh:mm:ss';
 const INSTALL_LOG_LOCATION = path.resolve(__dirname, `../logs`);

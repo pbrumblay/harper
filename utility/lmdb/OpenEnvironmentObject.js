@@ -6,7 +6,7 @@ const MAP_SIZE = 1024 * 1024 * 1024;
 const MAX_DBS = 10000;
 const MAX_READERS = 2048;
 const envMngr = require('../environment/environmentManager.js');
-const terms = require('../../utility/hdbTerms.ts');
+const terms = require('../../utility/hdbTerms.js');
 envMngr.initSync();
 
 class OpenEnvironmentObject {

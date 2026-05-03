@@ -1,5 +1,5 @@
 'use strict';
-const OPERATIONS_ENUM = require('../../utility/hdbTerms.ts').OPERATIONS_ENUM;
+const OPERATIONS_ENUM = require('../../utility/hdbTerms.js').OPERATIONS_ENUM;
 
 /**
  * object representing an UPSERT operation

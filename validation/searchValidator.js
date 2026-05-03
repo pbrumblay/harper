@@ -4,7 +4,7 @@ const Joi = require('joi');
 const hdbUtils = require('../utility/common_utils.js');
 const { hdbSchemaTable, checkValidTable, hdbTable, hdbDatabase } = require('./common_validators.js');
 const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
-const { getDatabases } = require('../resources/databases.ts');
+const { getDatabases } = require('../resources/databases.js');
 const { HTTP_STATUS_CODES } = hdbErrors;
 
 const searchByValueSchema = Joi.object({

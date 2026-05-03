@@ -1,7 +1,7 @@
 'use strict';
 
 const hdbUtils = require('../utility/common_utils.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const schemaRegex = /^[\x20-\x2E|\x30-\x5F|\x61-\x7E]*$/;
 const Joi = require('joi');
 

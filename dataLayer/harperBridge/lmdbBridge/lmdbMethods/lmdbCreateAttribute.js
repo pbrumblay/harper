@@ -1,6 +1,6 @@
 'use strict';
 
-const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.js');
 const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');
 const writeUtility = require('../../../../utility/lmdb/writeUtility.js');
 const { getSystemSchemaPath, getSchemaPath } = require('../lmdbUtility/initializePaths.js');

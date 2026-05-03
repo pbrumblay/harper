@@ -10,7 +10,7 @@ const DBIDefinition = require('./DBIDefinition.js');
 const { OpenDBIObject } = require('./OpenDBIObject.js');
 const OpenEnvironmentObject = require('./OpenEnvironmentObject.js');
 const lmdbTerms = require('./terms.js');
-const hdbTerms = require('../hdbTerms.ts');
+const hdbTerms = require('../hdbTerms.js');
 const { resetDatabases } = require('../../resources/databases.js');
 const envMngr = require('../environment/environmentManager.js');
 

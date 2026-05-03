@@ -3,7 +3,7 @@
 const Joi = require('joi');
 const { string, number } = Joi.types();
 const fs = require('fs-extra');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const path = require('path');
 const validator = require('../validation/validationWrapper.js');
 

@@ -3,7 +3,7 @@
 const insertUpdateValidate = require('../../bridgeUtility/insertUpdateValidate.js');
 const lmdbProcessRows = require('../lmdbUtility/lmdbProcessRows.js');
 const lmdbCheckNewAttributes = require('../lmdbUtility/lmdbCheckForNewAttributes.js');
-const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.js');
 const lmdb_update_records = require('../../../../utility/lmdb/writeUtility.js').updateRecords;
 const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');
 const { getSchemaPath } = require('../lmdbUtility/initializePaths.js');

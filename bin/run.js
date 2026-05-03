@@ -5,7 +5,7 @@ env.initSync();
 
 // This unused restart require is here so that main thread loads ITC event listener defined in restart file. Do not remove.
 require('./restart.js');
-const terms = require('../utility/hdbTerms.ts');
+const terms = require('../utility/hdbTerms.js');
 const { CONFIG_PARAMS } = terms;
 const hdbLogger = require('../utility/logging/harper_logger.js');
 const fs = require('fs-extra');
@@ -15,17 +15,17 @@ const { install } = require('../utility/install/installer.js');
 const chalk = require('chalk');
 const { packageJson } = require('../utility/packageUtils.js');
 const hdbUtils = require('../utility/common_utils.js');
-const installation = require('../utility/installation.ts');
+const installation = require('../utility/installation.js');
 const configUtils = require('../config/configUtils.js');
 const assignCMDENVVariables =
 	require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
 const upgrade = require('./upgrade.js');
-const { compactOnStart, migrateOnStart } = require('./copyDb.ts');
+const { compactOnStart, migrateOnStart } = require('./copyDb.js');
 const minimist = require('minimist');
 const keys = require('../security/keys.js');
-const { startHTTPThreads } = require('../server/threads/socketRouter.ts');
+const { startHTTPThreads } = require('../server/threads/socketRouter.js');
 const hdbInfoController = require('../dataLayer/hdbInfoController.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const { getHdbPid, isProcessRunning } = require('../utility/processManagement/processManagement.js');
 const { PACKAGE_ROOT } = require('../utility/packageUtils');
 

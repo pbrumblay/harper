@@ -6,7 +6,7 @@ import * as commonUtils from '../utility/common_utils.js';
 import moment from 'moment';
 import harperLogger from '../utility/logging/harper_logger.js';
 import { promisify, callbackify } from 'util';
-const terms = require('../utility/hdbTerms.ts');
+const terms = require('../utility/hdbTerms.js');
 import * as globalSchema from '../utility/globalSchema.js';
 const pGlobalSchema = promisify(globalSchema.getTableSchema);
 const harperBridge = require('./harperBridge/harperBridge.js');

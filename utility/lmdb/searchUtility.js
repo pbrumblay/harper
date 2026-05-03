@@ -5,7 +5,7 @@ const environmentUtility = require('./environmentUtility.js');
 const common = require('./commonUtility.js');
 const lmdbTerms = require('./terms.js');
 const LMDB_ERRORS = require('../errors/commonErrors.js').LMDB_ERRORS_ENUM;
-const hdbTerms = require('../hdbTerms.ts');
+const hdbTerms = require('../hdbTerms.js');
 const cursorFunctions = require('./searchCursorFunctions.js');
 const { parseRow } = cursorFunctions;
 // eslint-disable-next-line no-unused-vars

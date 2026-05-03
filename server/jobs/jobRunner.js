@@ -3,7 +3,7 @@
 const { join } = require('node:path');
 
 const hdbUtil = require('../../utility/common_utils.js');
-const hdbTerms = require('../../utility/hdbTerms.ts');
+const hdbTerms = require('../../utility/hdbTerms.js');
 const moment = require('moment');
 const bulkLoad = require('../../dataLayer/bulkLoad.js');
 const log = require('../../utility/logging/harper_logger.js');

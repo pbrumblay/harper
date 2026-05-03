@@ -12,7 +12,7 @@ import * as util from 'util';
 const pGetTableSchema = util.promisify(globalSchema.getTableSchema);
 const pSearch = util.promisify(search.search);
 
-const terms = require('../utility/hdbTerms.ts');
+const terms = require('../utility/hdbTerms.js');
 import * as hdbUtils from '../utility/common_utils.js';
 
 //here we call to define and import custom functions to alasql

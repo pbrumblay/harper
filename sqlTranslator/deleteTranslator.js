@@ -4,7 +4,7 @@ const log = require('../utility/logging/harper_logger.js');
 const harperBridge = require('../dataLayer/harperBridge/harperBridge.js');
 const util = require('util');
 const hdbUtils = require('../utility/common_utils.js');
-const terms = require('../utility/hdbTerms.ts');
+const terms = require('../utility/hdbTerms.js');
 const globalSchema = require('../utility/globalSchema.js');
 
 const RECORD = 'record';

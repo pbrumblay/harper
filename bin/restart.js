@@ -2,17 +2,17 @@
 
 const minimist = require('minimist');
 const { isMainThread, parentPort } = require('worker_threads');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const hdbLogger = require('../utility/logging/harper_logger.js');
 const processMan = require('../utility/processManagement/processManagement.js');
-const { compactOnStart } = require('./copyDb.ts');
+const { compactOnStart } = require('./copyDb.js');
 const { restartWorkers, onMessageByType, shutdownWorkersNow } = require('../server/threads/manageThreads.js');
 const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
 const { HTTP_STATUS_CODES } = hdbErrors;
 const envMgr = require('../utility/environment/environmentManager.js');
 const path = require('node:path');
 const { unlinkSync } = require('node:fs');
-const { getThisNodeName } = require('../server/nodeName.ts');
+const { getThisNodeName } = require('../server/nodeName.js');
 envMgr.initSync();
 
 const RESTART_RESPONSE = `Restarting Harper. This may take up to ${hdbTerms.RESTART_TIMEOUT_MS / 1000} seconds.`;

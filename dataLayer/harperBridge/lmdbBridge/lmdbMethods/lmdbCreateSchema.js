@@ -1,6 +1,6 @@
 'use strict';
 
-const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.js');
 const lmdbCreateRecords = require('./lmdbCreateRecords.js');
 const InsertObject = require('../../../InsertObject.js').default || require('../../../InsertObject.js');
 const fs = require('fs-extra');

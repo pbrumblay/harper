@@ -2,7 +2,7 @@
 
 const hdbUtils = require('../../../utility/common_utils.js');
 const log = require('../../../utility/logging/harper_logger.js');
-const { getDatabases } = require('../../../resources/databases.ts');
+const { getDatabases } = require('../../../resources/databases.js');
 const { ClientError } = require('../../../utility/errors/hdbError.js');
 
 module.exports = insertUpdateValidate;

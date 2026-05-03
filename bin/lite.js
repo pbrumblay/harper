@@ -1,4 +1,4 @@
-const { startHTTPThreads, startSocketServer } = require('../server/threads/socketRouter.ts');
+const { startHTTPThreads, startSocketServer } = require('../server/threads/socketRouter.js');
 
 startHTTPThreads(0, true);
 startSocketServer(9925);

@@ -9,9 +9,9 @@ const path = require('path');
 const envMgr = require('../environment/environmentManager.js');
 envMgr.initSync();
 const hdbLogger = require('./harper_logger.js');
-const { CONFIG_PARAMS } = require('../hdbTerms.ts');
+const { CONFIG_PARAMS } = require('../hdbTerms.js');
 const { convertToMS } = require('../common_utils.js');
-const { onStorageReclamation } = require('../../server/storageReclamation.ts');
+const { onStorageReclamation } = require('../../server/storageReclamation.js');
 
 // Interval in ms to check log file and decide if it should be rotated.
 const LOG_AUDIT_INTERVAL = 60000;

@@ -1,5 +1,5 @@
 'use strict';
-let terms = require('../utility/hdbTerms.ts');
+let terms = require('../utility/hdbTerms.js');
 
 class UpgradeObject {
 	constructor(dataVersion, upgradeVersion) {

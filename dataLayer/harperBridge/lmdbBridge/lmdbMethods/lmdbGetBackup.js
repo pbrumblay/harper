@@ -1,12 +1,12 @@
 'use strict';
 
 const { Readable } = require('stream');
-const { getDatabases } = require('../../../../resources/databases.ts');
+const { getDatabases } = require('../../../../resources/databases.js');
 const { readSync, openSync, createReadStream } = require('fs');
 const { open } = require('lmdb');
 const { OpenDBIObject } = require('../../../../utility/lmdb/OpenDBIObject.js');
 const OpenEnvironmentObject = require('../../../../utility/lmdb/OpenEnvironmentObject.js');
-const { AUDIT_STORE_OPTIONS } = require('../../../../resources/auditStore.ts');
+const { AUDIT_STORE_OPTIONS } = require('../../../../resources/auditStore.js');
 const { INTERNAL_DBIS_NAME, AUDIT_STORE_NAME } = require('../../../../utility/lmdb/terms.js');
 
 module.exports = getBackup;

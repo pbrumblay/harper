@@ -1,6 +1,6 @@
 'use strict';
 
-const hdbTerms = require('../hdbTerms.ts');
+const hdbTerms = require('../hdbTerms.js');
 const servicesConfig = require('./servicesConfig.js');
 const envMangr = require('../environment/environmentManager.js');
 const hdbLogger = require('../../utility/logging/harper_logger.js');

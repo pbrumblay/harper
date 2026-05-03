@@ -9,7 +9,7 @@ import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonError
 
 import * as envMngr from '../utility/environment/environmentManager.js';
 envMngr.initSync();
-const { getDatabases } = require('../resources/databases.ts');
+const { getDatabases } = require('../resources/databases.js');
 import * as fs from 'fs-extra';
 
 

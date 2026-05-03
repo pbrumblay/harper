@@ -19,7 +19,7 @@ const opAuth = require('../utility/operation_authorization.js');
 const logger = require('../utility/logging/harper_logger.js');
 const alasqlFunctionImporter = require('./alasqlFunctionImporter.js');
 const hdbUtils = require('../utility/common_utils.js');
-const terms = require('../utility/hdbTerms.ts');
+const terms = require('../utility/hdbTerms.js');
 const { hdbErrors, handleHDBError } = require('../utility/errors/hdbError.js');
 const { HTTP_STATUS_CODES } = hdbErrors;
 

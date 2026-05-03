@@ -2,7 +2,7 @@
 
 const env = require('../../../utility/environment/environmentManager.js');
 env.initSync();
-const terms = require('../../../utility/hdbTerms.ts');
+const terms = require('../../../utility/hdbTerms.js');
 
 /**
  * Returns header timeout value from config file

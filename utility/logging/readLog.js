@@ -1,6 +1,6 @@
 'use strict';
 
-const hdbTerms = require('../hdbTerms.ts');
+const hdbTerms = require('../hdbTerms.js');
 const hdbLogger = require('./harper_logger.js');
 const validator = require('../../validation/readLogValidator.js');
 const path = require('path');
@@ -9,7 +9,7 @@ const { once } = require('events');
 const { getConfigPath } = require('../../config/configUtils.js');
 const { handleHDBError, hdbErrors } = require('../errors/hdbError.js');
 const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
-const { server } = require('../../server/Server.ts');
+const { server } = require('../../server/Server.js');
 
 // Install log is created in harperdb/logs because the hdb folder doesn't exist initially during the install process.
 const INSTALL_LOG_LOCATION = path.join(PACKAGE_ROOT, `logs`);

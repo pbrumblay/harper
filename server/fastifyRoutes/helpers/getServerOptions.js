@@ -2,7 +2,7 @@
 
 const env = require('../../../utility/environment/environmentManager.js');
 env.initSync();
-const { CONFIG_PARAMS } = require('../../../utility/hdbTerms.ts');
+const { CONFIG_PARAMS } = require('../../../utility/hdbTerms.js');
 
 // eslint-disable-next-line no-magic-numbers
 const REQ_MAX_BODY_SIZE = 1024 * 1024 * 1024; //this is 1GB in bytes

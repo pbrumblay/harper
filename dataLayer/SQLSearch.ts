@@ -15,9 +15,9 @@ import RecursiveIterator from 'recursive-iterator';
 import log from '../utility/logging/harper_logger.js';
 import * as commonUtils from '../utility/common_utils.js';
 const harperBridge = require('./harperBridge/harperBridge.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 import { hdbErrors } from '../utility/errors/hdbError.js';
-const { getDatabases } = require('../resources/databases.ts');
+const { getDatabases } = require('../resources/databases.js');
 
 const WHERE_CLAUSE_IS_NULL = 'IS NULL';
 const SEARCH_ERROR_MSG = 'There was a problem performing this search. Please check the logs and try again.';

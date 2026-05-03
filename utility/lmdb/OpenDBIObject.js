@@ -1,7 +1,7 @@
 'use strict';
 const envMngr = require('../environment/environmentManager.js');
-const terms = require('../../utility/hdbTerms.ts');
-const { RecordEncoder } = require('../../resources/RecordEncoder.ts');
+const terms = require('../../utility/hdbTerms.js');
+const { RecordEncoder } = require('../../resources/RecordEncoder.js');
 envMngr.initSync();
 
 const LMDB_CACHING = envMngr.get(terms.CONFIG_PARAMS.STORAGE_CACHING) !== false;

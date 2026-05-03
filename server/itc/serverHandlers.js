@@ -2,13 +2,13 @@
 
 /* global threads */
 const hdbLogger = require('../../utility/logging/harper_logger.js');
-const hdbTerms = require('../../utility/hdbTerms.ts');
+const hdbTerms = require('../../utility/hdbTerms.js');
 const cleanLmdbMap = require('../../utility/lmdb/cleanLMDBMap.js');
-const userSchema = require('../../security/user.ts');
+const userSchema = require('../../security/user.js');
 const { validateEvent } = require('../threads/itc.js');
 const harperBridge = require('../../dataLayer/harperBridge/harperBridge.js');
 const process = require('process');
-const { resetDatabases } = require('../../resources/databases.ts');
+const { resetDatabases } = require('../../resources/databases.js');
 
 /**
  * This object/functions are passed to the ITC client instance and dynamically added as event handlers.
@@ -113,7 +113,7 @@ async function componentStatusRequestHandler(event) {
 		hdbLogger.trace(`ITC componentStatusRequestHandler received request:`, event);
 
 		// Get current thread's component status
-		const { internal } = require('../../components/status/index.ts');
+		const { internal } = require('../../components/status/index.js');
 		const { getWorkerIndex } = require('../threads/manageThreads.js');
 		const { sendItcEvent } = require('../threads/itc.js');
 		const componentStatuses = internal.componentStatusRegistry.getAllStatuses();

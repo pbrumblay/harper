@@ -1,7 +1,7 @@
 'use strict';
 
 const hUtils = require('../../../../utility/common_utils.js');
-const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.js');
 const logger = require('../../../../utility/logging/harper_logger.js');
 const lmdbCreateAttribute = require('../lmdbMethods/lmdbCreateAttribute.js');
 const LMDBCreateAttributeObject = require('./LMDBCreateAttributeObject.js').default || require('./LMDBCreateAttributeObject.js');

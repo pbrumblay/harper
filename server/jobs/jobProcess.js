@@ -1,15 +1,15 @@
 'use strict';
 
-const hdbTerms = require('../../utility/hdbTerms.ts');
+const hdbTerms = require('../../utility/hdbTerms.js');
 const hdbUtils = require('../../utility/common_utils.js');
 const harperLogger = require('../../utility/logging/harper_logger.js');
 const globalSchema = require('../../utility/globalSchema.js');
-const user = require('../../security/user.ts');
-const serverUtils = require('../serverHelpers/serverUtilities.ts');
+const user = require('../../security/user.js');
+const serverUtils = require('../serverHelpers/serverUtilities.js');
 const moment = require('moment');
 const jobs = require('./jobs.js');
 const { cloneDeep } = require('lodash');
-const { getEnvBuiltInComponents } = require('../../components/Application.ts');
+const { getEnvBuiltInComponents } = require('../../components/Application.js');
 const { pathToFileURL } = require('node:url');
 const { join } = require('node:path');
 const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');

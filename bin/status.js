@@ -4,11 +4,11 @@ const fs = require('fs-extra');
 const path = require('path');
 const YAML = require('yaml');
 
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const hdbLog = require('../utility/logging/harper_logger.js');
-const systemInformation = require('../utility/environment/systemInformation.ts');
+const systemInformation = require('../utility/environment/systemInformation.js');
 const envMgr = require('../utility/environment/environmentManager.js');
-const installation = require('../utility/installation.ts');
+const installation = require('../utility/installation.js');
 envMgr.initSync();
 
 const STATUSES = {

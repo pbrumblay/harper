@@ -3,7 +3,7 @@
 const insertUpdateValidate = require('../../bridgeUtility/insertUpdateValidate.js');
 // eslint-disable-next-line no-unused-vars
 const InsertObject = require('../../../InsertObject.js').default || require('../../../InsertObject.js');
-const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.js');
 const lmdbProcessRows = require('../lmdbUtility/lmdbProcessRows.js');
 const lmdbInsertRecords = require('../../../../utility/lmdb/writeUtility.js').insertRecords;
 const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');

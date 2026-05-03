@@ -7,7 +7,7 @@ const logger = require('../utility/logging/harper_logger.js');
 const cliOperations = require('./cliOperations.js');
 const { packageJson } = require('../utility/packageUtils.js');
 const checkNode = require('../launchServiceScripts/utility/checkNodeVersion.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const { SERVICE_ACTIONS_ENUM } = hdbTerms;
 process.setSourceMapsEnabled(true); // this is necessary for source maps to work, at least on the main thread.
 
@@ -86,7 +86,7 @@ async function harper() {
 		case SERVICE_ACTIONS_ENUM.COPYDB: {
 			let sourceDb = process.argv[3];
 			let targetDbPath = process.argv[4];
-			return require('./copyDb.ts').copyDb(sourceDb, targetDbPath);
+			return require('./copyDb.js').copyDb(sourceDb, targetDbPath);
 		}
 		case SERVICE_ACTIONS_ENUM.DEV:
 			process.env.DEV_MODE = true;

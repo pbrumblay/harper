@@ -2,12 +2,12 @@
 
 const envMgr = require('../utility/environment/environmentManager.js');
 envMgr.initSync();
-const terms = require('../utility/hdbTerms.ts');
+const terms = require('../utility/hdbTerms.js');
 const { httpRequest } = require('../utility/common_utils.js');
 const path = require('path');
 const fs = require('fs-extra');
 const YAML = require('yaml');
-const { packageDirectory } = require('../components/packageComponent.ts');
+const { packageDirectory } = require('../components/packageComponent.js');
 const { encode } = require('cbor-x');
 const { getHdbPid } = require('../utility/processManagement/processManagement.js');
 const { initConfig, getConfigPath } = require('../config/configUtils.js');

@@ -11,9 +11,9 @@ env.initSync();
 
 const chalk = require('chalk');
 const hdbLogger = require('../utility/logging/harper_logger.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const directivesManager = require('../upgrade/directivesManager.js');
-const installation = require('../utility/installation.ts');
+const installation = require('../utility/installation.js');
 const hdbInfoController = require('../dataLayer/hdbInfoController.js');
 const upgradePrompt = require('../upgrade/upgradePrompt.js');
 const globalSchema = require('../utility/globalSchema.js');

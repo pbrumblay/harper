@@ -6,7 +6,7 @@ const clone = require('clone');
 const commonUtils = require('../utility/common_utils.js');
 const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
 const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
-const { getDatabases } = require('../resources/databases.ts');
+const { getDatabases } = require('../resources/databases.js');
 
 //exclusion list for validation on group bys
 const customAggregators = ['DISTINCT_ARRAY'];

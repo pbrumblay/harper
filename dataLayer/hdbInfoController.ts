@@ -11,7 +11,7 @@ import * as os from 'os';
 
 import * as insert from './insert.js';
 import * as search from './search.js';
-const hdbTerms = require('../utility/hdbTerms.ts');
+import * as hdbTerms from '../utility/hdbTerms.js';
 import * as BinObjects from '../bin/BinObjects.js';
 import * as DataLayerObjects from './DataLayerObjects.js';
 import { UpgradeObject } from '../upgrade/UpgradeObjects.js';
@@ -20,7 +20,7 @@ import { packageJson } from '../utility/packageUtils.js';
 import log from '../utility/logging/harper_logger.js';
 import * as hdbUtils from '../utility/common_utils.js';
 import * as globalSchema from '../utility/globalSchema.js';
-const tableLoader = require('../resources/databases.ts');
+import * as tableLoader from '../resources/databases.js';
 import * as directiveManager from '../upgrade/directives/directivesController.js';
 let pSetSchemaDataToGlobal = util.promisify(globalSchema.setSchemaDataToGlobal);
 

@@ -7,17 +7,17 @@ const fg = require('fast-glob');
 const normalize = require('normalize-path');
 const validator = require('./operationsValidation.js');
 const log = require('../utility/logging/harper_logger.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const hdbTerms = require('../utility/hdbTerms.js');
 const env = require('../utility/environment/environmentManager.js');
 const configUtils = require('../config/configUtils.js');
 const hdbUtils = require('../utility/common_utils.js');
 const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
 const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
 const manageThreads = require('../server/threads/manageThreads.js');
-const { packageDirectory } = require('../components/packageComponent.ts');
-const { Resources } = require('../resources/Resources.ts');
-const { Application, prepareApplication } = require('./Application.ts');
-const { server } = require('../server/Server.ts');
+const { packageDirectory } = require('../components/packageComponent.js');
+const { Resources } = require('../resources/Resources.js');
+const { Application, prepareApplication } = require('./Application.js');
+const { server } = require('../server/Server.js');
 
 /**
  * Read the settings.js file and return the
@@ -364,7 +364,7 @@ async function deployComponent(req) {
 	if (req.package) {
 		// Check if trying to overwrite a core component (requires force)
 		// Lazy-load to avoid circular dependency with componentLoader
-		const { TRUSTED_RESOURCE_PLUGINS } = require('./componentLoader.ts');
+		const { TRUSTED_RESOURCE_PLUGINS } = require('./componentLoader.js');
 		if (TRUSTED_RESOURCE_PLUGINS[req.project] && !req.force) {
 			throw handleHDBError(
 				new Error(),
@@ -405,7 +405,7 @@ async function deployComponent(req) {
 	pseudoResources.isWorker = true;
 
 	if (!process.env.HARPER_SAFE_MODE) {
-		const componentLoader = require('./componentLoader.ts');
+		const componentLoader = require('./componentLoader.js');
 		let lastError;
 		componentLoader.setErrorReporter((error) => (lastError = error));
 		await componentLoader.loadComponent(
@@ -428,7 +428,7 @@ async function deployComponent(req) {
 		manageThreads.restartWorkers('http');
 		response.message = `Successfully deployed: ${application.name}, restarting Harper`;
 	} else if (rollingRestart) {
-		const serverUtilities = require('../server/serverHelpers/serverUtilities.ts');
+		const serverUtilities = require('../server/serverHelpers/serverUtilities.js');
 		const jobResponse = await serverUtilities.executeJob({
 			operation: 'restart_service',
 			service: 'http',
@@ -516,7 +516,7 @@ async function getComponents() {
 		if (sourcePackage) entry.package = sourcePackage;
 	}
 
-	const { internal: statusInternal } = require('./status/index.ts');
+	const { internal: statusInternal } = require('./status/index.js');
 	let consolidatedStatuses;
 
 	try {
