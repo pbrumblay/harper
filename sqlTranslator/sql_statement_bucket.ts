@@ -4,13 +4,18 @@
  * AST SQL values such as attributes, tables, etc.
  **/
 
-const alasql = require('alasql');
-const RecursiveIterator = require('recursive-iterator');
-const harperLogger = require('../utility/logging/harper_logger.js');
-const hdbUtils = require('../utility/common_utils.js');
-const terms = require('../utility/hdbTerms.js');
+import * as alasql from 'alasql';
+import RecursiveIterator from 'recursive-iterator';
+import harperLogger from '../utility/logging/harper_logger.js';
+import * as hdbUtils from '../utility/common_utils.js';
+import * as terms from '../utility/hdbTerms.js';
 
 class sqlStatementBucket {
+	ast: any;
+	affected_attributes: any;
+	table_lookup: any;
+	schema_lookup: any;
+	table_to_schema_lookup: any;
 	constructor(ast) {
 		this.ast = ast;
 		// affectedAttributes stores a table and it's attributes as a Map [schema, Map[table, [attributesArray]]].
@@ -142,7 +147,7 @@ class sqlStatementBucket {
 					.get(colTable)
 					.filter((attr) => !terms.SEARCH_WILDCARDS.includes(attr));
 				finalTableAttrs.forEach(({ attribute_name }) => {
-					let newColumn = new alasql.yy.Column({ columnid: attribute_name });
+					let newColumn = new (alasql as any).yy.Column({ columnid: attribute_name });
 					if (val.tableid) {
 						newColumn.tableid = val.tableid;
 					}
@@ -166,11 +171,11 @@ class sqlStatementBucket {
  * @returns [] - array of attribute permissions objects w/ READ perms === TRUE
  */
 
-function filterReadRestrictedAttrs(attrPerms) {
+function filterReadRestrictedAttrs(attrPerms: any[]) {
 	return attrPerms.filter((perm) => perm[terms.PERMS_CRUD_ENUM.READ]);
 }
 
-function interpretAST(ast, affectedAttributes, tableLookup, schemaLookup, tableToSchemaLookup) {
+function interpretAST(ast: any, affectedAttributes: any, tableLookup: any, schemaLookup: any, tableToSchemaLookup: any) {
 	getRecordAttributesAST(ast, affectedAttributes, tableLookup, schemaLookup, tableToSchemaLookup);
 }
 
@@ -182,7 +187,7 @@ function interpretAST(ast, affectedAttributes, tableLookup, schemaLookup, tableT
  * @param {Map} affectedAttributes - A map of attributes affected in the call.  Defined as [schema, Map[table, [attributesArray]]].
  * @param {Map} tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function addSchemaTableToMap(record, affectedAttributes, tableLookup, schemaLookup, tableToSchemaLookup) {
+function addSchemaTableToMap(record: any, affectedAttributes: any, tableLookup: any, schemaLookup?: any, tableToSchemaLookup?: any) {
 	if (!record || !record.databaseid) {
 		return;
 	}
@@ -218,20 +223,20 @@ function addSchemaTableToMap(record, affectedAttributes, tableLookup, schemaLook
  * @param {Map} affectedAttributes - A map containing attributes affected by the statement. Defined as [schema, Map[table, [attributesArray]]].
  * @param {Map} tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function getRecordAttributesAST(ast, affectedAttributes, tableLookup, schemaLookup, tableToSchemaLookup) {
+function getRecordAttributesAST(ast: any, affectedAttributes: any, tableLookup: any, schemaLookup: any, tableToSchemaLookup: any) {
 	if (!ast) {
 		harperLogger.info(`getRecordAttributesAST: invalid SQL syntax tree`);
 		return;
 	}
 	// We can reference any schema/table attributes, so we need to check each possibility
 	// affected attributes is a Map of Maps like so [schema, Map[table, [attributesArray]]];
-	if (ast instanceof alasql.yy.Insert) {
+	if (ast instanceof (alasql as any).yy.Insert) {
 		getInsertAttributes(ast, affectedAttributes, tableLookup);
-	} else if (ast instanceof alasql.yy.Select) {
+	} else if (ast instanceof (alasql as any).yy.Select) {
 		getSelectAttributes(ast, affectedAttributes, tableLookup, schemaLookup, tableToSchemaLookup);
-	} else if (ast instanceof alasql.yy.Update) {
+	} else if (ast instanceof (alasql as any).yy.Update) {
 		getUpdateAttributes(ast, affectedAttributes, tableLookup);
-	} else if (ast instanceof alasql.yy.Delete) {
+	} else if (ast instanceof (alasql as any).yy.Delete) {
 		getDeleteAttributes(ast, affectedAttributes, tableLookup);
 	} else {
 		harperLogger.error(`AST in getRecordAttributesAST() is not a valid SQL type.`);
@@ -245,7 +250,7 @@ function getRecordAttributesAST(ast, affectedAttributes, tableLookup, schemaLook
  * @param affectedAttributes - A map containing attributes affected by the statement. Defined as [schema, Map[table, [attributesArray]]].
  * @param tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function getSelectAttributes(ast, affectedAttributes, tableLookup, schemaLookup, tableToSchemaLookup) {
+function getSelectAttributes(ast: any, affectedAttributes: any, tableLookup: any, schemaLookup: any, tableToSchemaLookup: any) {
 	if (!ast) {
 		harperLogger.info(`getSelectAttributes: invalid SQL syntax tree`);
 		return;
@@ -387,7 +392,7 @@ function getSelectAttributes(ast, affectedAttributes, tableLookup, schemaLookup,
  * @param affectedAttributes - - A map containing attributes affected by the statement. Defined as [schema, Map[table, [attributesArray]]].
  * @param tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function getUpdateAttributes(ast, affectedAttributes, tableLookup) {
+function getUpdateAttributes(ast: any, affectedAttributes: any, tableLookup: any) {
 	if (!ast) {
 		harperLogger.info(`getUpdateAttributes: invalid SQL syntax tree`);
 		return;
@@ -410,7 +415,7 @@ function getUpdateAttributes(ast, affectedAttributes, tableLookup) {
  * @param affectedAttributes - - A map containing attributes affected by the statement. Defined as [schema, Map[table, [attributesArray]]].
  * @param tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function getDeleteAttributes(ast, affectedAttributes, tableLookup) {
+function getDeleteAttributes(ast: any, affectedAttributes: any, tableLookup: any) {
 	if (!ast) {
 		harperLogger.info(`getDeleteAttributes: invalid SQL syntax tree`);
 		return;
@@ -433,7 +438,7 @@ function getDeleteAttributes(ast, affectedAttributes, tableLookup) {
  * @param affectedAttributes - A map containing attributes affected by the statement. Defined as [schema, Map[table, [attributesArray]]].
  * @param tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function getInsertAttributes(ast, affectedAttributes, tableLookup) {
+function getInsertAttributes(ast: any, affectedAttributes: any, tableLookup: any) {
 	if (!ast) {
 		harperLogger.info(`getInsertAttributes: invalid SQL syntax tree`);
 		return;
@@ -458,7 +463,7 @@ function getInsertAttributes(ast, affectedAttributes, tableLookup) {
  * @param affectedAttributes - A map containing attributes affected by the statement. Defined as [schema, Map[table, [attributesArray]]].
  * @param tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function pushAttribute(table, schema, columnid, affectedAttributes, tableLookup) {
+function pushAttribute(table: any, schema: any, columnid: any, affectedAttributes: any, tableLookup: any) {
 	if (!affectedAttributes.get(schema)) {
 		return;
 	}
@@ -469,4 +474,4 @@ function pushAttribute(table, schema, columnid, affectedAttributes, tableLookup)
 	affectedAttributes.get(schema).get(tableId).push(columnid);
 }
 
-module.exports = sqlStatementBucket;
+export default sqlStatementBucket;

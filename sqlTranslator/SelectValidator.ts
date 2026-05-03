@@ -1,9 +1,9 @@
 'use strict';
 
-const RecursiveIterator = require('recursive-iterator');
-const alasql = require('alasql');
-const clone = require('clone');
-const commonUtils = require('../utility/common_utils.js');
+import RecursiveIterator from 'recursive-iterator';
+import * as alasql from 'alasql';
+import clone from 'clone';
+import * as commonUtils from '../utility/common_utils.js';
 const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
 const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
 const { getDatabases } = require('../resources/databases.js');
@@ -28,6 +28,10 @@ const validateTables = Symbol('validateTables'),
  * Validates general SQL rules
  */
 class SelectValidator {
+	statement: any;
+	sqlBucket: any;
+	attributes: any;
+	[key: string | symbol]: any;
 	constructor(statement) {
 		this.statement = statement;
 		this.attributes = [];
@@ -43,8 +47,8 @@ class SelectValidator {
 		}
 
 		this[validateTables]();
-		this[checkColumnsForAsterisk]();
-		this[validateAllColumns]();
+		this.checkColumnsForAsterisk();
+		this.validateAllColumns();
 	}
 
 	/**
@@ -52,19 +56,19 @@ class SelectValidator {
 	 * loops thru the from and join arrays of the AST and passes individual entries into validateTable
 	 */
 	[validateTables]() {
-		if (this[hasColumns]()) {
+		if (this.hasColumns()) {
 			if (!this.statement.from || this.statement.from.length === 0) {
 				throw `no from clause`;
 			}
 
 			this.statement.from.forEach((table) => {
-				this[validateTable](table);
+				this.validateTable(table);
 			});
 
 			if (this.statement.joins) {
 				this.statement.joins.forEach((join) => {
 					join.table.as = join.as;
-					this[validateTable](join.table);
+					this.validateTable(join.table);
 				});
 			}
 		}
@@ -74,7 +78,7 @@ class SelectValidator {
 	 * check to see if there are columns in any part of the select
 	 * @returns {boolean}
 	 */
-	[hasColumns]() {
+	hasColumns() {
 		let hasColumns = false;
 		let iterator = new RecursiveIterator(this.statement);
 		for (let { node } of iterator) {
@@ -90,7 +94,7 @@ class SelectValidator {
 	 * Checks that the table exists in the schema, adds all of it's attributes to the class level collection this.attributes
 	 * @param table
 	 */
-	[validateTable](table) {
+	validateTable(table) {
 		if (!table.databaseid) {
 			throw `schema not defined for table ${table.tableid}`;
 		}
@@ -123,7 +127,7 @@ class SelectValidator {
 	 * @param column
 	 * @returns {*[]}
 	 */
-	[findColumn](column) {
+	findColumn(column) {
 		//look to see if this attribute exists on one of the tables we are selecting from
 		return this.attributes.filter((attribute) => {
 			if (column.tableid) {
@@ -140,13 +144,13 @@ class SelectValidator {
 	/**
 	 * detects * in the select, if found adds all columns to the select
 	 */
-	[checkColumnsForAsterisk]() {
+	checkColumnsForAsterisk() {
 		let iterator = new RecursiveIterator(this.statement.columns);
 
 		for (let { node, path } of iterator) {
 			//we check the path to make sure the '*' is not wrapped in some form of expression like count(*)
 			if (node && node.columnid === '*' && path.indexOf('expression') < 0) {
-				this[setColumnsForTable](node.tableid);
+				this.setColumnsForTable(node.tableid);
 			}
 		}
 	}
@@ -155,14 +159,14 @@ class SelectValidator {
 	 * takes a table and adds all of it's columns to the select. if no table it adds every column from every table in the select
 	 * @param tableName
 	 */
-	[setColumnsForTable](tableName) {
+	setColumnsForTable(tableName) {
 		this.attributes.forEach((attribute) => {
 			if (
 				(!tableName || (tableName && (attribute.table.tableid === tableName || attribute.table.as === tableName))) &&
 				!attribute.relation
 			) {
 				this.statement.columns.push(
-					new alasql.yy.Column({
+					new (alasql as any).yy.Column({
 						columnid: attribute.attribute,
 						tableid: attribute.table.as ? attribute.table.as : attribute.table.tableid,
 					})
@@ -174,12 +178,12 @@ class SelectValidator {
 	/**
 	 * passes segments to ValidateSegment for validation
 	 */
-	[validateAllColumns]() {
-		this[validateSegment](this.statement.columns, false);
-		this[validateSegment](this.statement.joins, false);
-		this[validateSegment](this.statement.where, false);
-		this[validateGroupBy](this.statement.group, false);
-		this[validateSegment](this.statement.order, true);
+	validateAllColumns() {
+		this.validateSegment(this.statement.columns, false);
+		this.validateSegment(this.statement.joins, false);
+		this.validateSegment(this.statement.where, false);
+		this.validateGroupBy(this.statement.group);
+		this.validateSegment(this.statement.order, true);
 	}
 
 	/**
@@ -188,7 +192,7 @@ class SelectValidator {
 	 * @param isOrderBy
 	 * @returns {*}
 	 */
-	[validateSegment](segment, isOrderBy) {
+	validateSegment(segment, isOrderBy) {
 		if (!segment) {
 			return;
 		}
@@ -198,9 +202,9 @@ class SelectValidator {
 		for (let { node } of iterator) {
 			if (!commonUtils.isEmpty(node) && !commonUtils.isEmpty(node.columnid) && node.columnid !== '*') {
 				if (isOrderBy) {
-					this[validateOrderBy](node);
+					this.validateOrderBy(node);
 				} else {
-					attributes.push(this[validateColumn](node));
+					attributes.push(this.validateColumn(node));
 				}
 			}
 		}
@@ -213,7 +217,7 @@ class SelectValidator {
 	 * makes sure that the non-aggregate functions and columns from the select are represented in the group by and the columns match the schema
 	 * @param segment
 	 */
-	[validateGroupBy](segment) {
+	validateGroupBy(segment) {
 		if (!segment) {
 			return;
 		}
@@ -233,7 +237,7 @@ class SelectValidator {
 				delete columnClone.as;
 				selectColumns.push(columnClone);
 			} else if (column.columnid) {
-				let found = this[findColumn](column)[0];
+				let found = this.findColumn(column)[0];
 				if (found) {
 					selectColumns.push(found);
 				}
@@ -254,7 +258,7 @@ class SelectValidator {
 					}
 				});
 			} else {
-				let foundGroupColumn = this[findColumn](groupColumn);
+				let foundGroupColumn = this.findColumn(groupColumn);
 
 				if (!foundGroupColumn || foundGroupColumn.length === 0) {
 					throw `unknown column '${groupColumn.toString()}' in group by`;
@@ -294,14 +298,14 @@ class SelectValidator {
 	 *
 	 * @param column
 	 */
-	[validateOrderBy](column) {
+	validateOrderBy(column) {
 		let foundColumns = this.statement.columns.filter((col) => col.as === column.columnid);
 
 		if (foundColumns.length > 1) {
 			let columnName = (column.tableid ? column.tableid + '.' : '') + column.columnid;
 			throw `ambiguous column reference ${columnName} in order by`;
 		} else if (foundColumns.length === 0) {
-			this[validateColumn](column);
+			this.validateColumn(column);
 		}
 	}
 
@@ -310,8 +314,8 @@ class SelectValidator {
 	 * @param column
 	 * @returns {*}
 	 */
-	[validateColumn](column) {
-		let foundColumns = this[findColumn](column);
+	validateColumn(column) {
+		let foundColumns = this.findColumn(column);
 
 		let columnName = (column.tableid ? column.tableid + '.' : '') + column.columnid;
 
@@ -327,4 +331,4 @@ class SelectValidator {
 	}
 }
 
-module.exports = SelectValidator;
+export default SelectValidator;

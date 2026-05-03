@@ -261,7 +261,7 @@ requiredPermissions.set(terms.VALID_SQL_OPS_ENUM.UPDATE, new (permission as any)
 
 module.exports = {
 	verifyPerms,
-	verifyPermsAst,
+	verifyPermsAST,
 	verifyBulkLoadAttributePerms,
 };
 
@@ -272,7 +272,7 @@ module.exports = {
  * @param operation - The operation specified in the call.
  * @returns {null | PermissionResponseObject} - null if permissions match, errors returned in the PermissionResponseObject
  */
-function verifyPermsAst(ast, userObject, operation) {
+export function verifyPermsAST(ast, userObject, operation) {
 	//TODO - update these validation checks to use validate.js
 	if (commonUtils.isEmptyOrZeroLength(ast)) {
 		harperLogger.info('verify_perms_ast has an empty user parameter');
@@ -298,7 +298,7 @@ function verifyPermsAst(ast, userObject, operation) {
 		// Should not continue if there are no schemas defined and there are table columns defined.
 		// This is defined so we can do calc selects like : SELECT ABS(-12)
 		if ((!schemas || schemas.length === 0) && parsedAst.affected_attributes && parsedAst.affected_attributes.size > 0) {
-			harperLogger.info(`No schemas defined in verifyPermsAst(), will not continue.`);
+			harperLogger.info(`No schemas defined in verifyPermsAST(), will not continue.`);
 			throw handleHDBError(new Error());
 		}
 		// set to true if this operation affects a system table.  Only su can read from system tables, but can't update/delete.

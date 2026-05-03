@@ -1,27 +1,23 @@
 'use strict';
 
-module.exports = {
-	evaluateSQL,
-	processAST,
-	convertSQLToAST,
-	checkASTPermissions,
-};
 
-const insert = require('../dataLayer/insert.js');
-const util = require('util');
+
+import * as insert from '../dataLayer/insert.js';
+import * as util from 'util';
 const cbInsertInsert = util.callbackify(insert.insert);
-const search = require('../dataLayer/search.js').search;
-const update = require('../dataLayer/update.js').update;
+import { search } from '../dataLayer/search.js';
+import { update } from '../dataLayer/update.js';
 const cbUpdateUpdate = util.callbackify(update);
-const deleteTranslator = require('./deleteTranslator.js').convertDelete;
-const alasql = require('alasql');
-const opAuth = require('../utility/operation_authorization.js');
-const logger = require('../utility/logging/harper_logger.js');
-const alasqlFunctionImporter = require('./alasqlFunctionImporter.js');
-const hdbUtils = require('../utility/common_utils.js');
-const terms = require('../utility/hdbTerms.js');
-const { hdbErrors, handleHDBError } = require('../utility/errors/hdbError.js');
-const { HTTP_STATUS_CODES } = hdbErrors;
+import { convertDelete as deleteTranslator } from './deleteTranslator.js';
+import * as alasql from 'alasql';
+import * as opAuth from '../utility/operation_authorization.js';
+import logger from '../utility/logging/harper_logger.js';
+import alasqlFunctionImporter from './alasqlFunctionImporter.js';
+import * as hdbUtils from '../utility/common_utils.js';
+import * as terms from '../utility/hdbTerms.js';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+
 
 //here we call to define and import custom functions to alasql
 alasqlFunctionImporter(alasql);
@@ -30,6 +26,9 @@ let UNAUTHORIZED_RESPONSE = 403;
 const SQL_INSERT_ERROR_MSG = 'There was a problem performing this insert. Please check the logs and try again.';
 
 class ParsedSQLObject {
+	ast: any;
+	variant: any;
+	permissions_checked: boolean;
 	constructor() {
 		this.ast = undefined;
 		this.variant = undefined;
@@ -37,25 +36,25 @@ class ParsedSQLObject {
 	}
 }
 
-function evaluateSQL(jsonMessage, callback) {
+export function evaluateSQL(jsonMessage: any, callback: any) {
 	let parsedSql = jsonMessage.parsed_sql_object;
 	if (!parsedSql) {
 		parsedSql = convertSQLToAST(jsonMessage.sql);
 		//TODO; This is a temporary check and should be removed once validation is integrated.
 		let schema = undefined;
 		let statement = parsedSql.ast.statements[0];
-		if (statement instanceof alasql.yy.Insert) {
+		if (statement instanceof (alasql as any).yy.Insert) {
 			schema = statement.into.databaseid;
-		} else if (statement instanceof alasql.yy.Select) {
+		} else if (statement instanceof (alasql as any).yy.Select) {
 			schema = statement.from ? statement.from[0].databaseid : null;
-		} else if (statement instanceof alasql.yy.Update) {
+		} else if (statement instanceof (alasql as any).yy.Update) {
 			schema = statement.table.databaseid;
-		} else if (statement instanceof alasql.yy.Delete) {
+		} else if (statement instanceof (alasql as any).yy.Delete) {
 			schema = statement.table.databaseid;
 		} else {
 			logger.error(`AST in evaluateSQL is not a valid SQL type.`);
 		}
-		if (!(statement instanceof alasql.yy.Select) && hdbUtils.isEmptyOrZeroLength(schema)) {
+		if (!(statement instanceof (alasql as any).yy.Select) && hdbUtils.isEmptyOrZeroLength(schema)) {
 			return callback('No schema specified', null);
 		}
 	}
@@ -74,10 +73,10 @@ function evaluateSQL(jsonMessage, callback) {
  * @param parsedSqlObject - The Parsed SQL statement specified in the inbound json message, of type ParsedSQLObject.
  * @returns {Array} - False if permissions check denys the statement.
  */
-function checkASTPermissions(jsonMessage, parsedSqlObject) {
+export function checkASTPermissions(jsonMessage: any, parsedSqlObject: any) {
 	let verifyResult = undefined;
 	try {
-		verifyResult = opAuth.verifyPermsAst(
+		verifyResult = opAuth.verifyPermsAST(
 			parsedSqlObject.ast.statements[0],
 			jsonMessage.hdb_user,
 			parsedSqlObject.variant
@@ -92,7 +91,7 @@ function checkASTPermissions(jsonMessage, parsedSqlObject) {
 	return null;
 }
 
-function convertSQLToAST(sql) {
+export function convertSQLToAST(sql: string) {
 	let astResponse = new ParsedSQLObject();
 	if (!sql) {
 		throw handleHDBError(
@@ -127,7 +126,7 @@ function convertSQLToAST(sql) {
 	return astResponse;
 }
 
-function processAST(jsonMessage, parsedSqlObject, callback) {
+export function processAST(jsonMessage: any, parsedSqlObject: any, callback: any) {
 	try {
 		let sqlFunction = nullFunction;
 
@@ -180,7 +179,7 @@ function nullFunction(sql, callback) {
 
 function convertInsert({ statement, hdb_user }, callback) {
 	let schemaTable = statement.into;
-	let insertObject = {
+	let insertObject: any = {
 		schema: schemaTable.databaseid,
 		table: schemaTable.tableid,
 		operation: 'insert',
@@ -229,7 +228,7 @@ function createDataObjects(columns, values) {
 				if ('value' in value) {
 					record[columns[x]] = value.value;
 				} else {
-					record[columns[x]] = alasql.compile(`SELECT ${value.toString()} AS [${terms.FUNC_VAL}] FROM ?`);
+					record[columns[x]] = (alasql as any).compile(`SELECT ${value.toString()} AS [${terms.FUNC_VAL}] FROM ?`);
 				}
 			});
 

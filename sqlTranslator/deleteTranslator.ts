@@ -4,7 +4,7 @@ const log = require('../utility/logging/harper_logger.js');
 const harperBridge = require('../dataLayer/harperBridge/harperBridge.js');
 const util = require('util');
 const hdbUtils = require('../utility/common_utils.js');
-const terms = require('../utility/hdbTerms.js');
+import * as terms from '../utility/hdbTerms.js';
 const globalSchema = require('../utility/globalSchema.js');
 
 const RECORD = 'record';
@@ -14,9 +14,7 @@ const cbConvertDelete = util.callbackify(convertDelete);
 const pSearchSearch = util.promisify(search.search);
 const pGetTableSchema = util.promisify(globalSchema.getTableSchema);
 
-module.exports = {
-	convertDelete: cbConvertDelete,
-};
+
 
 function generateReturnMessage(deleteResultsObject) {
 	return `${deleteResultsObject.deleted_hashes.length} ${RECORD}${
@@ -24,7 +22,7 @@ function generateReturnMessage(deleteResultsObject) {
 	} ${SUCCESS}`;
 }
 
-async function convertDelete({ statement, hdb_user }) {
+export async function convertDelete({ statement, hdb_user }) {
 	//convert this update statement to a search capable statement
 	let tableInfo = await pGetTableSchema(statement.table.databaseid, statement.table.tableid);
 
@@ -36,7 +34,7 @@ async function convertDelete({ statement, hdb_user }) {
 	let selectString = `SELECT ${tableInfo.hash_attribute} FROM ${from.toString()} ${whereString}`;
 	let searchStatement = alasql.parse(selectString).statements[0];
 
-	let deleteObj = {
+	let deleteObj: any = {
 		operation: terms.OPERATIONS_ENUM.DELETE,
 		schema: from.databaseid_orig,
 		table: from.tableid_orig,

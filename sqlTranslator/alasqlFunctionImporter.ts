@@ -4,12 +4,12 @@
  * PUrpose of this is to set up a central module to define and import custom functions into alasql
  */
 
-const alasqlExtension = require('../utility/functions/sql/alaSQLExtension.js'),
-	dateFunctions = require('../utility/functions/date/dateFunctions.js'),
-	geo = require('../utility/functions/geo.js');
+import * as alasqlExtension from '../utility/functions/sql/alaSQLExtension.js';
+	import * as dateFunctions from '../utility/functions/date/dateFunctions.js';
+	import * as geo from '../utility/functions/geo.js';
 
 //import the custom function, need to define an upper and lower case version of the function so it is parsed properly in alasql
-module.exports = (alasql) => {
+export default function (alasql: any) {
 	/*
     AGGREGATE FUNCTIONS
      */
