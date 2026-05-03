@@ -3,7 +3,7 @@
 const env_mangr = require('#js/utility/environment/environmentManager');
 const chai = require('chai');
 const { expect } = chai;
-const read_log_validator = require('#js/validation/readLogValidator');
+const read_log_validator = require('#js/validation/readLogValidator').default || require('#js/validation/readLogValidator');
 const hdb_terms = require('#src/utility/hdbTerms');
 const path = require('path');
 const fs = require('fs-extra');

@@ -29,7 +29,7 @@ const SQL_UPDATE_ERROR_MSG = 'There was a problem performing this update. Please
  * @param hdb_user
  * @return
  */
-export async function update({ statement, hdb_user }: any) {
+async function updateData({ statement, hdb_user }: any) {
 	let tableInfo: any = await pGetTableSchema(statement.table.databaseid, statement.table.tableid);
 	let update_record = createUpdateRecord(statement.columns);
 
@@ -120,3 +120,4 @@ async function updateRecords(table: any, records: any[], hdb_user: any) {
 
 	return res;
 }
+export { updateData as update };

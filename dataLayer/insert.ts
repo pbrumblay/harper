@@ -116,7 +116,7 @@ export async function validation(writeObject: any) {
  * Inserts data specified in the insertObject parameter.
  * @param insertObject
  */
-export async function insert(insertObject: any) {
+async function insertData(insertObject: any) {
 	if (insertObject.operation !== 'insert') {
 		throw new Error('invalid operation, must be insert');
 	}
@@ -149,7 +149,7 @@ export async function insert(insertObject: any) {
  * Updates the data in the updateObject parameter.
  * @param updateObject - The data that will be updated in the database
  */
-export async function update(updateObject: any) {
+async function updateData(updateObject: any) {
 	if (updateObject.operation !== 'update') {
 		throw new Error('invalid operation, must be update');
 	}
@@ -192,7 +192,7 @@ export async function update(updateObject: any) {
  * Upsert the data in the upsertObject parameter.
  * @param upsertObject - Represents the data that will be upserted in the database
  */
-export async function upsert(upsertObject: any) {
+async function upsertData(upsertObject: any) {
 	if (upsertObject.operation !== 'upsert') {
 		throw handleHDBError(new Error(), 'invalid operation, must be upsert', HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
 	}
@@ -259,3 +259,4 @@ export function flush(object: any) {
 	hdbUtils.transformReq(object);
 	return harperBridge.flush(object.schema, object.table);
 }
+export { insertData as insert, updateData as update, upsertData as upsert };

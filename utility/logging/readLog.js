@@ -2,7 +2,7 @@
 
 const hdbTerms = require('../hdbTerms.js');
 const hdbLogger = require('./harper_logger.js');
-const validator = require('../../validation/readLogValidator.js');
+const validator = require('../../validation/readLogValidator.js').default || require('../../validation/readLogValidator.js');
 const path = require('path');
 const fs = require('fs-extra');
 const { once } = require('events');

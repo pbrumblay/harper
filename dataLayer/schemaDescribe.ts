@@ -44,10 +44,10 @@ export async function describeAll(opObj: any = {}) {
 				try {
 					let desc;
 					if (sysCall || isSu || bypassAuth) {
-						desc = await describeTable({ schema, table, exact_count, include_computed });
+						desc = await descTable({ schema, table, exact_count, include_computed });
 					} else if (rolePerms && rolePerms[schema].describe && rolePerms[schema].tables[table].describe) {
 						const tAttrPerms = rolePerms[schema].tables[table].attribute_permissions;
-						desc = await describeTable({ schema, table, exact_count, include_computed }, tAttrPerms);
+						desc = await descTable({ schema, table, exact_count, include_computed }, tAttrPerms);
 					}
 					if (desc) {
 						tResults.push(desc);
@@ -106,7 +106,7 @@ export async function describeAll(opObj: any = {}) {
  * includes the users role and permissions.
  * @returns {Promise<{}|*>}
  */
-export async function describeTable(describeTableObject: any, attrPerms?: any) {
+async function descTable(describeTableObject: any, attrPerms?: any) {
 	hdbUtils.transformReq(describeTableObject);
 	let { schema, table } = describeTableObject;
 	schema = schema?.toString();
@@ -268,7 +268,7 @@ export async function describeSchema(describeSchemaObject: any) {
 			table_perms = schemaPerms.tables[tableName];
 		}
 		if (hdbUtils.isEmpty(table_perms) || table_perms.describe) {
-			let data = await describeTable(
+			let data = await descTable(
 				{
 					schema: describeSchemaObject.schema,
 					table: tableName,
@@ -284,3 +284,4 @@ export async function describeSchema(describeSchemaObject: any) {
 	}
 	return results;
 }
+export { descTable as describeTable };
