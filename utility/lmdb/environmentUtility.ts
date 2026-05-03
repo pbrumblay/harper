@@ -1,18 +1,18 @@
 'use strict';
 
-const lmdb = require('lmdb');
-const fs = require('fs-extra');
-const path = require('path');
-const common = require('./commonUtility.js');
-const log = require('../logging/harper_logger.js');
-const LMDB_ERRORS = require('../errors/commonErrors.js').LMDB_ERRORS_ENUM;
-const DBIDefinition = require('./DBIDefinition.js');
-const { OpenDBIObject } = require('./OpenDBIObject.js');
+import * as lmdb from 'lmdb';
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import * as common from './commonUtility.js';
+import log from '../logging/harper_logger.js';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
+import DBIDefinition from './DBIDefinition.js';
+import { OpenDBIObject } from './OpenDBIObject.js';
 const OpenEnvironmentObject = require('./OpenEnvironmentObject.js');
-const lmdbTerms = require('./terms.js');
-const hdbTerms = require('../hdbTerms.js');
-const { resetDatabases } = require('../../resources/databases.js');
-const envMngr = require('../environment/environmentManager.js');
+import * as lmdbTerms from './terms.js';
+import * as hdbTerms from '../hdbTerms.js';
+import { resetDatabases } from '../../resources/databases.js';
+import * as envMngr from '../environment/environmentManager.js';
 
 const INTERNAL_DBIS_NAME = lmdbTerms.INTERNAL_DBIS_NAME;
 const DBI_DEFINITION_NAME = lmdbTerms.DBI_DEFINITION_NAME;
@@ -28,7 +28,7 @@ const MDB_LOCK_FILE_SUFFIX = '-lock';
  * @param {String} basePath - top level path the environment folder and the .mdb file live under
  * @param {String} envName - name of environment
  */
-function pathEnvNameValidation(basePath, envName) {
+export function pathEnvNameValidation(basePath: string, envName: string) {
 	if (basePath === undefined) {
 		throw new Error(LMDB_ERRORS.BASE_PATH_REQUIRED);
 	}
@@ -44,7 +44,7 @@ function pathEnvNameValidation(basePath, envName) {
  * @param {String} envName - name of environment
  * @returns {Promise<string>}
  */
-async function validateEnvironmentPath(basePath, envName, allowV3 = true) {
+export async function validateEnvironmentPath(basePath: string, envName: string, allowV3: boolean = true) {
 	//verify the basePath is valid
 	try {
 		await fs.access(basePath);
@@ -81,7 +81,7 @@ async function validateEnvironmentPath(basePath, envName, allowV3 = true) {
  * @param {lmdb.RootDatabase} env - lmdb environment object
  * @param {String} dbiName - name of the dbi (KV store)
  */
-function validateEnvDBIName(env, dbiName) {
+export function validateEnvDBIName(env: any, dbiName: string) {
 	common.validateEnv(env);
 
 	if (dbiName === undefined) {
@@ -98,7 +98,7 @@ function validateEnvDBIName(env, dbiName) {
  * @param {Boolean} isTxn - defines if is a transactions environment
  * @returns {Promise<lmdb.RootDatabase>} - LMDB environment object
  */
-async function createEnvironment(basePath, envName, isTxn = false, isV3 = false) {
+export async function createEnvironment(basePath: string, envName: string, isTxn: boolean = false, isV3: boolean = false) {
 	pathEnvNameValidation(basePath, envName);
 	let dbName = path.basename(basePath);
 
@@ -118,7 +118,7 @@ async function createEnvironment(basePath, envName, isTxn = false, isV3 = false)
 			let envInit = new OpenEnvironmentObject(isV3 ? environmentPath : environmentPath + MDB_FILE_EXTENSION, false);
 			let env = lmdb.open(envInit);
 
-			env.dbis = Object.create(null);
+			(env as any).dbis = Object.create(null);
 			//next we create an internal dbi to track the named databases
 			let dbiInit = new OpenDBIObject(false);
 			env.openDB(INTERNAL_DBIS_NAME, dbiInit);
@@ -144,7 +144,7 @@ async function createEnvironment(basePath, envName, isTxn = false, isV3 = false)
  * @param {String} envName -  the name of the environment
  * @param {Boolean} isTxn - defines if is a transactions environemnt
  */
-async function openEnvironment(basePath, envName, isTxn = false) {
+export async function openEnvironment(basePath: string, envName: string, isTxn: boolean = false) {
 	pathEnvNameValidation(basePath, envName);
 	envName = envName.toString();
 	let fullName = getCachedEnvironmentName(basePath, envName, isTxn);
@@ -162,7 +162,7 @@ async function openEnvironment(basePath, envName, isTxn = false) {
 	let envInit = new OpenEnvironmentObject(envPath, readOnly);
 	let env = lmdb.open(envInit);
 
-	env.dbis = Object.create(null);
+	(env as any).dbis = Object.create(null);
 
 	let dbis = listDBIs(env);
 	for (let x = 0; x < dbis.length; x++) {
@@ -180,7 +180,7 @@ async function openEnvironment(basePath, envName, isTxn = false) {
  * @param {String} envName - name of environment
  * @param {Boolean} isTxn - defines if is a transactions environemnt
  */
-async function deleteEnvironment(basePath, envName, isTxn = false) {
+export async function deleteEnvironment(basePath: string, envName: string, isTxn: boolean = false) {
 	pathEnvNameValidation(basePath, envName);
 	envName = envName.toString();
 	let standardPath = path.join(basePath, envName + MDB_FILE_EXTENSION);
@@ -206,7 +206,7 @@ async function deleteEnvironment(basePath, envName, isTxn = false) {
  * takes an environment and closes it
  * @param {lmdb.RootDatabase} env
  */
-async function closeEnvironment(env) {
+export async function closeEnvironment(env: any) {
 	//make sure env is actually a reference to the lmdb environment class so we don't blow anything up
 	common.validateEnv(env);
 	let environmentName = env[lmdbTerms.ENVIRONMENT_NAME_KEY];
@@ -225,7 +225,7 @@ async function closeEnvironment(env) {
  * @param {Boolean} isTxn - defines if is a transactions environemnt
  * @returns {string}
  */
-function getCachedEnvironmentName(basePath, envName, isTxn = false) {
+export function getCachedEnvironmentName(basePath: string, envName: string, isTxn: boolean = false) {
 	let schemaName = path.basename(basePath);
 	let fullName = `${schemaName}.${envName}`;
 	if (isTxn === true) {
@@ -241,7 +241,7 @@ function getCachedEnvironmentName(basePath, envName, isTxn = false) {
  * @param {lmdb.RootDatabase} env - environment object used high level to interact with all data in an environment
  * @returns {{String, DBIDefinition}}
  */
-function listDBIDefinitions(env) {
+export function listDBIDefinitions(env: any) {
 	common.validateEnv(env);
 
 	let dbis = Object.create(null);
@@ -264,7 +264,7 @@ function listDBIDefinitions(env) {
  * @param {lmdb.RootDatabase} env - environment object used high level to interact with all data in an environment
  * @returns {[String]}
  */
-function listDBIs(env) {
+export function listDBIs(env: any) {
 	common.validateEnv(env);
 
 	let dbis = [];
@@ -285,7 +285,7 @@ function listDBIs(env) {
  * @param dbiName
  * @returns {undefined|DBIDefinition}
  */
-function getDBIDefinition(env, dbiName) {
+export function getDBIDefinition(env: any, dbiName: string) {
 	let dbi = openDBI(env, INTERNAL_DBIS_NAME);
 
 	let found = dbi.getEntry(dbiName);
@@ -312,7 +312,7 @@ function getDBIDefinition(env, dbiName) {
  * @param {Boolean} isHashAttribute - defines if the dbi being created is the hash_attribute fro the environment / table
  * @returns {*} - reference to the dbi
  */
-function createDBI(env, dbiName, dupSort, isHashAttribute = !dupSort) {
+export function createDBI(env: any, dbiName: string, dupSort?: boolean, isHashAttribute: boolean = !dupSort) {
 	validateEnvDBIName(env, dbiName);
 	dbiName = dbiName.toString();
 	if (dbiName === INTERNAL_DBIS_NAME) {
@@ -338,7 +338,7 @@ function createDBI(env, dbiName, dupSort, isHashAttribute = !dupSort) {
 			let dbis = openDBI(env, INTERNAL_DBIS_NAME);
 			dbis.putSync(dbiName, dbiDefinition);
 
-			env.dbis[dbiName] = newDbi;
+			(env as any).dbis[dbiName] = newDbi;
 
 			return newDbi;
 		}
@@ -353,11 +353,11 @@ function createDBI(env, dbiName, dupSort, isHashAttribute = !dupSort) {
  * @param {String} dbiName - name of the dbi (KV store)
  * @returns {lmdb.Database} - returns reference to the dbi
  */
-function openDBI(env, dbiName) {
+export function openDBI(env: any, dbiName: string) {
 	validateEnvDBIName(env, dbiName);
 	dbiName = dbiName.toString();
-	if (env.dbis[dbiName] !== undefined) {
-		return env.dbis[dbiName];
+	if ((env as any).dbis[dbiName] !== undefined) {
+		return (env as any).dbis[dbiName];
 	}
 
 	let dbiDefinition;
@@ -386,7 +386,7 @@ function openDBI(env, dbiName) {
 		throw e;
 	}
 	dbi[DBI_DEFINITION_NAME] = dbiDefinition;
-	env.dbis[dbiName] = dbi;
+	(env as any).dbis[dbiName] = dbi;
 	return dbi;
 }
 
@@ -396,7 +396,7 @@ function openDBI(env, dbiName) {
  * @param {String} dbiName - name of the dbi (KV store)
  * @returns {void | Promise<Stats> | *} - object holding stats for the dbi
  */
-function statDBI(env, dbiName) {
+export function statDBI(env: any, dbiName: string) {
 	validateEnvDBIName(env, dbiName);
 	dbiName = dbiName.toString();
 	let dbi = openDBI(env, dbiName);
@@ -414,7 +414,7 @@ function statDBI(env, dbiName) {
  * @param {lmdb.RootDatabase} env - environment object used thigh level to interact with all data in an environment
  * @param {String} dbiName - name of the dbi (KV store)
  */
-function dropDBI(env, dbiName) {
+export function dropDBI(env: any, dbiName: string) {
 	validateEnvDBIName(env, dbiName);
 	dbiName = dbiName.toString();
 	if (dbiName === INTERNAL_DBIS_NAME) {
@@ -424,8 +424,8 @@ function dropDBI(env, dbiName) {
 	let dbi = openDBI(env, dbiName);
 	dbi.dropSync();
 
-	if (env.dbis !== undefined) {
-		delete env.dbis[dbiName];
+	if ((env as any).dbis !== undefined) {
+		delete (env as any).dbis[dbiName];
 	}
 
 	let dbis = openDBI(env, INTERNAL_DBIS_NAME);
@@ -438,13 +438,13 @@ function dropDBI(env, dbiName) {
  * @param {String} hash_attribute - name of the table's hash attribute
  * @param {Array.<String>} writeAttributes - list of all attributes to write to the database
  */
-function initializeDBIs(env, hash_attribute, writeAttributes) {
+export function initializeDBIs(env: any, hash_attribute: string, writeAttributes: string[]) {
 	let createdAttributes;
 	for (let x = 0; x < writeAttributes.length; x++) {
 		let attribute = writeAttributes[x];
 
 		//check the internal cache to see if the dbi has been intialized
-		if (!env.dbis[attribute]) {
+		if (!(env as any).dbis[attribute]) {
 			//if the dbi has not been intialized & cached attempt to open
 			try {
 				openDBI(env, attribute);
@@ -462,16 +462,4 @@ function initializeDBIs(env, hash_attribute, writeAttributes) {
 	if (createdAttributes) resetDatabases();
 }
 
-module.exports = {
-	openDBI,
-	openEnvironment,
-	createEnvironment,
-	listDBIs,
-	listDBIDefinitions,
-	createDBI,
-	dropDBI,
-	statDBI,
-	deleteEnvironment,
-	initializeDBIs,
-	closeEnvironment,
-};
+

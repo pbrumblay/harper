@@ -7,6 +7,7 @@
  * @param {Array.<Object>} originalRecords
  */
 class UpsertRecordsResponseObject {
+	[key: string]: any;
 	/**
 	 * @param {Array.<string|number>} written_hashes
 	 * @param {number} txnTime
@@ -19,4 +20,4 @@ class UpsertRecordsResponseObject {
 	}
 }
 
-module.exports = UpsertRecordsResponseObject;
+export default UpsertRecordsResponseObject;

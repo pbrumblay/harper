@@ -8,6 +8,7 @@
  * @param {Array.<Object>} originalRecords
  */
 class DeleteRecordsResponseObject {
+	[key: string]: any;
 	/**
 	 * @param {Array.<string|number>} deleted
 	 * @param {Array.<string|number>} skipped
@@ -22,4 +23,4 @@ class DeleteRecordsResponseObject {
 	}
 }
 
-module.exports = DeleteRecordsResponseObject;
+export default DeleteRecordsResponseObject;

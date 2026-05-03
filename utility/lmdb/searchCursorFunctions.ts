@@ -1,8 +1,8 @@
 'use strict';
 
-const hdbTerms = require('../hdbTerms.js');
+import * as hdbTerms from '../hdbTerms.js';
 
-function parseRow(originalObject, attributes) {
+export function parseRow(this: any, originalObject, attributes) {
 	let returnObject = Object.create(null);
 
 	if (attributes.length === 1 && hdbTerms.SEARCH_WILDCARDS.indexOf(attributes[0]) >= 0) {
@@ -25,7 +25,7 @@ function parseRow(originalObject, attributes) {
  * @param {*} value
  * @param {[]} results
  */
-function searchAll(attributes, key, value, results) {
+export function searchAll(this: any, attributes, key, value, results) {
 	let obj = parseRow(value, attributes);
 	results.push(obj);
 }
@@ -37,7 +37,7 @@ function searchAll(attributes, key, value, results) {
  * @param {*} value
  * @param {Object} results
  */
-function searchAllToMap(attributes, key, value, results) {
+export function searchAllToMap(this: any, attributes, key, value, results) {
 	let obj = parseRow(value, attributes);
 	results[key] = obj;
 }
@@ -48,7 +48,7 @@ function searchAllToMap(attributes, key, value, results) {
  * @param {*} value
  * @param {[]} results
  */
-function iterateDBI(key, value, results) {
+export function iterateDBI(this: any, key, value, results) {
 	if (results[key] === undefined) {
 		results[key] = [];
 	}
@@ -63,7 +63,7 @@ function iterateDBI(key, value, results) {
  * @param {String} hash_attribute
  * @param {String} attribute
  */
-function pushResults(key, value, results, hash_attribute, attribute) {
+export function pushResults(this: any, key, value, results, hash_attribute, attribute) {
 	let newObject = Object.create(null);
 	newObject[attribute] = key;
 	let hashValue = undefined;
@@ -89,7 +89,7 @@ function pushResults(key, value, results, hash_attribute, attribute) {
  * @param {String} hash_attribute
  * @param {String} attribute
  */
-function endsWith(compareValue, found, value, results, hash_attribute, attribute) {
+export function endsWith(this: any, compareValue, found, value, results, hash_attribute, attribute) {
 	let foundStr = found.toString();
 	if (foundStr.endsWith(compareValue)) {
 		pushResults(found, value, results, hash_attribute, attribute);
@@ -105,7 +105,7 @@ function endsWith(compareValue, found, value, results, hash_attribute, attribute
  * @param {String} hash_attribute
  * @param {String} attribute
  */
-function contains(compareValue, key, value, results, hash_attribute, attribute) {
+export function contains(this: any, compareValue, key, value, results, hash_attribute, attribute) {
 	let foundStr = key.toString();
 	if (foundStr.includes(compareValue)) {
 		pushResults(key, value, results, hash_attribute, attribute);
@@ -121,7 +121,7 @@ function contains(compareValue, key, value, results, hash_attribute, attribute) 
  * @param {String} hash_attribute
  * @param {String} attribute
  */
-function greaterThanCompare(compareValue, key, value, results, hash_attribute, attribute) {
+export function greaterThanCompare(this: any, compareValue, key, value, results, hash_attribute, attribute) {
 	if (key > compareValue) {
 		pushResults(key, value, results, hash_attribute, attribute);
 	}
@@ -136,7 +136,7 @@ function greaterThanCompare(compareValue, key, value, results, hash_attribute, a
  * @param {String} hash_attribute
  * @param {String} attribute
  */
-function greaterThanEqualCompare(compareValue, key, value, results, hash_attribute, attribute) {
+export function greaterThanEqualCompare(this: any, compareValue, key, value, results, hash_attribute, attribute) {
 	if (key >= compareValue) {
 		pushResults(key, value, results, hash_attribute, attribute);
 	}
@@ -151,7 +151,7 @@ function greaterThanEqualCompare(compareValue, key, value, results, hash_attribu
  * @param {String} hash_attribute
  * @param {String} attribute
  */
-function lessThanCompare(compareValue, key, value, results, hash_attribute, attribute) {
+export function lessThanCompare(this: any, compareValue, key, value, results, hash_attribute, attribute) {
 	if (key < compareValue) {
 		pushResults(key, value, results, hash_attribute, attribute);
 	}
@@ -166,22 +166,10 @@ function lessThanCompare(compareValue, key, value, results, hash_attribute, attr
  * @param {String} hash_attribute
  * @param {String} attribute
  */
-function lessThanEqualCompare(compareValue, key, value, results, hash_attribute, attribute) {
+export function lessThanEqualCompare(this: any, compareValue, key, value, results, hash_attribute, attribute) {
 	if (key <= compareValue) {
 		pushResults(key, value, results, hash_attribute, attribute);
 	}
 }
 
-module.exports = {
-	parseRow,
-	searchAll,
-	searchAllToMap,
-	iterateDBI,
-	endsWith,
-	contains,
-	greaterThanCompare,
-	greaterThanEqualCompare,
-	lessThanCompare,
-	lessThanEqualCompare,
-	pushResults,
-};
+

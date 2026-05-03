@@ -5,11 +5,27 @@ const MAP_SIZE = 1024 * 1024 * 1024;
 //allow up to 1,000 named data bases in an environment
 const MAX_DBS = 10000;
 const MAX_READERS = 2048;
-const envMngr = require('../environment/environmentManager.js');
-const terms = require('../../utility/hdbTerms.js');
+import * as envMngr from '../environment/environmentManager.js';
+import * as terms from '../../utility/hdbTerms.js';
 envMngr.initSync();
 
-class OpenEnvironmentObject {
+export default class OpenEnvironmentObject {
+	[key: string]: any;
+	static MAX_DBS = MAX_DBS;
+	path: string;
+	mapSize: number;
+	maxDbs: number;
+	maxReaders: number;
+	sharedStructuresKey: symbol;
+	readOnly: boolean;
+	trackMetrics: boolean;
+	eventTurnBatching: boolean;
+	noSync: boolean;
+	overlappingSync: any;
+	maxFreeSpaceToLoad: any;
+	maxFreeSpaceToRetain: any;
+	pageSize: any;
+	noReadAhead: any;
 	constructor(path, readOnly = false) {
 		this.path = path;
 		this.mapSize = MAP_SIZE;
@@ -37,5 +53,5 @@ class OpenEnvironmentObject {
 	}
 }
 
-module.exports = OpenEnvironmentObject;
-OpenEnvironmentObject.MAX_DBS = MAX_DBS;
+
+

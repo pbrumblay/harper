@@ -1,16 +1,16 @@
 'use strict';
 
-const environmentUtility = require('./environmentUtility.js');
-const harperLogger = require('../logging/harper_logger.js');
-const LMDB_ERRORS = require('../errors/commonErrors.js').LMDB_ERRORS_ENUM;
+import * as environmentUtility from './environmentUtility.js';
+import harperLogger from '../logging/harper_logger.js';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
 
-module.exports = cleanLMDBMap;
+export default cleanLMDBMap;
 
 /**
  * this function strips away the cached environments from global when a schema item is removed
  * @param msg
  */
-async function cleanLMDBMap(msg) {
+async function cleanLMDBMap(msg: any) {
 	try {
 		if (global.lmdb_map !== undefined && msg.operation !== undefined) {
 			let keys = Object.keys(global.lmdb_map);

@@ -6,6 +6,9 @@
  * intKey defines if the key entries are integers or not
  */
 class DBIDefinition {
+	dup_sort: boolean;
+	isPrimaryKey: boolean;
+	useVersions: boolean;
 	/**
 	 * @param {Boolean} dupSort - allow duplicate keys, or not
 	 * @param {Boolean} isPrimaryKey - defines if this is the primary key
@@ -17,4 +20,4 @@ class DBIDefinition {
 	}
 }
 
-module.exports = DBIDefinition;
+export default DBIDefinition;

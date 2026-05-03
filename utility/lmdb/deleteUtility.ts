@@ -1,13 +1,13 @@
 'use strict';
 
-const environmentUtil = require('./environmentUtility.js');
-const common = require('./commonUtility.js');
-const LMDB_ERRORS = require('../errors/commonErrors.js').LMDB_ERRORS_ENUM;
-const log = require('../logging/harper_logger.js');
+import * as environmentUtil from './environmentUtility.js';
+import * as common from './commonUtility.js';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
+import log from '../logging/harper_logger.js';
 // eslint-disable-next-line no-unused-vars
-const lmdb = require('lmdb');
-const DeleteRecordsResponseObject = require('./DeleteRecordsResponseObject.js');
-const hdbTerms = require('../hdbTerms.js');
+import * as lmdb from 'lmdb';
+import DeleteRecordsResponseObject from './DeleteRecordsResponseObject.js';
+import * as hdbTerms from '../hdbTerms.js';
 const UPDATED_TIME_ATTRIBUTE_NAME = hdbTerms.TIME_STAMP_NAMES_ENUM.UPDATED_TIME;
 
 /**
@@ -18,7 +18,7 @@ const UPDATED_TIME_ATTRIBUTE_NAME = hdbTerms.TIME_STAMP_NAMES_ENUM.UPDATED_TIME;
  * @param {number} whenDeleted - The timestamp of the deletion
  * @returns {Promise<DeleteRecordsResponseObject>}
  */
-async function deleteRecords(env, hash_attribute, ids, whenDeleted) {
+export async function deleteRecords(this: any, env, hash_attribute, ids, whenDeleted) {
 	//validate
 	common.validateEnv(env);
 
@@ -123,6 +123,4 @@ async function deleteRecords(env, hash_attribute, ids, whenDeleted) {
 	}
 }
 
-module.exports = {
-	deleteRecords,
-};
+

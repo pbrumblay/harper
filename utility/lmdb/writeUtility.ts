@@ -1,18 +1,18 @@
 'use strict';
 
-const environmentUtil = require('./environmentUtility.js');
-const InsertRecordsResponseObject = require('./InsertRecordsResponseObject.js');
-const UpdateRecordsResponseObject = require('./UpdateRecordsResponseObject.js');
-const UpsertRecordsResponseObject = require('./UpsertRecordsResponseObject.js');
-const common = require('./commonUtility.js');
-const LMDB_ERRORS = require('../errors/commonErrors.js').LMDB_ERRORS_ENUM;
-const hdbTerms = require('../hdbTerms.js');
-const hdbUtils = require('../common_utils.js');
-const uuid = require('uuid');
+import * as environmentUtil from './environmentUtility.js';
+import InsertRecordsResponseObject from './InsertRecordsResponseObject.js';
+import UpdateRecordsResponseObject from './UpdateRecordsResponseObject.js';
+import UpsertRecordsResponseObject from './UpsertRecordsResponseObject.js';
+import * as common from './commonUtility.js';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
+import * as hdbTerms from '../hdbTerms.js';
+import * as hdbUtils from '../common_utils.js';
+import { v4 as uuidv4 } from 'uuid';
 // eslint-disable-next-line no-unused-vars
-const lmdb = require('lmdb');
-const { handleHDBError, hdbErrors } = require('../errors/hdbError.js');
-const envMngr = require('../environment/environmentManager.js');
+import * as lmdb from 'lmdb';
+import { handleHDBError, hdbErrors } from '../errors/hdbError.js';
+import * as envMngr from '../environment/environmentManager.js';
 envMngr.initSync();
 
 const LMDB_PREFETCH_WRITES = envMngr.get(hdbTerms.CONFIG_PARAMS.STORAGE_PREFETCHWRITES);
@@ -29,7 +29,7 @@ const UPDATED_TIME_ATTRIBUTE_NAME = hdbTerms.TIME_STAMP_NAMES_ENUM.UPDATED_TIME;
  * @param {boolean|number} timestamp
  * @returns {Promise<InsertRecordsResponseObject>}
  */
-async function insertRecords(env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
+export async function insertRecords(this: any, env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
 	validateWrite(env, hash_attribute, writeAttributes, records);
 
 	initializeTransaction(env, hash_attribute, writeAttributes);
@@ -163,7 +163,7 @@ function initializeTransaction(env, hash_attribute, writeAttributes) {
  * @param {boolean|number} timestamp
  * @returns {Promise<UpdateRecordsResponseObject>}
  */
-async function updateRecords(env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
+export async function updateRecords(this: any, env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
 	//validate
 	validateWrite(env, hash_attribute, writeAttributes, records);
 
@@ -203,7 +203,7 @@ async function updateRecords(env, hash_attribute, writeAttributes, records, time
  * @param {boolean|number} timestamp
  * @returns {Promise<UpdateRecordsResponseObject>}
  */
-async function upsertRecords(env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
+export async function upsertRecords(this: any, env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
 	//validate
 	try {
 		validateWrite(env, hash_attribute, writeAttributes, records);
@@ -222,7 +222,7 @@ async function upsertRecords(env, hash_attribute, writeAttributes, records, time
 		let record = records[index];
 		let hashValue = undefined;
 		if (hdbUtils.isEmpty(record[hash_attribute])) {
-			hashValue = uuid.v4();
+			hashValue = uuidv4();
 			record[hash_attribute] = hashValue;
 		} else {
 			hashValue = record[hash_attribute];
@@ -400,8 +400,4 @@ function noop() {
 	// prefetch callback
 }
 
-module.exports = {
-	insertRecords,
-	updateRecords,
-	upsertRecords,
-};
+

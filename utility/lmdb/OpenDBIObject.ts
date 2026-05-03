@@ -1,7 +1,7 @@
 'use strict';
-const envMngr = require('../environment/environmentManager.js');
-const terms = require('../../utility/hdbTerms.js');
-const { RecordEncoder } = require('../../resources/RecordEncoder.js');
+import * as envMngr from '../environment/environmentManager.js';
+import * as terms from '../../utility/hdbTerms.js';
+import { RecordEncoder } from '../../resources/RecordEncoder.js';
 envMngr.initSync();
 
 const LMDB_CACHING = envMngr.get(terms.CONFIG_PARAMS.STORAGE_CACHING) !== false;
@@ -9,7 +9,17 @@ const LMDB_CACHING = envMngr.get(terms.CONFIG_PARAMS.STORAGE_CACHING) !== false;
 /**
  * Defines how a DBI will be created/opened
  */
-class OpenDBIObject {
+export class OpenDBIObject {
+	[key: string]: any;
+	dupSort: boolean;
+	encoding: "string" | "json" | "binary" | "msgpack" | "ordered-binary";
+	useVersions: boolean;
+	sharedStructuresKey: symbol;
+	compression: any;
+	cache: any;
+	randomAccessStructure: boolean;
+	freezeData: boolean;
+	encoder: any;
 	/**
 	 * @param {Boolean} dupSort - if the dbi allows duplicate keys
 	 * @param {Boolean} [isPrimary] - if the dbi is the primary dbi
@@ -34,4 +44,4 @@ class OpenDBIObject {
 	}
 }
 
-exports.OpenDBIObject = OpenDBIObject;
+

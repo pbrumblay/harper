@@ -121,7 +121,7 @@ const USER_ATTRIBUTE_ALLOWLIST = {
 	password: true,
 };
 const passwordHashCache = new Map();
-const promiseDelete = promisify(delete_.delete);
+const promiseDelete = promisify(delete_.delete_);
 const configuredHashFunction =
 	env.get(terms.CONFIG_PARAMS.AUTHENTICATION_HASHFUNCTION) ?? password.HASH_FUNCTION.SHA256;
 let usersWithRolesMap;
