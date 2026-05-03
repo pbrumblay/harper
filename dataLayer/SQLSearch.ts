@@ -6,17 +6,17 @@
  * process and return results by passing the raw values into the alasql SQL parser
  */
 
-const _ = require('lodash');
-const alasql = require('alasql');
+import * as _ from 'lodash';
+import * as alasql from 'alasql';
 alasql.options.cache = false;
-const alasqlFunctionImporter = require('../sqlTranslator/alasqlFunctionImporter.js');
-const clone = require('clone');
-const RecursiveIterator = require('recursive-iterator');
-const log = require('../utility/logging/harper_logger.js');
-const commonUtils = require('../utility/common_utils.js');
+import alasqlFunctionImporter from '../sqlTranslator/alasqlFunctionImporter.js';
+import clone from 'clone';
+import RecursiveIterator from 'recursive-iterator';
+import log from '../utility/logging/harper_logger.js';
+import * as commonUtils from '../utility/common_utils.js';
 const harperBridge = require('./harperBridge/harperBridge.js');
 const hdbTerms = require('../utility/hdbTerms.ts');
-const { hdbErrors } = require('../utility/errors/hdbError.js');
+import { hdbErrors } from '../utility/errors/hdbError.js';
 const { getDatabases } = require('../resources/databases.ts');
 
 const WHERE_CLAUSE_IS_NULL = 'IS NULL';
@@ -26,6 +26,17 @@ const SEARCH_ERROR_MSG = 'There was a problem performing this search. Please che
 alasqlFunctionImporter(alasql);
 
 class SQLSearch {
+	statement: any;
+	columns: any;
+	all_table_attributes: any;
+	fetch_attributes: any[];
+	exact_search_values: any;
+	comparator_search_values: any;
+	tables: any[];
+	data: any;
+	has_aggregator: boolean;
+	has_ordinal: boolean;
+	has_outer_join: boolean;
 	/**
 	 * Constructor for FileSearch class
 	 *
@@ -65,7 +76,7 @@ class SQLSearch {
 
 	/**
 	 * Starting point function to execute the search
-	 * @returns {Promise<results|finalResults[]|Array>}
+	 * @returns {Promise<results||finalResults[]||Array>}
 	 */
 	async search() {
 		let searchResults = undefined;
@@ -192,18 +203,18 @@ class SQLSearch {
 				if (commonUtils.isNotEmptyAndHasValue(node.right.value)) {
 					const whereVal = commonUtils.autoCast(node.right.value);
 					if ([true, false].indexOf(whereVal) >= 0) {
-						node.right = new alasql.yy.LogicValue({ value: whereVal });
+						node.right = new (alasql as any).yy.LogicValue({ value: whereVal });
 					}
 				} else if (Array.isArray(node.right)) {
 					node.right.forEach((col, i) => {
 						const whereVal = commonUtils.autoCast(col.value);
 						if ([true, false].indexOf(whereVal) >= 0) {
-							node.right[i] = new alasql.yy.LogicValue({ value: whereVal });
+							node.right[i] = new (alasql as any).yy.LogicValue({ value: whereVal });
 						} else if (
-							col instanceof alasql.yy.StringValue &&
+							col instanceof (alasql as any).yy.StringValue &&
 							commonUtils.autoCasterIsNumberCheck(whereVal.toString())
 						) {
-							node.right[i] = new alasql.yy.NumValue({ value: whereVal });
+							node.right[i] = new (alasql as any).yy.NumValue({ value: whereVal });
 						}
 					});
 				}
@@ -529,9 +540,10 @@ class SQLSearch {
 			this._addFetchColumns(this.columns.columns);
 		}
 		//the bitwise or '|' is intentionally used because I want both conditions checked regardless of whether the left condition is false
+		//the bitwise or "|" is intentionally used because I want both conditions checked regardless of whether the left condition is false
 		else if (
-			(!this.columns.where && this.fetch_attributes.length === 0) |
-			(whereString.indexOf(WHERE_CLAUSE_IS_NULL) > -1)
+			((!this.columns.where && this.fetch_attributes.length === 0) as any) |
+			((whereString.indexOf(WHERE_CLAUSE_IS_NULL) > -1) as any)
 		) {
 			//get unique ids of tables if there is no join or the where is performing an is null check
 			this.tables.forEach((table) => {
@@ -586,7 +598,7 @@ class SQLSearch {
 			}`;
 			let hashName = this.data[schemaTable].__hashName;
 
-			let searchObject = {
+			let searchObject: any = {
 				schema: attribute.table.databaseid,
 				table: attribute.table.tableid,
 				get_attributes: [attribute.attribute],
@@ -748,7 +760,7 @@ class SQLSearch {
 		}
 
 		this.statement.columns.forEach((col) => {
-			if (!(col instanceof alasql.yy.Column)) {
+			if (!(col instanceof (alasql as any).yy.Column)) {
 				isSimpleSelect = false;
 			}
 		});
@@ -805,7 +817,7 @@ class SQLSearch {
 			orderBy.is_aggregator = !!selectColumn.aggregatorid;
 
 			if (!selectColumn.as) {
-				orderBy.initial_select_column = Object.assign(new alasql.yy.Column(), orderBy.expression);
+				orderBy.initial_select_column = Object.assign(new (alasql as any).yy.Column(), orderBy.expression);
 				orderBy.initial_select_column.as = `[${orderBy.expression.columnid_orig}]`;
 				orderBy.expression.columnid = orderBy.initial_select_column.as;
 				return;
@@ -813,13 +825,13 @@ class SQLSearch {
 				orderBy.expression.columnid = selectColumn.as;
 				orderBy.expression.columnid_orig = selectColumn.as_orig;
 			} else {
-				let aliasExpression = new alasql.yy.Column();
+				let aliasExpression = new (alasql as any).yy.Column();
 				aliasExpression.columnid = selectColumn.as;
 				aliasExpression.columnid_orig = selectColumn.as_orig;
 				orderBy.expression = aliasExpression;
 			}
 			if (!orderBy.is_aggregator) {
-				const targetObj = orderBy.is_func ? new alasql.yy.FuncValue() : new alasql.yy.Column();
+				const targetObj = orderBy.is_func ? new (alasql as any).yy.FuncValue() : new (alasql as any).yy.Column();
 				orderBy.initial_select_column = Object.assign(targetObj, selectColumn);
 			}
 		});
@@ -1065,7 +1077,7 @@ class SQLSearch {
 				// __mergedAttributes when do the final translation of the SQL statement
 				this.data[schemaTable].__mergedAttributes.push(...table.columns);
 
-				const searchObject = {
+				const searchObject: any = {
 					schema: table.schema,
 					table: table.table,
 					hash_values: mergedHashKeys,
@@ -1303,7 +1315,7 @@ class SQLSearch {
 				attribute.table.as ? attribute.table.as : attribute.table.tableid
 			}`;
 
-			let searchObject = {
+			let searchObject: any = {
 				schema: attribute.table.databaseid,
 				table: attribute.table.tableid,
 				get_attributes: [attribute.attribute],
@@ -1328,8 +1340,8 @@ class SQLSearch {
 				throw new Error(SEARCH_ERROR_MSG);
 			}
 		}
-		return Object.values(Object.values(this.data)[0].__mergedData);
+		return Object.values(((Object.values(this.data)[0] as any).__mergedData));
 	}
 }
 
-module.exports = SQLSearch;
+export default SQLSearch;

@@ -1,21 +1,18 @@
 'use strict';
 
-const logger = require('../utility/logging/harper_logger.js');
-const { validateBySchema } = require('../validation/validationWrapper.js');
-const Joi = require('joi');
-const hdbUtils = require('../utility/common_utils.js');
-const { handleHDBError, hdbErrors, ClientError } = require('../utility/errors/hdbError.js');
-const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
-const envMngr = require('../utility/environment/environmentManager.js');
+import logger from '../utility/logging/harper_logger.js';
+import { validateBySchema } from '../validation/validationWrapper.js';
+import Joi from 'joi';
+import * as hdbUtils from '../utility/common_utils.js';
+import { handleHDBError, hdbErrors, ClientError } from '../utility/errors/hdbError.js';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+
+import * as envMngr from '../utility/environment/environmentManager.js';
 envMngr.initSync();
 const { getDatabases } = require('../resources/databases.ts');
-const fs = require('fs-extra');
+import * as fs from 'fs-extra';
 
-module.exports = {
-	describeAll,
-	describeTable: descTable,
-	describeSchema,
-};
+
 
 /**
  * This method is exposed to the API and internally for system operations.  If the op is being made internally, the `opObj`
@@ -23,7 +20,7 @@ module.exports = {
  * @param opObj
  * @returns {Promise<{}|HdbError>}
  */
-async function describeAll(opObj = {}) {
+export async function describeAll(opObj: any = {}) {
 	try {
 		const sysCall = hdbUtils.isEmptyOrZeroLength(opObj);
 		const bypassAuth = !!opObj.bypass_auth;
@@ -47,10 +44,10 @@ async function describeAll(opObj = {}) {
 				try {
 					let desc;
 					if (sysCall || isSu || bypassAuth) {
-						desc = await descTable({ schema, table, exact_count, include_computed });
+						desc = await describeTable({ schema, table, exact_count, include_computed });
 					} else if (rolePerms && rolePerms[schema].describe && rolePerms[schema].tables[table].describe) {
 						const tAttrPerms = rolePerms[schema].tables[table].attribute_permissions;
-						desc = await descTable({ schema, table, exact_count, include_computed }, tAttrPerms);
+						desc = await describeTable({ schema, table, exact_count, include_computed }, tAttrPerms);
 					}
 					if (desc) {
 						tResults.push(desc);
@@ -109,7 +106,7 @@ async function describeAll(opObj = {}) {
  * includes the users role and permissions.
  * @returns {Promise<{}|*>}
  */
-async function descTable(describeTableObject, attrPerms) {
+export async function describeTable(describeTableObject: any, attrPerms?: any) {
 	hdbUtils.transformReq(describeTableObject);
 	let { schema, table } = describeTableObject;
 	schema = schema?.toString();
@@ -189,7 +186,7 @@ async function descTable(describeTableObject, attrPerms) {
 	} catch (error) {
 		logger.warn(`unable to get database size`, error);
 	}
-	let tableResult = {
+	let tableResult: any = {
 		schema,
 		name: tableObj.tableName,
 		primary_key: tableObj.attributes.find((attribute) => attribute.isPrimaryKey || attribute.isPrimaryKey)?.name,
@@ -235,7 +232,7 @@ async function descTable(describeTableObject, attrPerms) {
  * @param describeSchemaObject
  * @returns {Promise<Record<string, any>>}
  */
-async function describeSchema(describeSchemaObject) {
+export async function describeSchema(describeSchemaObject: any) {
 	hdbUtils.transformReq(describeSchemaObject);
 
 	const validation = validateBySchema(
@@ -271,7 +268,7 @@ async function describeSchema(describeSchemaObject) {
 			table_perms = schemaPerms.tables[tableName];
 		}
 		if (hdbUtils.isEmpty(table_perms) || table_perms.describe) {
-			let data = await descTable(
+			let data = await describeTable(
 				{
 					schema: describeSchemaObject.schema,
 					table: tableName,

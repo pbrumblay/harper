@@ -1,18 +1,19 @@
 'use strict';
 
-const bulkDeleteValidator = require('../validation/bulkDeleteValidator.js');
-const deleteValidator = require('../validation/deleteValidator.js');
-const commonUtils = require('../utility/common_utils.js');
-const moment = require('moment');
-const harperLogger = require('../utility/logging/harper_logger.js');
-const { promisify, callbackify } = require('util');
+import bulkDeleteValidator from '../validation/bulkDeleteValidator.js';
+import deleteValidator from '../validation/deleteValidator.js';
+import * as commonUtils from '../utility/common_utils.js';
+import moment from 'moment';
+import harperLogger from '../utility/logging/harper_logger.js';
+import { promisify, callbackify } from 'util';
 const terms = require('../utility/hdbTerms.ts');
-const globalSchema = require('../utility/globalSchema.js');
+import * as globalSchema from '../utility/globalSchema.js';
 const pGlobalSchema = promisify(globalSchema.getTableSchema);
 const harperBridge = require('./harperBridge/harperBridge.js');
-const { DeleteResponseObject } = require('./DataLayerObjects.js');
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
-const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
+import { DeleteResponseObject } from './DataLayerObjects.js';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+
 const DeleteAuditLogsBeforeResults = require('./harperBridge/lmdbBridge/lmdbMethods/DeleteAuditLogsBeforeResults.js');
 
 const SUCCESS_MESSAGE = 'records successfully deleted';
@@ -20,12 +21,7 @@ const SUCCESS_MESSAGE = 'records successfully deleted';
 // Callbackified functions
 const cbDeleteRecord = callbackify(deleteRecord);
 
-module.exports = {
-	delete: cbDeleteRecord,
-	deleteRecord,
-	deleteFilesBefore,
-	deleteAuditLogsBefore,
-};
+
 
 /**
  * Deletes files that have a system date before the date parameter.
@@ -34,7 +30,7 @@ module.exports = {
  *
  * @param deleteObj - the request passed from chooseOperation.
  */
-async function deleteFilesBefore(deleteObj) {
+export async function deleteFilesBefore(deleteObj: any) {
 	let validation = bulkDeleteValidator(deleteObj, 'date');
 	if (validation) {
 		throw handleHDBError(validation, validation.message, HTTP_STATUS_CODES.BAD_REQUEST, undefined, undefined, true);
@@ -81,7 +77,7 @@ async function deleteFilesBefore(deleteObj) {
  *
  * @deprecated This has been deprecated in favor of deleteTransactionLogsBefore.
  */
-async function deleteAuditLogsBefore(deleteObj) {
+export async function deleteAuditLogsBefore(deleteObj: any) {
 	let validation = bulkDeleteValidator(deleteObj, 'timestamp');
 	if (validation) {
 		throw handleHDBError(validation, validation.message, HTTP_STATUS_CODES.BAD_REQUEST, undefined, undefined, true);
@@ -124,7 +120,7 @@ async function deleteAuditLogsBefore(deleteObj) {
  * @param deleteObject
  * @returns {Promise<string>}
  */
-async function deleteRecord(deleteObject) {
+export async function deleteRecord(deleteObject: any) {
 	if (deleteObject.ids) deleteObject.hash_values = deleteObject.ids;
 	let validation = deleteValidator(deleteObject);
 	if (validation) {
@@ -157,11 +153,13 @@ async function deleteRecord(deleteObject) {
 		if (err.message === terms.SEARCH_NOT_FOUND_MESSAGE) {
 			let returnMsg = new DeleteResponseObject();
 			returnMsg.message = terms.SEARCH_NOT_FOUND_MESSAGE;
-			returnMsg.skipped_hashes = deleteObject.hash_values.length;
-			returnMsg.deleted_hashes = 0;
+			returnMsg.skipped_hashes = [deleteObject.hash_values.length];
+			returnMsg.deleted_hashes = [];
 			return returnMsg;
 		}
 
 		throw err;
 	}
 }
+
+export const delete_ = callbackify(deleteRecord);

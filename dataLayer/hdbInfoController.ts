@@ -5,23 +5,23 @@
  * MINIMUM_SUPPORTED_VERSION_NUM as needed.
  */
 
-const util = require('util');
-const chalk = require('chalk');
-const os = require('os');
+import * as util from 'util';
+import chalk from 'chalk';
+import * as os from 'os';
 
-const insert = require('./insert.js');
-const search = require('./search.js');
+import * as insert from './insert.js';
+import * as search from './search.js';
 const hdbTerms = require('../utility/hdbTerms.ts');
-const BinObjects = require('../bin/BinObjects.js');
-const DataLayerObjects = require('./DataLayerObjects.js');
-const { UpgradeObject } = require('../upgrade/UpgradeObjects.js');
-const { forceDowngradePrompt } = require('../upgrade/upgradePrompt.js');
-const { packageJson } = require('../utility/packageUtils.js');
-const log = require('../utility/logging/harper_logger.js');
-const hdbUtils = require('../utility/common_utils.js');
-const globalSchema = require('../utility/globalSchema.js');
+import * as BinObjects from '../bin/BinObjects.js';
+import * as DataLayerObjects from './DataLayerObjects.js';
+import { UpgradeObject } from '../upgrade/UpgradeObjects.js';
+import { forceDowngradePrompt } from '../upgrade/upgradePrompt.js';
+import { packageJson } from '../utility/packageUtils.js';
+import log from '../utility/logging/harper_logger.js';
+import * as hdbUtils from '../utility/common_utils.js';
+import * as globalSchema from '../utility/globalSchema.js';
 const tableLoader = require('../resources/databases.ts');
-const directiveManager = require('../upgrade/directives/directivesController.js');
+import * as directiveManager from '../upgrade/directives/directivesController.js';
 let pSetSchemaDataToGlobal = util.promisify(globalSchema.setSchemaDataToGlobal);
 
 let pSearchSearchByValue = search.searchByValue;
@@ -43,7 +43,7 @@ const MINIMUM_SUPPORTED_VERSION_NUM = '3.0.0';
  * @param newVersionString - The version of this install
  * @returns {Promise<{message: string, new_attributes: *, txn_time: *}|undefined>}
  */
-async function insertHdbInstallInfo(newVersionString) {
+export async function insertHdbInstallInfo(newVersionString: string) {
 	const infoTableInsertObject = new BinObjects.HdbInfoInsertObject(1, newVersionString, newVersionString);
 
 	//Insert the initial version record into the hdbInfo table.
@@ -65,7 +65,7 @@ async function insertHdbInstallInfo(newVersionString) {
  * @param newVersionString
  * @returns {Promise<void>}
  */
-async function insertHdbUpgradeInfo(newVersionString) {
+export async function insertHdbUpgradeInfo(newVersionString: string) {
 	let newInfoRecord;
 	let versionData = await getAllHdbInfoRecords();
 
@@ -158,7 +158,7 @@ async function getLatestHdbInfoRecord() {
  *
  * @returns {Promise<UpgradeObject> || undefined} - returns an UpgradeObject, if an upgrade is required, OR undefined, if not.
  */
-async function getVersionUpdateInfo() {
+export async function getVersionUpdateInfo() {
 	log.info('Checking if HDB software has been updated');
 	try {
 		const upgradeVersion = packageJson.version;
@@ -247,8 +247,4 @@ function checkIfInstallIsSupported(dataVNum) {
 	}
 }
 
-module.exports = {
-	insertHdbInstallInfo,
-	insertHdbUpgradeInfo,
-	getVersionUpdateInfo,
-};
+

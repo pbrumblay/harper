@@ -11,7 +11,7 @@ import * as hdbUtils from '../utility/common_utils.js';
 const { databases } = require('../resources/databases.js');
 const pSearchSearchByValue = search.searchByValue;
 const pSearchSearchByHash = search.searchByHash;
-const pDeleteDelete = util.promisify(delete_.delete);
+const pDeleteDelete = util.promisify(delete_.delete_);
 import SearchObject from '../dataLayer/SearchObject.js';
 import SearchByHashObject from '../dataLayer/SearchByHashObject.js';
 import { hdbErrors, handleHDBError } from '../utility/errors/hdbError.js';

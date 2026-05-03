@@ -15,7 +15,7 @@ import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from './errors/commonErrors.js';
 import * as search from '../dataLayer/search.js';
 import * as schema from '../dataLayer/schema.js';
 import * as schemaDescribe from '../dataLayer/schemaDescribe.js';
-import delete_ from '../dataLayer/delete.js';
+import * as delete_ from '../dataLayer/delete.js';
 import readAuditLog from '../dataLayer/readAuditLog.js';
 import getBackup from '../dataLayer/getBackup.js';
 import * as user from '../security/user.js';
@@ -548,7 +548,7 @@ export function verifyPerms(requestJson: any, operation: any, _options?: any) {
  * @param schemaTableMap - A map in the format [schemaKey, [tables]].
  * @returns {PermissionResponseObject | null} - null value if permissions match, PermissionResponseObject if not.
  */
-function hasPermissions(userObject, op, schemaTableMap, permsResponse, action) {
+export function hasPermissions(userObject, op, schemaTableMap, permsResponse, action) {
 	if (commonUtils.arrayHasEmptyValues([userObject, op, schemaTableMap])) {
 		harperLogger.info(`hasPermissions has an invalid parameter`);
 		throw handleHDBError(new Error());
@@ -654,7 +654,7 @@ function hasPermissions(userObject, op, schemaTableMap, permsResponse, action) {
  * @param permsResponse - PermissionResponseObject instance being used to track permissions issues to return in response, if necessary
  * @returns {} - this function does not return a value - it updates the permsResponse which is checked later
  */
-function checkAttributePerms(
+export function checkAttributePerms(
 	recordAttributes,
 	roleAttributePermissions,
 	operation,
@@ -796,7 +796,7 @@ function getRecordAttributes(json) {
  * @param table - The table specified.
  * @returns {Map} A Map of attribute permissions of the form [attribute_name, attributePermission];
  */
-function getAttributePermissions(rolePerms, operationSchema, table) {
+export function getAttributePermissions(rolePerms, operationSchema, table) {
 	let roleAttributePermissions = new Map();
 	if (commonUtils.isEmpty(rolePerms)) {
 		harperLogger.info(`no hdb_user specified in getAttributePermissions`);
@@ -822,7 +822,7 @@ function getAttributePermissions(rolePerms, operationSchema, table) {
 	return roleAttributePermissions;
 }
 
-function verifyBulkLoadAttributePerms(
+export function verifyBulkLoadAttributePerms(
 	rolePerms,
 	op,
 	action,

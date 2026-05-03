@@ -1,21 +1,16 @@
 'use strict';
 
-module.exports = {
-	searchByConditions,
-	searchByHash,
-	searchByValue,
-	search,
-};
+
 
 const harperBridge = require('./harperBridge/harperBridge.js');
-const { transformReq } = require('../utility/common_utils.js');
+import { transformReq } from '../utility/common_utils.js';
 
-async function searchByConditions(searchObject) {
+export async function searchByConditions(searchObject: any) {
 	transformReq(searchObject);
 	return harperBridge.searchByConditions(searchObject);
 }
 
-async function searchByHash(searchObject) {
+export async function searchByHash(searchObject: any) {
 	transformReq(searchObject);
 	if (searchObject.ids) searchObject.hash_values = searchObject.ids;
 	let array = [];
@@ -25,7 +20,7 @@ async function searchByHash(searchObject) {
 	return array;
 }
 
-async function searchByValue(searchObject) {
+export async function searchByValue(searchObject: any) {
 	transformReq(searchObject);
 	if (searchObject.hasOwnProperty('desc') === true) {
 		searchObject.reverse = searchObject.desc;
@@ -37,7 +32,7 @@ async function searchByValue(searchObject) {
 	return array;
 }
 
-function search(statement, callback) {
+export function search(statement: any, callback: any) {
 	try {
 		const SelectValidator = require('../sqlTranslator/SelectValidator.js');
 		const SQLSearch = require('./SQLSearch.js');

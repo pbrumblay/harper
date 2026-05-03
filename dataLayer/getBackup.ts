@@ -6,20 +6,21 @@
 
 const harperBridge = require('./harperBridge/harperBridge.js');
 // eslint-disable-next-line no-unused-vars
-const GetBackupObject = require('./GetBackupObject.js').default || require('./GetBackupObject.js');
-const hdbUtils = require('../utility/common_utils.js');
-const hdbTerms = require('../utility/hdbTerms.ts');
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
-const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
+import GetBackupObject from './GetBackupObject.js';
+import * as hdbUtils from '../utility/common_utils.js';
+import * as hdbTerms from '../utility/hdbTerms.js';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
-module.exports = getBackup;
+
+
 
 /**
  *
  * @param {GetBackupObject} getBackupObject
  * @returns {Promise<void>}
  */
-async function getBackup(getBackupObject) {
+export default async function getBackup(getBackupObject: any) {
 	if (hdbUtils.isEmpty(getBackupObject.schema)) {
 		throw new Error(HDB_ERROR_MSGS.SCHEMA_REQUIRED_ERR);
 	}

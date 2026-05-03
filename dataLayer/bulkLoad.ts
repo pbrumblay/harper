@@ -1,36 +1,35 @@
 'use strict';
 
-const insert = require('./insert.js');
-const validator = require('../validation/fileLoadValidator.js');
-const needle = require('needle');
+import * as insert from './insert.js';
+import * as validator from '../validation/fileLoadValidator.js';
+import needle from 'needle';
 const hdbTerms = require('../utility/hdbTerms.ts');
-const hdbUtils = require('../utility/common_utils.js');
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
-const { HTTP_STATUS_CODES, HDB_ERROR_MSGS, CHECK_LOGS_WRAPPER } = hdbErrors;
-const logger = require('../utility/logging/harper_logger.js');
-const papaParse = require('papaparse');
+import * as hdbUtils from '../utility/common_utils.js';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { HTTP_STATUS_CODES, HDB_ERROR_MSGS, CHECK_LOGS_WRAPPER } from '../utility/errors/commonErrors.js';
+
+import logger from '../utility/logging/harper_logger.js';
+import * as papaParse from 'papaparse';
 hdbUtils.promisifyPapaParse();
-const fs = require('fs-extra');
-const path = require('path');
-const { chain } = require('stream-chain');
-const StreamArray = require('stream-json/streamers/StreamArray');
-const Batch = require('stream-json/utils/Batch');
-const comp = require('stream-chain/utils/comp');
-const { finished } = require('stream');
-const env = require('../utility/environment/environmentManager.js');
-const opFuncCaller = require('../utility/OperationFunctionCaller.js').default || require('../utility/OperationFunctionCaller.js');
-const AWSConnector = require('../utility/AWS/AWSConnector.js');
-const { BulkLoadFileObject, BulkLoadDataObject } = require('./dataObjects/BulkLoadObjects.js');
-const PermissionResponseObject =
-	require('../security/data_objects/PermissionResponseObject.js').default ||
-	require('../security/data_objects/PermissionResponseObject.js');
-const { verifyBulkLoadAttributePerms } = require('../utility/operation_authorization.js');
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import { chain } from 'stream-chain';
+import StreamArray from 'stream-json/streamers/StreamArray';
+import Batch from 'stream-json/utils/Batch';
+import comp from 'stream-chain/utils/comp';
+import { finished } from 'stream';
+import * as env from '../utility/environment/environmentManager.js';
+import * as opFuncCaller from '../utility/OperationFunctionCaller.js';
+import * as AWSConnector from '../utility/AWS/AWSConnector.js';
+import { BulkLoadFileObject, BulkLoadDataObject } from './dataObjects/BulkLoadObjects.js';
+import PermissionResponseObject from '../security/data_objects/PermissionResponseObject.js';
+import { verifyBulkLoadAttributePerms } from '../utility/operation_authorization.js';
 const { databases } = require('../resources/databases.ts');
-const { coerceType } = require('../resources/Table.ts');
+import { coerceType } from '../resources/Table.js';
 
 const CSV_NO_RECORDS_MSG = 'No records parsed from csv file.';
 const TEMP_DOWNLOAD_DIR = `${env.get('HDB_ROOT')}/tmp`;
-const { schemaRegex } = require('../validation/common_validators.js');
+import { schemaRegex } from '../validation/common_validators.js';
 const HIGHWATERMARK = 1024 * 1024 * 2;
 const MAX_JSON_ARRAY_SIZE = 5000;
 
@@ -41,19 +40,14 @@ const ACCEPTABLE_URL_CONTENT_TYPE_ENUM = {
 	'application/vnd.ms-excel': true,
 };
 
-module.exports = {
-	csvDataLoad,
-	csvURLLoad,
-	csvFileLoad,
-	importFromS3,
-};
+
 
 /**
  * Load csv values specified as a string in the message 'data' field.
  * @param jsonMessage
  * @returns {Promise<string>}
  */
-async function csvDataLoad(jsonMessage) {
+export async function csvDataLoad(this: any, jsonMessage: any) {
 	let validationMsg = validator.dataObject(jsonMessage);
 	if (validationMsg) {
 		throw handleHDBError(
@@ -66,7 +60,7 @@ async function csvDataLoad(jsonMessage) {
 		);
 	}
 
-	let bulkLoadResult = {};
+	let bulkLoadResult: any = {};
 	try {
 		const mapOfTransforms = createTransformMap(jsonMessage.schema, jsonMessage.table);
 		let parseResults = papaParse.parse(jsonMessage.data, {
@@ -125,7 +119,7 @@ async function csvDataLoad(jsonMessage) {
  * @param jsonMessage
  * @returns {Promise<string>}
  */
-async function csvURLLoad(jsonMessage) {
+export async function csvURLLoad(this: any, jsonMessage: any) {
 	let validationMsg = validator.urlObject(jsonMessage);
 	if (validationMsg) {
 		throw handleHDBError(
@@ -177,7 +171,7 @@ async function csvURLLoad(jsonMessage) {
  * @param jsonMessage
  * @returns {Promise<string>}
  */
-async function csvFileLoad(jsonMessage) {
+export async function csvFileLoad(this: any, jsonMessage: any) {
 	let validationMsg = validator.fileObject(jsonMessage);
 	if (validationMsg) {
 		throw handleHDBError(
@@ -214,7 +208,7 @@ async function csvFileLoad(jsonMessage) {
  * @param jsonMessage
  * @returns {Promise<string>}
  */
-async function importFromS3(jsonMessage) {
+export async function importFromS3(this: any, jsonMessage: any) {
 	let validationMsg = validator.s3FileObject(jsonMessage);
 	if (validationMsg) {
 		throw handleHDBError(
@@ -290,9 +284,9 @@ async function downloadFileFromS3(s3FileName, jsonMessage) {
 		await fs.mkdirp(TEMP_DOWNLOAD_DIR);
 		await fs.writeFile(`${TEMP_DOWNLOAD_DIR}/${s3FileName}`, '', { flag: 'a+' });
 		let tempFileStream = await fs.createWriteStream(tempDownloadLocation);
-		let s3Stream = await AWSConnector.getFileStreamFromS3(jsonMessage);
+		let s3Stream: any = await AWSConnector.getFileStreamFromS3(jsonMessage);
 
-		await new Promise((resolve, reject) => {
+		await new Promise<void>((resolve, reject) => {
 			s3Stream.on('error', function (err) {
 				reject(err);
 			});
@@ -620,11 +614,11 @@ async function insertJson(jsonMessage) {
 			(data) => data.value,
 			new Batch({ batchSize: MAX_JSON_ARRAY_SIZE }),
 			comp(async (chunk) => {
-				await validateChunk(jsonMessage, attrsPermsErrors, throwErr, chunk);
+				await validateChunk(jsonMessage, attrsPermsErrors, throwErr, chunk, undefined);
 			}),
 		]);
 
-		await new Promise((resolve, reject) => {
+		await new Promise<void>((resolve, reject) => {
 			finished(jsonStreamer, (err) => {
 				if (err) {
 					reject(err);
@@ -646,11 +640,11 @@ async function insertJson(jsonMessage) {
 			(data) => data.value,
 			new Batch({ batchSize: MAX_JSON_ARRAY_SIZE }),
 			comp(async (chunk) => {
-				await insertChunk(jsonMessage, insertResults, throwErr, chunk);
+				await insertChunk(jsonMessage, insertResults, throwErr, chunk, undefined);
 			}),
 		]);
 
-		await new Promise((resolve, reject) => {
+		await new Promise<void>((resolve, reject) => {
 			finished(jsonStreamerInsert, (err) => {
 				if (err) {
 					reject(err);
@@ -674,7 +668,7 @@ async function insertJson(jsonMessage) {
 }
 
 async function callBulkFileLoad(jsonMsg) {
-	let bulkLoadResult = {};
+	let bulkLoadResult: any = {};
 	try {
 		if (jsonMsg.data && jsonMsg.data.length > 0 && validateColumnNames(jsonMsg.data[0])) {
 			bulkLoadResult = await bulkFileLoad(jsonMsg.data, jsonMsg.schema, jsonMsg.table, jsonMsg.action);

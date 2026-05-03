@@ -1,22 +1,23 @@
 'use strict';
 
-const schemaMetadataValidator = require('../validation/schemaMetadataValidator.js');
-const { validateBySchema } = require('../validation/validationWrapper.js');
-const { commonValidators, schemaRegex } = require('../validation/common_validators.js');
-const Joi = require('joi');
-const logger = require('../utility/logging/harper_logger.js');
-const uuidV4 = require('uuid').v4;
-const signalling = require('../utility/signalling.js');
+import * as schemaMetadataValidator from '../validation/schemaMetadataValidator.js';
+import { validateBySchema } from '../validation/validationWrapper.js';
+import { commonValidators, schemaRegex } from '../validation/common_validators.js';
+import Joi from 'joi';
+import logger from '../utility/logging/harper_logger.js';
+import { v4 as uuidV4 } from 'uuid';
+import * as signalling from '../utility/signalling.js';
 const hdbTerms = require('../utility/hdbTerms.ts');
-const util = require('util');
+import * as util from 'util';
 const harperBridge = require('./harperBridge/harperBridge.js');
-const { handleHDBError, hdbErrors, ClientError } = require('../utility/errors/hdbError.js');
-const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
-const { SchemaEventMsg } = require('../server/threads/itc.js');
+import { handleHDBError, hdbErrors, ClientError } from '../utility/errors/hdbError.js';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+
+import { SchemaEventMsg } from '../server/threads/itc.js';
 const { getDatabases, dropTableMeta } = require('../resources/databases.ts');
-const { transformReq } = require('../utility/common_utils.js');
-const { server } = require('../server/Server.ts');
-const { cleanupOrphans } = require('../resources/blob.ts');
+import { transformReq } from '../utility/common_utils.js';
+import { server } from '../server/Server.js';
+import { cleanupOrphans } from '../resources/blob.js';
 
 const DB_NAME_CONSTRAINTS = Joi.string()
 	.min(1)
@@ -42,22 +43,11 @@ const PRIMARY_KEY_CONSTRAINTS = Joi.string()
 	})
 	.required();
 
-module.exports = {
-	createSchema,
-	createSchemaStructure,
-	createTable,
-	createTableStructure,
-	createAttribute,
-	dropSchema,
-	dropTable,
-	dropAttribute,
-	getBackup,
-	cleanupOrphanBlobs,
-};
+
 
 /** EXPORTED FUNCTIONS **/
 
-async function createSchema(schemaCreateObject) {
+export async function createSchema(schemaCreateObject: any) {
 	let schemaStructure = await createSchemaStructure(schemaCreateObject);
 	signalling.signalSchemaChange(
 		new SchemaEventMsg(process.pid, schemaCreateObject.operation, schemaCreateObject.schema)
@@ -66,7 +56,7 @@ async function createSchema(schemaCreateObject) {
 	return schemaStructure;
 }
 
-async function createSchemaStructure(schemaCreateObject) {
+export async function createSchemaStructure(schemaCreateObject: any) {
 	const validation = validateBySchema(
 		schemaCreateObject,
 		Joi.object({
@@ -94,13 +84,13 @@ async function createSchemaStructure(schemaCreateObject) {
 	return `database '${schemaCreateObject.schema}' successfully created`;
 }
 
-async function createTable(createTableObject) {
+export async function createTable(createTableObject: any) {
 	transformReq(createTableObject);
 	createTableObject.primary_key = createTableObject.primary_key ?? createTableObject.hash_attribute;
 	return await createTableStructure(createTableObject);
 }
 
-async function createTableStructure(createTableObject) {
+export async function createTableStructure(createTableObject: any) {
 	const validation = validateBySchema(
 		createTableObject,
 		Joi.object({
@@ -128,7 +118,7 @@ async function createTableStructure(createTableObject) {
 		);
 	}
 
-	let tableSystemData = {
+	let tableSystemData: any = {
 		name: createTableObject.table,
 		schema: createTableObject.schema,
 		id: uuidV4(),
@@ -153,7 +143,7 @@ async function createTableStructure(createTableObject) {
 	return `table '${createTableObject.schema}.${createTableObject.table}' successfully created.`;
 }
 
-async function dropSchema(dropSchemaObject) {
+export async function dropSchema(dropSchemaObject: any) {
 	const validation = validateBySchema(
 		dropSchemaObject,
 		Joi.object({
@@ -189,7 +179,7 @@ async function dropSchema(dropSchemaObject) {
 	return response;
 }
 
-async function dropTable(dropTableObject) {
+export async function dropTable(dropTableObject: any) {
 	const validation = validateBySchema(
 		dropTableObject,
 		Joi.object({
@@ -231,7 +221,7 @@ async function dropTable(dropTableObject) {
  * @param dropAttributeObject - The JSON formatted inbound message.
  * @returns {Promise<*>}
  */
-async function dropAttribute(dropAttributeObject) {
+export async function dropAttribute(dropAttributeObject: any) {
 	const validation = validateBySchema(
 		dropAttributeObject,
 		Joi.object({
@@ -315,13 +305,13 @@ function dropAttributeFromGlobal(dropAttributeObject) {
 	);
 
 	for (let i = 0; i < attributesObj.length; i++) {
-		if (attributesObj[i].attribute === dropAttributeObject.attribute) {
+		if ((attributesObj[i] as any).attribute === dropAttributeObject.attribute) {
 			global.hdb_schema[dropAttributeObject.schema][dropAttributeObject.table]['attributes'].splice(i, 1);
 		}
 	}
 }
 
-async function createAttribute(createAttributeObject) {
+export async function createAttribute(createAttributeObject: any) {
 	transformReq(createAttributeObject);
 
 	const tableAttr = getDatabases()[createAttributeObject.schema][createAttributeObject.table].attributes;
@@ -352,15 +342,15 @@ async function createAttribute(createAttributeObject) {
 	return `attribute '${createAttributeObject.schema}.${createAttributeObject.table}.${createAttributeObject.attribute}' successfully created.`;
 }
 
-function getBackup(getBackupObject) {
+export function getBackup(getBackupObject: any) {
 	return harperBridge.getBackup(getBackupObject);
 }
 
-function cleanupOrphanBlobs(request) {
+export function cleanupOrphanBlobs(request: any) {
 	if (!request.database) throw new ClientError('Must provide "database" name for search for orphaned blobs');
-	const database = databases[request.database];
+	const database: any = (databases as any)[request.database];
 	if (!database) throw new ClientError(`Unknown database '${request.database}'`);
 	// don't await, it will probably take hours
-	cleanupOrphans(databases[request.database], request.database);
+	cleanupOrphans((databases as any)[request.database], request.database);
 	return { message: 'Orphaned blobs cleanup started, check logs for progress' };
 }

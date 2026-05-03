@@ -1,7 +1,7 @@
 'use strict';
 
-const { ResourceBridge } = require('./ResourceBridge.ts');
-const envMngr = require('../../utility/environment/environmentManager.js');
+import { ResourceBridge } from './ResourceBridge.js';
+import * as envMngr from '../../utility/environment/environmentManager.js';
 envMngr.initSync();
 
 let harperBridge; // ResourceBridge
@@ -18,4 +18,4 @@ function getBridge() {
 	return harperBridge;
 }
 
-module.exports = getBridge();
+export default getBridge();

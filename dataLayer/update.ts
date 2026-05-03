@@ -1,26 +1,24 @@
 'use strict';
 
-const search = require('./search.js');
-const globalSchema = require('../utility/globalSchema.js');
-const logger = require('../utility/logging/harper_logger.js');
-const write = require('./insert.js');
-const clone = require('clone');
-const alasql = require('alasql');
-const alasqlFunctionImporter = require('../sqlTranslator/alasqlFunctionImporter.js');
-const util = require('util');
+import * as search from './search.js';
+import * as globalSchema from '../utility/globalSchema.js';
+import logger from '../utility/logging/harper_logger.js';
+import * as write from './insert.js';
+import clone from 'clone';
+import * as alasql from 'alasql';
+import alasqlFunctionImporter from '../sqlTranslator/alasqlFunctionImporter.js';
+import * as util from 'util';
 
 const pGetTableSchema = util.promisify(globalSchema.getTableSchema);
 const pSearch = util.promisify(search.search);
 
 const terms = require('../utility/hdbTerms.ts');
-const hdbUtils = require('../utility/common_utils.js');
+import * as hdbUtils from '../utility/common_utils.js';
 
 //here we call to define and import custom functions to alasql
 alasqlFunctionImporter(alasql);
 
-module.exports = {
-	update,
-};
+
 
 const SQL_UPDATE_ERROR_MSG = 'There was a problem performing this update. Please check the logs and try again.';
 
@@ -31,8 +29,8 @@ const SQL_UPDATE_ERROR_MSG = 'There was a problem performing this update. Please
  * @param hdb_user
  * @return
  */
-async function update({ statement, hdb_user }) {
-	let tableInfo = await pGetTableSchema(statement.table.databaseid, statement.table.tableid);
+export async function update({ statement, hdb_user }: any) {
+	let tableInfo: any = await pGetTableSchema(statement.table.databaseid, statement.table.tableid);
 	let update_record = createUpdateRecord(statement.columns);
 
 	//convert this update statement to a SQL search capable statement
@@ -43,9 +41,9 @@ async function update({ statement, hdb_user }) {
 	let whereString = hdbUtils.isEmpty(where) ? '' : ` WHERE ${where.toString()}`;
 
 	let selectString = `SELECT ${tableInfo.hash_attribute} FROM ${from.toString()} ${whereString}`;
-	let searchStatement = alasql.parse(selectString).statements[0];
+	let searchStatement = (alasql as any).parse(selectString).statements[0];
 	//let result = await transaction.writeTransaction(tableInfo.schema, tableInfo.name, async () => {
-	let records = await pSearch(searchStatement);
+	let records: any = await pSearch(searchStatement);
 	let newRecords = buildUpdateRecords(update_record, records);
 	return updateRecords(tableClone, newRecords, hdb_user);
 	//});
@@ -57,7 +55,7 @@ async function update({ statement, hdb_user }) {
  * creates a json object based on the AST
  * @param columns
  */
-function createUpdateRecord(columns) {
+function createUpdateRecord(columns: any[]) {
 	try {
 		let record = {};
 
@@ -65,7 +63,7 @@ function createUpdateRecord(columns) {
 			if ('value' in column.expression) {
 				record[column.column.columnid] = column.expression.value ?? null;
 			} else {
-				record[column.column.columnid] = alasql.compile(
+				record[column.column.columnid] = (alasql as any).compile(
 					`SELECT ${column.expression.toString()} AS [${terms.FUNC_VAL}] FROM ?`
 				);
 			}
@@ -85,7 +83,7 @@ function createUpdateRecord(columns) {
  * @param {[]} records
  * @return
  */
-function buildUpdateRecords(update_record, records) {
+function buildUpdateRecords(update_record: any, records: any[]) {
 	if (hdbUtils.isEmptyOrZeroLength(records)) {
 		return [];
 	}
@@ -101,7 +99,7 @@ function buildUpdateRecords(update_record, records) {
  * @param {{}} hdb_user
  * @return
  */
-async function updateRecords(table, records, hdb_user) {
+async function updateRecords(table: any, records: any[], hdb_user: any) {
 	let updateObject = {
 		operation: 'update',
 		schema: table.databaseid_orig,

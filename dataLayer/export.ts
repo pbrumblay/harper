@@ -1,19 +1,20 @@
 'use strict';
 
-const search = require('./search.js');
-const AWSConnector = require('../utility/AWS/AWSConnector.js');
-const stream = require('stream');
-const hdbUtils = require('../utility/common_utils.js');
-const fs = require('fs-extra');
-const path = require('path');
-const hdbLogger = require('../utility/logging/harper_logger.js');
-const { promisify } = require('util');
-const hdbCommon = require('../utility/common_utils.js');
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
-const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
-const { streamAsJSON } = require('../server/serverHelpers/JSONStream.ts');
-const { Upload } = require('@aws-sdk/lib-storage');
-const { toCsvStream } = require('../server/serverHelpers/contentTypes.ts');
+import * as search from './search.js';
+import * as AWSConnector from '../utility/AWS/AWSConnector.js';
+import * as stream from 'stream';
+import * as hdbUtils from '../utility/common_utils.js';
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import hdbLogger from '../utility/logging/harper_logger.js';
+import { promisify } from 'util';
+import * as hdbCommon from '../utility/common_utils.js';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+
+import { streamAsJSON } from '../server/serverHelpers/JSONStream.js';
+import { Upload } from '@aws-sdk/lib-storage';
+import { toCsvStream } from '../server/serverHelpers/contentTypes.js';
 
 const VALID_SEARCH_OPERATIONS = ['search_by_value', 'search_by_hash', 'sql', 'search_by_conditions'];
 const VALID_EXPORT_FORMATS = ['json', 'csv'];
@@ -29,17 +30,14 @@ const pSearchByHash = search.searchByHash;
 const pSearchByValue = search.searchByValue;
 const streamFinished = promisify(stream.finished);
 
-module.exports = {
-	export_to_s3,
-	export_local,
-};
+
 
 /**
  * Allows for exporting and saving to a file system the receiving system has access to
  *
  * @param exportObject
  */
-async function export_local(exportObject) {
+export async function export_local(exportObject: any) {
 	hdbLogger.trace(
 		`export_local request to path: ${exportObject.path}, filename: ${exportObject.filename}, format: ${exportObject.format}`
 	);
@@ -81,7 +79,7 @@ async function export_local(exportObject) {
  * stats the path sent in to verify the path exists, the user has access & the path is a directory
  * @param directoryPath
  */
-async function confirmPath(directoryPath) {
+async function confirmPath(directoryPath: string) {
 	hdbLogger.trace('in confirmPath');
 	if (hdbUtils.isEmptyOrZeroLength(directoryPath)) {
 		throw handleHDBError(
@@ -122,7 +120,7 @@ async function confirmPath(directoryPath) {
  * @param sourceDataFormat
  * @param data
  */
-async function saveToLocal(filePath, sourceDataFormat, data) {
+async function saveToLocal(filePath: string, sourceDataFormat: string, data: any) {
 	hdbLogger.trace('in saveToLocal');
 	if (hdbCommon.isEmptyOrZeroLength(filePath)) {
 		throw handleHDBError(
@@ -189,7 +187,7 @@ async function saveToLocal(filePath, sourceDataFormat, data) {
  * @param exportObject
  * @returns {*}
  */
-async function export_to_s3(exportObject) {
+export async function export_to_s3(exportObject: any) {
 	if (!exportObject.s3 || Object.keys(exportObject.s3).length === 0) {
 		throw handleHDBError(new Error(), HDB_ERROR_MSGS.MISSING_VALUE('S3 object'), HTTP_STATUS_CODES.BAD_REQUEST);
 	}
@@ -303,7 +301,7 @@ async function export_to_s3(exportObject) {
  * @param exportObject
  * @returns {string}
  */
-function exportCoreValidation(exportObject) {
+function exportCoreValidation(exportObject: any) {
 	hdbLogger.trace('in exportCoreValidation');
 	if (hdbUtils.isEmpty(exportObject.format)) {
 		return 'format missing';
@@ -328,7 +326,7 @@ let pSql;
  * determines which search operation to perform and executes it.
  * @param exportObject
  */
-async function getRecords(exportObject) {
+async function getRecords(exportObject: any) {
 	hdbLogger.trace('in getRecords');
 	let operation;
 	let errMsg = undefined;

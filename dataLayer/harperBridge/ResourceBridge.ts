@@ -25,7 +25,7 @@ import type {
 import { collapseData } from '../../resources/tracked.ts';
 import { errorToString } from '../../utility/logging/harper_logger.js';
 import { RocksDatabase } from '@harperfast/rocksdb-js';
-import BridgeMethods from './BridgeMethods.js';
+import { BridgeMethods } from './BridgeMethods.js';
 import lmdbGetBackup from './lmdbBridge/lmdbMethods/lmdbGetBackup.js';
 import { DeleteTransactionLogsBeforeResults } from './DeleteTransactionLogsBeforeResults.ts';
 import type { Readable } from 'node:stream';
@@ -198,7 +198,6 @@ export class ResourceBridge extends BridgeMethods {
 		return this.upsertRecords(updateObj);
 	}
 
-	// @ts-expect-error property is not assignable to base type
 	async upsertRecords(upsertObj) {
 		const { attributes } = insertUpdateValidate(upsertObj);
 
@@ -304,7 +303,6 @@ export class ResourceBridge extends BridgeMethods {
 	 * }
 	 * @returns {undefined}
 	 */
-	// @ts-expect-error property is not assignable to base type
 	async deleteRecordsBefore(deleteObj) {
 		const Table = getDatabases()[deleteObj.schema][deleteObj.table];
 		if (!Table.createdTimeProperty) {
@@ -450,7 +448,6 @@ export class ResourceBridge extends BridgeMethods {
 		);
 	}
 
-	// @ts-expect-error property is not assignable to base type
 	async getDataByValue(searchObject: SearchObject, comparator?: string) {
 		const map = new Map();
 		const table = getTable(searchObject);
@@ -473,7 +470,6 @@ export class ResourceBridge extends BridgeMethods {
 	 * @param deleteObj The request body
 	 * @returns
 	 */
-	// @ts-expect-error property is not assignable to base type
 	async deleteTransactionLogsBefore(deleteObj: {
 		schema?: string; // deprecated in favor of `database`
 		database?: string;
@@ -511,7 +507,6 @@ export class ResourceBridge extends BridgeMethods {
 		return totalResults;
 	}
 
-	// @ts-expect-error property is not assignable to base type
 	async readAuditLog(readAuditLogObj) {
 		const table = getTable(readAuditLogObj);
 		const histories = {};

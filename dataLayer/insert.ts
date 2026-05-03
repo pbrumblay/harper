@@ -6,15 +6,16 @@
  * This module is used to validate and insert or update data.  Note insert.update should be used over the update module,
  * as the update module is meant to be used in more specific circumstances.
  */
-const insertValidator = require('../validation/insertValidator.js');
-const hdbUtils = require('../utility/common_utils.js');
-const util = require('util');
+import insertValidator from '../validation/insertValidator.js';
+import * as hdbUtils from '../utility/common_utils.js';
+import * as util from 'util';
 // Leave this unused signalling import here. Due to circular dependencies we bring it in early to load it before the bridge
 const harperBridge = require('./harperBridge/harperBridge.js');
-const globalSchema = require('../utility/globalSchema.js');
-const log = require('../utility/logging/harper_logger.js');
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
-const { HTTP_STATUS_CODES } = hdbErrors;
+import * as globalSchema from '../utility/globalSchema.js';
+import log from '../utility/logging/harper_logger.js';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+
 
 const pGlobalSchema = util.promisify(globalSchema.getTableSchema);
 
@@ -22,13 +23,7 @@ const UPDATE_ACTION = 'updated';
 const INSERT_ACTION = 'inserted';
 const UPSERT_ACTION = 'upserted';
 
-module.exports = {
-	insert: insertData,
-	update: updateData,
-	upsert: upsertData,
-	validation,
-	flush,
-};
+
 
 //IMPORTANT - This validation function is the async version of the code in harperBridge/bridgeUtility/insertUpdateValidate.js
 // make sure any changes below are also made there. This is to resolve a circular dependency.
@@ -37,7 +32,7 @@ module.exports = {
  * @param {Object} writeObject
  * @returns {Promise<{tableSchema, hashes: any[], attributes: string[]}>}
  */
-async function validation(writeObject) {
+export async function validation(writeObject: any) {
 	// Need to validate these outside of the validator as the getTableSchema call will fail with
 	// invalid values.
 
@@ -51,7 +46,7 @@ async function validation(writeObject) {
 		throw new Error('invalid table specified.');
 	}
 
-	let schemaTable = await pGlobalSchema(writeObject.schema, writeObject.table);
+	let schemaTable: any = await pGlobalSchema(writeObject.schema, writeObject.table);
 
 	//validate insertObject for required attributes
 	let validator = insertValidator(writeObject);
@@ -121,7 +116,7 @@ async function validation(writeObject) {
  * Inserts data specified in the insertObject parameter.
  * @param insertObject
  */
-async function insertData(insertObject) {
+export async function insert(insertObject: any) {
 	if (insertObject.operation !== 'insert') {
 		throw new Error('invalid operation, must be insert');
 	}
@@ -154,7 +149,7 @@ async function insertData(insertObject) {
  * Updates the data in the updateObject parameter.
  * @param updateObject - The data that will be updated in the database
  */
-async function updateData(updateObject) {
+export async function update(updateObject: any) {
 	if (updateObject.operation !== 'update') {
 		throw new Error('invalid operation, must be update');
 	}
@@ -197,7 +192,7 @@ async function updateData(updateObject) {
  * Upsert the data in the upsertObject parameter.
  * @param upsertObject - Represents the data that will be upserted in the database
  */
-async function upsertData(upsertObject) {
+export async function upsert(upsertObject: any) {
 	if (upsertObject.operation !== 'upsert') {
 		throw handleHDBError(new Error(), 'invalid operation, must be upsert', HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR);
 	}
@@ -237,8 +232,8 @@ async function upsertData(upsertObject) {
  * @returns {{ message: string, new_attributes: *, txn_time: * }}
  */
 
-function returnObject(action, written_hashes, object, skipped, new_attributes, txnTime) {
-	let return_object = {
+function returnObject(action: string, written_hashes: any[], object: any, skipped: any[], new_attributes: any, txnTime: any) {
+	let return_object: any = {
 		message: `${action} ${written_hashes.length} of ${written_hashes.length + skipped.length} records`,
 		new_attributes,
 		txn_time: txnTime,
@@ -260,7 +255,7 @@ function returnObject(action, written_hashes, object, skipped, new_attributes, t
 	return return_object;
 }
 
-function flush(object) {
+export function flush(object: any) {
 	hdbUtils.transformReq(object);
 	return harperBridge.flush(object.schema, object.table);
 }
