@@ -24,7 +24,7 @@ import jobRunner from '../jobs/jobRunner.js';
 import * as tokenAuthentication from '../../security/tokenAuthentication.ts';
 import * as auth from '../../security/auth.ts';
 import configUtils from '../../config/configUtils.js';
-import transactionLog from '../../utility/logging/transactionLog.js';
+import * as transactionLog from '../../utility/logging/transactionLog.js';
 import * as npmUtilities from '../../utility/npmUtilities.js';
 import { _assignPackageExport } from '../../globals.js';
 import { transformReq } from '../../utility/common_utils.js';

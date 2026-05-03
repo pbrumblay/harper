@@ -1,22 +1,22 @@
 'use strict';
 
-const hdbTerms = require('../hdbTerms.js');
-const hdbLogger = require('./harper_logger.js');
-const validator = require('../../validation/readLogValidator.js').default || require('../../validation/readLogValidator.js');
-const path = require('path');
-const fs = require('fs-extra');
-const { once } = require('events');
-const { getConfigPath } = require('../../config/configUtils.js');
-const { handleHDBError, hdbErrors } = require('../errors/hdbError.js');
+import * as hdbTerms from '../hdbTerms.js';
+import hdbLogger from './harper_logger.js';
+import validator from '../../validation/readLogValidator.js';
+import * as path from 'path';
+import * as fs from 'fs-extra';
+import { once } from 'events';
+import { getConfigPath } from '../../config/configUtils.js';
+import { handleHDBError, hdbErrors } from '../errors/hdbError.js';
 const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
-const { server } = require('../../server/Server.js');
+import { server } from '../../server/Server.js';
 
 // Install log is created in harperdb/logs because the hdb folder doesn't exist initially during the install process.
 const INSTALL_LOG_LOCATION = path.join(PACKAGE_ROOT, `logs`);
 const DEFAULT_READ_LOG_LIMIT = 1000;
 const ESTIMATED_AVERAGE_ENTRY_SIZE = 200;
 
-module.exports = readLog;
+export default readLog;
 
 /**
  * Reads a log via a read stream and filters lines if filter params are passed.
@@ -24,7 +24,7 @@ module.exports = readLog;
  * @param request
  * @returns {Promise<*[]>}
  */
-async function readLog(request) {
+async function readLog(request: any) {
 	const validation = validator(request);
 	if (validation) {
 		throw handleHDBError(
@@ -111,7 +111,7 @@ async function readLog(request) {
 		}
 	});
 	readLogInputStream.resume();
-	function onLogMessage(line) {
+	function onLogMessage(line: any) {
 		if (filter !== undefined) {
 			let found = false;
 			if (
@@ -276,9 +276,9 @@ async function readLog(request) {
 			line.node = server.hostname;
 		}
 		// and then add the lines from the other nodes
-		for (let nodeResult of replicatedResponse.replicated) {
-			let node = nodeResult.node;
-			if (nodeResult.status === 'failed') {
+		for (let nodeResult of (replicatedResponse as any).replicated) {
+			let node = (nodeResult as any).node;
+			if ((nodeResult as any).status === 'failed') {
 				// if the node failed to replicate, add an error line
 				pushLineToResult(
 					{
@@ -291,7 +291,7 @@ async function readLog(request) {
 					result
 				);
 			} else {
-				for (let line of nodeResult.results) {
+				for (let line of (nodeResult as any).results) {
 					line.node = node;
 					pushLineToResult(line, order, result);
 				}
@@ -308,7 +308,7 @@ async function readLog(request) {
  * @param order
  * @param result
  */
-function pushLineToResult(line, order, result) {
+function pushLineToResult(line: any, order: string | undefined, result: any[]) {
 	if (order === 'desc') {
 		insertDescending(line, result);
 	} else if (order === 'asc') {
@@ -323,7 +323,7 @@ function pushLineToResult(line, order, result) {
  * @param value
  * @param result
  */
-function insertDescending(value, result) {
+function insertDescending(value: any, result: any[]) {
 	const dateVal = new Date(value.timestamp);
 	let low = 0;
 	let high = result.length;
@@ -341,7 +341,7 @@ function insertDescending(value, result) {
  * @param value
  * @param result
  */
-function insertAscending(value, result) {
+function insertAscending(value: any, result: any[]) {
 	const dateVal = new Date(value.timestamp);
 	let low = 0;
 	let high = result.length;

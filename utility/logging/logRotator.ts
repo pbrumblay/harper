@@ -1,17 +1,17 @@
 'use strict';
 
-const { promises: fsProm, createReadStream, createWriteStream } = require('fs');
-const { createGzip } = require('zlib');
-const { promisify } = require('util');
-const { pipeline } = require('stream');
+import { promises as fsProm, createReadStream, createWriteStream } from 'fs';
+import { createGzip } from 'zlib';
+import { promisify } from 'util';
+import { pipeline } from 'stream';
 const pipe = promisify(pipeline);
-const path = require('path');
-const envMgr = require('../environment/environmentManager.js');
+import * as path from 'path';
+import * as envMgr from '../environment/environmentManager.js';
 envMgr.initSync();
-const hdbLogger = require('./harper_logger.js');
-const { CONFIG_PARAMS } = require('../hdbTerms.js');
-const { convertToMS } = require('../common_utils.js');
-const { onStorageReclamation } = require('../../server/storageReclamation.js');
+import hdbLogger from './harper_logger.js';
+import { CONFIG_PARAMS } from '../hdbTerms.js';
+import { convertToMS } from '../common_utils.js';
+import { onStorageReclamation } from '../../server/storageReclamation.js';
 
 // Interval in ms to check log file and decide if it should be rotated.
 const LOG_AUDIT_INTERVAL = 60000;
@@ -23,7 +23,7 @@ const PATH_UNDEFINED_MSG =
 let lastRotationTime;
 let setIntervalId;
 
-module.exports = logRotator;
+export default logRotator;
 
 /**
  * Rotates hdb.log using an interval and/or maxSize param to determine if log should be rotated.
@@ -31,7 +31,7 @@ module.exports = logRotator;
  * If log file is within the values set in config, log file will be renamed/moved and a new empty hdb.log created.
  * @returns LogRotator
  */
-function logRotator({ logger, maxSize, interval, retention, enabled, path: rotatedLogDir, auditInterval }) {
+function logRotator({ logger, maxSize, interval, retention, enabled, path: rotatedLogDir, auditInterval }: any) {
 	if (enabled === false) return;
 	let reclamationPriority = 0;
 	onStorageReclamation(
@@ -133,7 +133,7 @@ function logRotator({ logger, maxSize, interval, retention, enabled, path: rotat
 	};
 }
 
-async function moveLogFile(logPath, rotatedLogPath) {
+async function moveLogFile(logPath: string, rotatedLogPath: string) {
 	const compress = envMgr.get(CONFIG_PARAMS.LOGGING_ROTATION_COMPRESS);
 	let fullRotateLogPath = path.join(
 		rotatedLogPath,

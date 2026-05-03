@@ -1,21 +1,16 @@
 'use strict';
 
-const hdbUtils = require('../common_utils.js');
-const log = require('./harper_logger.js');
-const { handleHDBError, hdbErrors } = require('../errors/hdbError.js');
-const { HTTP_STATUS_CODES } = hdbErrors;
-const {
-	readTransactionLogValidator,
-	deleteTransactionLogsBeforeValidator,
-} = require('../../validation/transactionLogValidator.js');
-const harperBridge = require('../../dataLayer/harperBridge/harperBridge.js');
+import * as hdbUtils from '../common_utils.js';
+import log from './harper_logger.js';
+import { handleHDBError, hdbErrors } from '../errors/hdbError.js';
+import { HTTP_STATUS_CODES } from '../errors/commonErrors.js';
 
-module.exports = {
-	readTransactionLog,
-	deleteTransactionLogsBefore,
-};
+import { readTransactionLogValidator, deleteTransactionLogsBeforeValidator } from '../../validation/transactionLogValidator.js';
+const harperBridge = require('../../dataLayer/harperBridge/harperBridge.js').default || require('../../dataLayer/harperBridge/harperBridge.js');
 
-async function readTransactionLog(req) {
+
+
+export async function readTransactionLog(req: any) {
 	const validation = readTransactionLogValidator(req);
 	if (validation) {
 		throw handleHDBError(validation, validation.message, HTTP_STATUS_CODES.BAD_REQUEST, undefined, undefined, true);
@@ -44,7 +39,7 @@ async function readTransactionLog(req) {
  * @param req - {schema, table, timestamp}
  * @returns {Promise<string>}
  */
-async function deleteTransactionLogsBefore(req) {
+export async function deleteTransactionLogsBefore(req: any) {
 	const validation = deleteTransactionLogsBeforeValidator(req);
 	if (validation.error) {
 		const err = new Error(validation.error.message);
