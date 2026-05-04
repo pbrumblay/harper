@@ -1,8 +1,6 @@
 import jwt from 'jsonwebtoken';
-import { createRequire } from 'module';
+import SETTINGS from './connect.json' with { type: 'json' };
 
-const require = createRequire(import.meta.url);
-const SETTINGS = require('./connect.json');
 const mqtt_log = logger;
 
 class User {

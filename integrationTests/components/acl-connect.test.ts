@@ -10,8 +10,7 @@ import { suite, test, before, after } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import jwt from 'jsonwebtoken';
 import mqtt, { type IClientOptions, type MqttClient } from 'mqtt';
@@ -19,8 +18,7 @@ import mqtt, { type IClientOptions, type MqttClient } from 'mqtt';
 import { startHarper, teardownHarper, sendOperation, type ContextWithHarper } from '@harperfast/integration-testing';
 
 const PROJECT = 'acl-connect-with-sys';
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const FIXTURE_PATH = resolve(__dirname, 'fixtures/acl-connect-with-sys');
+const FIXTURE_PATH = resolve(import.meta.dirname, 'fixtures/acl-connect-with-sys');
 
 let MQTT_URL = process.env.ACL_MQTT_URL ?? 'mqtt://localhost:1883';
 const JWT_SECRET = 'integration-test-secret-not-verified';
