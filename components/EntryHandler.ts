@@ -189,12 +189,26 @@ export class EntryHandler extends EventEmitter<EntryHandlerEventMap> {
 			.watch(this.#component.commonPatternBase, {
 				cwd: this.#component.directory,
 				persistent: false,
+				followSymlinks: false,
 				ignored: (path) => {
 					const normalizedPath = path.replace(/\\/g, '/');
 					const normalizedBases = allowedBases.map((base) => base.replace(/\\/g, '/'));
+					const normalizedDirectory = this.#component.directory.replace(/\\/g, '/');
+
+					// Check for nested node_modules relative to the component directory
+					// This allows plugins loaded from node_modules to watch their own files
+					// while still ignoring their nested node_modules dependencies
+					const relativePath = normalizedPath.startsWith(normalizedDirectory + '/')
+						? normalizedPath.slice(normalizedDirectory.length)
+						: normalizedPath.startsWith(normalizedDirectory)
+							? normalizedPath.slice(normalizedDirectory.length)
+							: normalizedPath;
+					const hasNestedNodeModules = relativePath.includes('/node_modules');
+
 					return (
-						normalizedPath !== this.#component.directory.replace(/\\/g, '/') &&
-						normalizedBases.every((base) => !normalizedPath.startsWith(base))
+						hasNestedNodeModules ||
+						(normalizedPath !== normalizedDirectory &&
+							normalizedBases.every((base) => !normalizedPath.startsWith(base)))
 					);
 				},
 			})

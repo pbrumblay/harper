@@ -364,6 +364,10 @@ export function makeTable(options) {
 						// we listen for events by iterating through the async iterator provided by the subscription
 						for await (const event of subscription) {
 							try {
+								if (!event || typeof event !== 'object') {
+									logger.error?.('Bad subscription event', event);
+									continue;
+								}
 								const firstWrite = event.type === 'transaction' ? event.writes[0] : event;
 								if (!firstWrite) {
 									logger.error?.('Bad subscription event', event);
@@ -1426,7 +1430,8 @@ export function makeTable(options) {
 		 */
 		static evict(id, existingRecord, existingVersion) {
 			let entry;
-			let transaction = txnForContext({ transaction: new DatabaseTransaction() }).getReadTxn();
+			const lmdbTransaction = txnForContext({ transaction: new DatabaseTransaction() });
+			let transaction = lmdbTransaction.getReadTxn();
 			let options = { transaction };
 			try {
 				if (hasSourceGet || audit) {
@@ -1453,7 +1458,13 @@ export function makeTable(options) {
 					return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), options);
 				}
 			} finally {
-				return transaction.commit();
+				if (primaryStore.ifVersion) {
+					// LMDB: committing the wrapper calls doneReadTxn(), removing it from trackedTxns
+					return lmdbTransaction.commit();
+				}
+				// RocksDB: eviction writes went directly into the raw transaction via options;
+				// commit it directly, as DatabaseTransaction.commit() would abort it (no tracked writes)
+				return transaction?.commit();
 			}
 		}
 		/**
@@ -4085,11 +4096,26 @@ export function makeTable(options) {
 							if (primaryKey && updatedRecord[primaryKey] !== id) updatedRecord[primaryKey] = id;
 						}
 						resolved = true;
-						resolve({
+						const resolvedEntry: Entry = {
 							key: id,
 							version,
 							value: updatedRecord,
-						});
+							expiresAt: sourceContext.expiresAt,
+							metadataFlags: 0,
+							size: 0,
+							localTime: 0,
+							nodeId: 0,
+							residencyId: 0,
+						};
+						// Give the plain object the RecordObject prototype so getExpiresAt/getUpdatedTime
+						// are available on the immediately-resolved entry. We mutate the prototype
+						// in-place rather than copying so that the commit callback (which adds
+						// createdAt/updatedAt to updatedRecord) is still reflected in the entry value.
+						if (updatedRecord && updatedRecord.constructor === Object) {
+							Object.setPrototypeOf(updatedRecord, primaryStore.encoder.structPrototype);
+							entryMap.set(updatedRecord, resolvedEntry);
+						}
+						resolve(resolvedEntry);
 					} catch (error) {
 						error.message += ` while resolving record ${id} for ${tableName}`;
 						if (
