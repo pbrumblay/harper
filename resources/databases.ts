@@ -36,7 +36,7 @@ import { isProcessRunning } from '../utility/processManagement/processManagement
 /**
  * Check if Harper is running in read-only mode.
  * Read-only mode can be enabled via:
- * - READONLY environment variable (truthy value)
+ * - HARPER_READONLY environment variable (truthy value)
  * - --readonly CLI flag
  * - storage.readOnly config setting
  */
@@ -44,7 +44,9 @@ let _isReadOnlyMode: boolean | undefined;
 export function isReadOnlyMode(): boolean {
 	if (_isReadOnlyMode !== undefined) return _isReadOnlyMode;
 	// Check environment variable
-	if (process.env.READONLY && process.env.READONLY !== '0' && process.env.READONLY !== 'false') {
+	const envReadOnly = process.env.HARPER_READONLY;
+	harperLogger.info(`HARPER_READONLY: ${envReadOnly}`);
+	if (envReadOnly && envReadOnly !== '0' && envReadOnly !== 'false') {
 		_isReadOnlyMode = true;
 		return true;
 	}
@@ -1351,4 +1353,12 @@ export function getDefaultCompression() {
 		LMDB_COMPRESSION_OPTS['dictionary'] = readFileSync(STORAGE_COMPRESSION_DICTIONARY);
 	if (STORAGE_COMPRESSION_THRESHOLD) LMDB_COMPRESSION_OPTS['threshold'] = STORAGE_COMPRESSION_THRESHOLD;
 	return LMDB_COMPRESSION && LMDB_COMPRESSION_OPTS;
+}
+
+/**
+ * Force all RocksDB databases to flush to disk.
+ */
+export async function flushDatabases() {
+	// flush all RocksDB databases
+	return Promise.all(Array.from(rocksdbDatabaseEnvs.values()).map(db => db.flush()));
 }
