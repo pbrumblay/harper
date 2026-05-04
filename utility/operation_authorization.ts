@@ -23,7 +23,7 @@ import * as role from '../security/role.js';
 import harperLogger from '../utility/logging/harper_logger.js';
 import readLog from '../utility/logging/readLog.js';
 import * as commonUtils from './common_utils.js';
-import restart from '../bin/restart.js';
+import * as restart from '../bin/restart.js';
 import * as terms from './hdbTerms.js';
 const { expandOperationsPerms } = require('./operationPermissions.js');
 import * as permsTranslator from '../security/permissionsTranslator.js';

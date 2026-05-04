@@ -5,7 +5,7 @@ import * as fs from 'fs-extra';
 import { workerData, threadId, isMainThread } from 'worker_threads';
 import * as pathModule from 'path';
 import * as YAML from 'yaml';
-import * as PropertiesReader from 'properties-reader';
+const PropertiesReader = require('properties-reader');
 import * as hdbTerms from '../hdbTerms.js';
 import assignCMDENVVariables from '../assignCmdEnvVariables.js';
 import * as os from 'os';
@@ -53,6 +53,39 @@ let logName;
 let logRoot;
 let logFilePath;
 let mainLogger;
+export let externalLogger: any = {
+	notify(...args) {
+		externalLogger.notify(...args);
+	},
+	fatal(...args) {
+		externalLogger.fatal(...args);
+	},
+	error(...args) {
+		externalLogger.error(...args);
+	},
+	warn(...args) {
+		externalLogger.warn(...args);
+	},
+	info(...args) {
+		externalLogger.info(...args);
+	},
+	debug(...args) {
+		externalLogger.debug(...args);
+	},
+	trace(...args) {
+		externalLogger.trace(...args);
+	},
+	withTag(tag) {
+		return externalLogger.withTag(tag);
+	},
+	loggerWithTag(tag) {
+		return externalLogger.withTag(tag);
+	},
+	forComponent(name: string) {
+			return externalLogger.forComponent(name);
+		}
+};
+_assignPackageExport('logger', externalLogger);
  // default logger used for the global used by external components
 let mainLogFd;
 let writeToLogFile;
@@ -259,6 +292,7 @@ module.exports = {
 	startOnMainThread: updateLogSettings,
 	errorToString,
 	disableStdio,
+	externalLogger,
 };
 
 /**
@@ -267,39 +301,6 @@ module.exports = {
 export function disableStdio(unused?: any) {
 	nativeStdWrite = function () {}; // make this a noop
 }
-export let externalLogger: any = {
-	notify(...args) {
-		externalLogger.notify(...args);
-	},
-	fatal(...args) {
-		externalLogger.fatal(...args);
-	},
-	error(...args) {
-		externalLogger.error(...args);
-	},
-	warn(...args) {
-		externalLogger.warn(...args);
-	},
-	info(...args) {
-		externalLogger.info(...args);
-	},
-	debug(...args) {
-		externalLogger.debug(...args);
-	},
-	trace(...args) {
-		externalLogger.trace(...args);
-	},
-	withTag(tag) {
-		return externalLogger.withTag(tag);
-	},
-	loggerWithTag(tag) {
-		return externalLogger.withTag(tag);
-	},
-	forComponent(name: string) {
-			return externalLogger.forComponent(name);
-		}
-};
-_assignPackageExport('logger', externalLogger);
 
 /**
  * Check if the current log level is at or below the given level.

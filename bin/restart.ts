@@ -1,18 +1,18 @@
 'use strict';
 
-const minimist = require('minimist');
-const { isMainThread, parentPort } = require('worker_threads');
-const hdbTerms = require('../utility/hdbTerms.js');
-const hdbLogger = require('../utility/logging/harper_logger.js');
-const processMan = require('../utility/processManagement/processManagement.js');
-const { compactOnStart } = require('./copyDb.js');
-const { restartWorkers, onMessageByType, shutdownWorkersNow } = require('../server/threads/manageThreads.js');
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
+import minimist from 'minimist';
+import { isMainThread, parentPort } from 'worker_threads';
+import * as hdbTerms from '../utility/hdbTerms.js';
+import hdbLogger from '../utility/logging/harper_logger.js';
+import * as processMan from '../utility/processManagement/processManagement.js';
+import { compactOnStart } from './copyDb.js';
+import { restartWorkers, onMessageByType, shutdownWorkersNow } from '../server/threads/manageThreads.js';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
 const { HTTP_STATUS_CODES } = hdbErrors;
-const envMgr = require('../utility/environment/environmentManager.js');
-const path = require('node:path');
-const { unlinkSync } = require('node:fs');
-const { getThisNodeName } = require('../server/nodeName.js');
+import * as envMgr from '../utility/environment/environmentManager.js';
+import * as path from 'node:path';
+import { unlinkSync } from 'node:fs';
+import { getThisNodeName } from '../server/nodeName.js';
 envMgr.initSync();
 
 const RESTART_RESPONSE = `Restarting Harper. This may take up to ${hdbTerms.RESTART_TIMEOUT_MS / 1000} seconds.`;
@@ -20,10 +20,7 @@ const INVALID_SERVICE_ERR = 'Invalid service';
 
 let calledFromCli;
 
-module.exports = {
-	restart,
-	restartService,
-};
+export { restart, restartService };
 
 // Add ITC event listener to main thread which will be called from child that receives restart request.
 if (isMainThread) {
@@ -40,7 +37,7 @@ if (isMainThread) {
  * @param req
  * @returns {Promise<string>}
  */
-async function restart(req) {
+async function restart(req: any) {
 	calledFromCli = Object.keys(req).length === 0;
 
 	const cliArgs = minimist(process.argv);
@@ -71,7 +68,7 @@ async function restart(req) {
 			await shutdownWorkersNow();
 			await processMan.cleanupChildrenProcesses(false);
 			// remove pid file so it doesn't trip up the launch
-			await unlinkSync(path.join(envMgr.get(hdbTerms.CONFIG_PARAMS.ROOTPATH), hdbTerms.HDB_PID_FILE), `${process.pid}`);
+			unlinkSync(path.join(envMgr.get(hdbTerms.CONFIG_PARAMS.ROOTPATH), hdbTerms.HDB_PID_FILE));
 			hdbLogger.debug('Starting new process...');
 			if (process.env.HARPER_EXIT_ON_RESTART) {
 				// use this to exit the process so that it will be restarted by the
@@ -98,7 +95,7 @@ async function restart(req) {
  * @param req
  * @returns {Promise<string>}
  */
-async function restartService(req) {
+async function restartService(req: any) {
 	let { service } = req;
 	if (hdbTerms.HDB_PROCESS_SERVICES[service] === undefined) {
 		throw handleHDBError(new Error(), INVALID_SERVICE_ERR, HTTP_STATUS_CODES.BAD_REQUEST, undefined, undefined, true);
@@ -106,14 +103,14 @@ async function restartService(req) {
 	processMan.expectedRestartOfChildren();
 	if (!isMainThread) {
 		if (req.replicated) {
-			server.replication.monitorNodeCAs(); // get all the CAs from the nodes we know about
+			(global as any).server.replication.monitorNodeCAs(); // get all the CAs from the nodes we know about
 		}
 		parentPort.postMessage({
 			type: hdbTerms.ITC_EVENT_TYPES.RESTART,
 			workerType: service,
 		});
 		parentPort.ref(); // don't let the parent thread exit until we're done
-		await new Promise((resolve) => {
+		await new Promise<void>((resolve) => {
 			parentPort.on('message', (msg) => {
 				if (msg.type === 'restart-complete') {
 					resolve();
@@ -125,12 +122,12 @@ async function restartService(req) {
 		if (req.replicated) {
 			req.replicated = false; // don't send a replicated flag to the nodes we are sending to
 			replicatedResponses = [];
-			for (let node of server.nodes) {
+			for (let node of (global as any).server.nodes) {
 				if (node.name === getThisNodeName()) continue;
 				// for now, only one at a time
 				let job_id;
 				try {
-					({ job_id } = await server.replication.sendOperationToNode(node, req));
+					({ job_id } = await (global as any).server.replication.sendOperationToNode(node, req));
 				} catch (err) {
 					// If request to node fails, add the error to the response and continue to the next node
 					replicatedResponses.push({ node: node.name, message: err.message });
@@ -144,11 +141,11 @@ async function restartService(req) {
 						let interval = setInterval(async () => {
 							if (retriesLeft-- <= 0) {
 								clearInterval(interval);
-								let error = new Error('Timed out waiting for restart job to complete');
+								let error: any = new Error('Timed out waiting for restart job to complete');
 								error.replicated = replicatedResponses; // report the finished restarts
 								reject(error);
 							}
-							let response = await server.replication.sendOperationToNode(node, {
+							let response = await (global as any).server.replication.sendOperationToNode(node, {
 								operation: 'get_job',
 								id: job_id,
 							});
@@ -159,7 +156,7 @@ async function restartService(req) {
 							}
 							if (jobResult.status === 'ERROR') {
 								clearInterval(interval);
-								let error = new Error(jobResult.message);
+								let error: any = new Error(jobResult.message);
 								error.replicated = replicatedResponses; // report the finished restarts
 								reject(error);
 							}

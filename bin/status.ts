@@ -1,14 +1,14 @@
 'use strict';
 
-const fs = require('fs-extra');
-const path = require('path');
-const YAML = require('yaml');
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import * as YAML from 'yaml';
 
-const hdbTerms = require('../utility/hdbTerms.js');
-const hdbLog = require('../utility/logging/harper_logger.js');
-const systemInformation = require('../utility/environment/systemInformation.js');
-const envMgr = require('../utility/environment/environmentManager.js');
-const installation = require('../utility/installation.js');
+import * as hdbTerms from '../utility/hdbTerms.js';
+import hdbLog from '../utility/logging/harper_logger.js';
+import * as systemInformation from '../utility/environment/systemInformation.js';
+import * as envMgr from '../utility/environment/environmentManager.js';
+import * as installation from '../utility/installation.js';
 envMgr.initSync();
 
 const STATUSES = {
@@ -20,10 +20,10 @@ const STATUSES = {
 
 let hdbRoot;
 
-module.exports = status;
+export default status;
 
 async function status() {
-	let status = {
+	let status: any = {
 		harperdb: {
 			status: STATUSES.STOPPED,
 		},

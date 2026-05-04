@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
-const logger = require('../utility/logging/harper_logger.js');
-const cliOperations = require('./cliOperations.js');
-const { packageJson } = require('../utility/packageUtils.js');
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import logger from '../utility/logging/harper_logger.js';
+import * as cliOperations from './cliOperations.js';
+import { packageJson } from '../utility/packageUtils.js';
 const checkNode = require('../launchServiceScripts/utility/checkNodeVersion.js');
-const hdbTerms = require('../utility/hdbTerms.js');
-const { SERVICE_ACTIONS_ENUM } = hdbTerms;
+import * as hdbTerms from '../utility/hdbTerms.js';
+const { SERVICE_ACTIONS_ENUM } = hdbTerms as any;
 process.setSourceMapsEnabled(true); // this is necessary for source maps to work, at least on the main thread.
 
 const HELP = `
@@ -62,9 +62,9 @@ async function harper() {
 		case SERVICE_ACTIONS_ENUM.START:
 			return require('./run.js').launch();
 		case SERVICE_ACTIONS_ENUM.INSTALL:
-			return require('./install.js')();
+			return (require('./install.js').default || require('./install.js'))();
 		case SERVICE_ACTIONS_ENUM.STOP:
-			return require('./stop.js')().then(() => {
+			return (require('./stop.js').default || require('./stop.js'))().then(() => {
 				process.exit(0);
 			});
 		case SERVICE_ACTIONS_ENUM.RESTART:
@@ -78,7 +78,7 @@ async function harper() {
 				.upgrade(null)
 				.then(() => 'Your instance of Harper is up to date!');
 		case SERVICE_ACTIONS_ENUM.STATUS:
-			return require('./status.js')();
+			return (require('./status.js').default || require('./status.js'))();
 		case SERVICE_ACTIONS_ENUM.RENEWCERTS:
 			return require('../security/keys.js')
 				.renewSelfSigned()
@@ -89,7 +89,7 @@ async function harper() {
 			return require('./copyDb.js').copyDb(sourceDb, targetDbPath);
 		}
 		case SERVICE_ACTIONS_ENUM.DEV:
-			process.env.DEV_MODE = true;
+			process.env.DEV_MODE = 'true';
 		// fall through
 		case SERVICE_ACTIONS_ENUM.RUN: {
 			// Run a specific application folder
@@ -134,7 +134,7 @@ async function harper() {
 			return;
 	}
 }
-exports.harper = harper;
+export { harper };
 if (require.main === module) {
 	harper()
 		.then((message) => {

@@ -3,7 +3,7 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as os from 'os';
-import PropertiesReader from 'properties-reader';
+const PropertiesReader = require('properties-reader');
 import log from '../logging/harper_logger.js';
 import * as commonUtils from '../common_utils.js';
 import * as hdbTerms from '../hdbTerms.js';

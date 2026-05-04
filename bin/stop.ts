@@ -1,14 +1,14 @@
 'use strict';
 
-const hdbLogger = require('../utility/logging/harper_logger.js');
-const util = require('util');
-const childProcess = require('child_process');
+import hdbLogger from '../utility/logging/harper_logger.js';
+import * as util from 'util';
+import * as childProcess from 'child_process';
 const exec = util.promisify(childProcess.exec);
-const systemInformation = require('../utility/environment/systemInformation.js');
+import * as systemInformation from '../utility/environment/systemInformation.js';
 
 const STOP_MSG = 'Stopping Harper.';
 
-module.exports = stop;
+export default stop;
 
 async function stop() {
 	console.log(STOP_MSG);

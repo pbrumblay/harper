@@ -8,7 +8,7 @@ const env_mgr = require('#js/utility/environment/environmentManager');
 const sys_info = require('#js/utility/environment/systemInformation');
 const hdb_terms = require('#src/utility/hdbTerms');
 const installation = require('#src/utility/installation');
-const status = require('#js/bin/status');
+const status = require('#js/bin/status').default || require('#js/bin/status');
 
 describe('Test status module', () => {
 	const sandbox = sinon.createSandbox();

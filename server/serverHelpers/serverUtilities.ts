@@ -15,7 +15,7 @@ import * as jobs from '../jobs/jobs.js';
 import * as terms from '../../utility/hdbTerms.ts';
 import { hdbErrors, handleHDBError } from '../../utility/errors/hdbError.js';
 const { HTTP_STATUS_CODES } = hdbErrors;
-import restart from '../../bin/restart.js';
+import * as restart from '../../bin/restart.js';
 import * as util from 'util';
 import * as insert from '../../dataLayer/insert.js';
 import * as globalSchema from '../../utility/globalSchema.js';

@@ -1,7 +1,7 @@
-const installer = require('../utility/install/installer.js');
-const hdbLogger = require('../utility/logging/harper_logger.js');
+import * as installer from '../utility/install/installer.js';
+import hdbLogger from '../utility/logging/harper_logger.js';
 
-module.exports = install;
+export default install;
 
 async function install() {
 	try {

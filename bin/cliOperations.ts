@@ -1,21 +1,21 @@
 'use strict';
 
-const envMgr = require('../utility/environment/environmentManager.js');
+import * as envMgr from '../utility/environment/environmentManager.js';
 envMgr.initSync();
-const terms = require('../utility/hdbTerms.js');
-const { httpRequest } = require('../utility/common_utils.js');
-const path = require('path');
-const fs = require('fs-extra');
-const YAML = require('yaml');
-const { packageDirectory } = require('../components/packageComponent.js');
-const { encode } = require('cbor-x');
-const { getHdbPid } = require('../utility/processManagement/processManagement.js');
-const { initConfig, getConfigPath } = require('../config/configUtils.js');
+import * as terms from '../utility/hdbTerms.js';
+import { httpRequest } from '../utility/common_utils.js';
+import * as path from 'path';
+import * as fs from 'fs-extra';
+import * as YAML from 'yaml';
+import { packageDirectory } from '../components/packageComponent.js';
+import { encode } from 'cbor-x';
+import { getHdbPid } from '../utility/processManagement/processManagement.js';
+import { initConfig, getConfigPath } from '../config/configUtils.js';
 
 const OP_ALIASES = { deploy: 'deploy_component', package: 'package_component' };
 
-module.exports = { cliOperations, buildRequest };
-const PREPARE_OPERATION = {
+export { cliOperations, buildRequest };
+const PREPARE_OPERATION: any = {
 	deploy_component: async (req) => {
 		if (req.package) {
 			return;
@@ -31,22 +31,22 @@ const PREPARE_OPERATION = {
 /**
  * Builds an Op-API request object from CLI args
  */
-function buildRequest() {
-	const req = {};
+function buildRequest(): any {
+	const req: any = {};
 	for (const arg of process.argv.slice(2)) {
 		if (OP_ALIASES.hasOwnProperty(arg)) {
 			req.operation = OP_ALIASES[arg];
 		} else if (arg.includes('=')) {
 			let [first, ...rest] = arg.split('=');
-			rest = rest.join('=');
+			let restStr: any = rest.join('=');
 
 			try {
-				rest = JSON.parse(rest);
+				restStr = JSON.parse(restStr);
 			} catch {
 				/* noop */
 			}
 
-			req[first] = rest;
+			req[first] = restStr;
 		} else {
 			// operation should only be in the first arg
 			req.operation ??= arg;
@@ -61,7 +61,7 @@ function buildRequest() {
  * @param req
  * @returns {Promise<void>}
  */
-async function cliOperations(req) {
+async function cliOperations(req: any) {
 	if (!req.target) {
 		req.target = process.env.HARPER_CLI_TARGET || process.env.CLI_TARGET;
 	}
@@ -115,7 +115,7 @@ async function cliOperations(req) {
 			options.headers['Content-Type'] = 'application/cbor';
 			req = encode(req);
 		}
-		let response = await httpRequest(options, req);
+		let response: any = await httpRequest(options, req);
 
 		let responseData;
 		try {

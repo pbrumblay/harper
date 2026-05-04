@@ -5,29 +5,28 @@ env.initSync();
 
 // This unused restart require is here so that main thread loads ITC event listener defined in restart file. Do not remove.
 require('./restart.js');
-const terms = require('../utility/hdbTerms.js');
+import * as terms from '../utility/hdbTerms.js';
 const { CONFIG_PARAMS } = terms;
-const hdbLogger = require('../utility/logging/harper_logger.js');
-const fs = require('fs-extra');
-const path = require('path');
-const checkJwtTokens = require('../utility/install/checkJWTTokensExist.js');
-const { install } = require('../utility/install/installer.js');
-const chalk = require('chalk');
-const { packageJson } = require('../utility/packageUtils.js');
-const hdbUtils = require('../utility/common_utils.js');
-const installation = require('../utility/installation.js');
-const configUtils = require('../config/configUtils.js');
-const assignCMDENVVariables =
-	require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
-const upgrade = require('./upgrade.js');
-const { compactOnStart, migrateOnStart } = require('./copyDb.js');
-const minimist = require('minimist');
-const keys = require('../security/keys.js');
-const { startHTTPThreads } = require('../server/threads/socketRouter.js');
-const hdbInfoController = require('../dataLayer/hdbInfoController.js');
-const hdbTerms = require('../utility/hdbTerms.js');
-const { getHdbPid, isProcessRunning } = require('../utility/processManagement/processManagement.js');
-const { PACKAGE_ROOT } = require('../utility/packageUtils');
+import hdbLogger from '../utility/logging/harper_logger.js';
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import checkJwtTokens from '../utility/install/checkJWTTokensExist.js';
+import { install } from '../utility/install/installer.js';
+import chalk from 'chalk';
+import { packageJson } from '../utility/packageUtils.js';
+import * as hdbUtils from '../utility/common_utils.js';
+import * as installation from '../utility/installation.js';
+import * as configUtils from '../config/configUtils.js';
+const assignCMDENVVariables = require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
+import * as upgrade from './upgrade.js';
+import { compactOnStart, migrateOnStart } from './copyDb.js';
+import minimist from 'minimist';
+import * as keys from '../security/keys.js';
+import { startHTTPThreads } from '../server/threads/socketRouter.js';
+import * as hdbInfoController from '../dataLayer/hdbInfoController.js';
+import * as hdbTerms from '../utility/hdbTerms.js';
+import { getHdbPid, isProcessRunning } from '../utility/processManagement/processManagement.js';
+import { PACKAGE_ROOT } from '../utility/packageUtils.js';
 
 let pmUtils;
 let cmdArgs;
@@ -241,16 +240,16 @@ async function launch(exit = true) {
 	}
 }
 
-exports.launch = launch;
-exports.main = main;
-exports.startupLog = startupLog;
+export { launch };
+export { main };
+export { startupLog };
 
 /**
  * Logs running services and relevant ports/information.
  * Called by worker thread 1 once all servers have started
  * @param portResolutions
  */
-function startupLog(portResolutions) {
+function startupLog(portResolutions: any) {
 	// Adds padding to a string
 	const padding = 20;
 	const pad = (param) => param.padEnd(padding);
