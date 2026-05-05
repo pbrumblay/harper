@@ -106,6 +106,7 @@ export const EVICTED = 8; // note that 2 is reserved for timestamps
 const TEST_WRITE_KEY_BUFFER = Buffer.allocUnsafeSlow(8192);
 const MAX_KEY_BYTES = 1978;
 const EVENT_HIGH_WATER_MARK = 100;
+const REPLAY_YIELD_INTERVAL = 100; // yield to the event loop every N records during subscription replay
 const FULL_PERMISSIONS = {
 	read: true,
 	insert: true,
@@ -2629,12 +2630,21 @@ export function makeTable(options) {
 			}
 			if (!request) request = {} as any;
 			const getFullRecord = !request.rawEvents;
-			let pendingRealTimeQueue = []; // while we are servicing a loop for older messages, we have to queue up real-time messages and deliver them in order
+			// While the count, !omitCurrent, and non-collection branches replay older messages, real-time
+			// messages from the listener accumulate here and are drained at the end of the IIFE so they
+			// arrive after the replayed history, in order. The startTime branch sets this to null and
+			// uses dropDuringReplay instead — its snapshot:false cursor picks up the live tail directly.
+			let pendingRealTimeQueue: any[] | null = [];
+			// Set during the startTime audit-log replay. The cursor iterates the audit log forward with
+			// snapshot:false, which catches any commits that land during yield points; dropping in the
+			// listener avoids duplicate delivery.
+			let dropDuringReplay = false;
 			const thisId = requestTargetToId(request) ?? null; // treat undefined and null as the root
 			const subscription = addSubscription(
 				TableResource,
 				thisId,
-				function (id: Id, auditRecord?: any, localTime?: any, beginTxn?: any) {
+function (id: Id, auditRecord?: any, localTime?: any, beginTxn?: any) {
+					if (dropDuringReplay) return;
 					try {
 						let type = auditRecord.type;
 						let value;
@@ -2677,6 +2687,11 @@ export function makeTable(options) {
 				request.startTime || 0,
 				request
 			);
+			// Attach the request.listener BEFORE invoking the IIFE so that sync sends from the
+			// IIFE's prologue go directly to the listener via emit('data') instead of accumulating
+			// in subscription.queue. Without this, the IIFE can fill the queue past
+			// EVENT_HIGH_WATER_MARK and hit waitForDrain before the consumer's listener exists.
+			if (request.listener) subscription!.on('data', request.listener);
 			const result = (async () => {
 				const isCollection = request.isCollection ?? thisId == null;
 				if (isCollection) {
@@ -2687,42 +2702,59 @@ export function makeTable(options) {
 				let count = request.previousCount;
 				if (count > 1000) count = 1000; // don't allow too many, we have to hold these in memory
 				let startTime = request.startTime;
+				let recordsSinceYield = 0;
+
 				if (isCollection) {
 					// a collection should retrieve all descendant ids
 					if (startTime) {
 						if (count)
 							throw new ClientError('startTime and previousCount can not be combined for a table level subscription');
-						// start time specified, get the audit history for this time range
-						for (const auditRecord of auditStore.getRange({
-							start: startTime,
-							exclusiveStart: true,
-							snapshot: false, // no need for a snapshot, audits don't change
-						})) {
-							if (auditRecord.tableId !== tableId) continue;
-							const id = auditRecord.recordId;
-							if (thisId == null || isDescendantId(thisId, id)) {
-								const value = auditRecord.getValue(primaryStore, getFullRecord, auditRecord.localTime);
-								send({
-									id,
-									localTime: auditRecord.localTime,
-									value,
-									version: auditRecord.version,
-									type: auditRecord.type,
-									size: auditRecord.size,
-								});
-								if (subscription.queue?.length > EVENT_HIGH_WATER_MARK) {
-									// if we have too many messages, we need to pause and let the client catch up
-									if ((await subscription.waitForDrain()) === false) return;
+						// start time specified, get the audit history for this time range. We drop real-time
+						// messages during this loop because the snapshot:false cursor will pick them up itself.
+						pendingRealTimeQueue = null;
+						dropDuringReplay = true;
+
+						try {
+							for (const auditRecord of auditStore.getRange({
+								start: startTime,
+								exclusiveStart: true,
+								snapshot: false, // no need for a snapshot, audits don't change
+							})) {
+								if (++recordsSinceYield >= REPLAY_YIELD_INTERVAL) {
+									recordsSinceYield = 0;
+									await rest();
 								}
+								if (auditRecord.tableId !== tableId) continue;
+								const id = auditRecord.recordId;
+								if (thisId == null || isDescendantId(thisId, id)) {
+									const value = auditRecord.getValue(primaryStore, getFullRecord, auditRecord.localTime);
+									send({
+										id,
+										localTime: auditRecord.localTime,
+										value,
+										version: auditRecord.version,
+										type: auditRecord.type,
+										size: auditRecord.size,
+									});
+									if (subscription.queue?.length > EVENT_HIGH_WATER_MARK) {
+										// if we have too many messages, we need to pause and let the client catch up
+										if ((await subscription.waitForDrain()) === false) return;
+									}
+								}
+								subscription!.startTime = auditRecord.localTime ?? auditRecord.version; // update so we don't double send
 							}
-							// TODO: Would like to do this asynchronously, but would need to catch up on anything published during iteration
-							//await rest(); // yield for fairness
-							subscription.startTime = auditRecord.localTime; // update so we don't double send
+						} finally {
+							// replay is done, we can start sending real-time messages again
+							dropDuringReplay = false;
 						}
 					} else if (count) {
 						const history = [];
 						// we are collecting the history in reverse order to get the right count, then reversing to send
 						for (const auditRecord of auditStore.getRange({ start: 'z', end: false, reverse: true })) {
+							if (++recordsSinceYield >= REPLAY_YIELD_INTERVAL) {
+								recordsSinceYield = 0;
+								await rest();
+							}
 							try {
 								if (auditRecord.tableId !== tableId) continue;
 								const id = auditRecord.recordId;
@@ -2740,26 +2772,66 @@ export function makeTable(options) {
 							} catch (error) {
 								logger.error?.('Error getting history entry', auditRecord.localTime, error);
 							}
-							// TODO: Would like to do this asynchronously, but would need to catch up on anything published during iteration
-							//await rest(); // yield for fairness
 						}
 						for (let i = history.length; i > 0; ) {
 							send(history[--i]);
 						}
-						if (history[0]) subscription.startTime = history[0].localTime; // update so don't double send
+						// Use the latest record cursor saw (history[0] = most recent due to reverse
+						// iteration) as the gate. This is in the audit log's own time domain (works for
+						// both lmdb's localTime and rocksdb's transaction-derived version) — a JS-side
+						// `getNextMonotonicTime()` would not be comparable to rocksdb's native
+						// transaction timestamps.
+						const cursorMaxTime = history[0]?.localTime ?? history[0]?.version ?? 0;
+						if (cursorMaxTime) subscription!.startTime = cursorMaxTime;
+						// In-flight pre-subscribe 'committed' callbacks may have queued duplicates of
+						// records the cursor saw while subscription.startTime was still 0. Filter them.
+						if (pendingRealTimeQueue && cursorMaxTime) {
+							pendingRealTimeQueue = pendingRealTimeQueue.filter(
+								(event) => (event.localTime ?? event.version) > cursorMaxTime
+							);
+						}
 					} else if (!request.omitCurrent) {
+						// Track the latest record-time the cursor saw — including deletion tombstones
+						// (entries with null value). Used after iteration to gate out any pre-subscribe
+						// 'committed' callbacks that fired during cursor yields (e.g., late
+						// notifications for deletes/updates done before subscribing). This is in the
+						// audit log's time domain — works on both backends, where a JS-side
+						// `getNextMonotonicTime()` would not be comparable to rocksdb's native
+						// transaction timestamps.
+						let cursorMaxTime = 0;
+						// Retained-message semantics: subscriber may legitimately receive a record twice
+						// if a post-subscribe write hits a key the cursor also visits. This is
+						// idempotent for "current state then live updates" — both deliveries land at
+						// the same final state. We don't dedupe.
 						for (const { key: id, value, version, localTime, size } of primaryStore.getRange({
 							start: thisId ?? false,
 							end: thisId == null ? undefined : [thisId, MAXIMUM_KEY],
 							versions: true,
 							snapshot: false, // no need for a snapshot, just want the latest data
 						})) {
+							if (++recordsSinceYield >= REPLAY_YIELD_INTERVAL) {
+								recordsSinceYield = 0;
+								await rest();
+							}
+							// Update cursorMaxTime BEFORE the !value check so deletion tombstones
+							// (which have null value but a real localTime/version) still raise the gate.
+							const t = localTime ?? version;
+							if (t > cursorMaxTime) cursorMaxTime = t;
 							if (!value) continue;
 							send({ id, localTime, value, version, type: 'put', size });
 							if (subscription.queue?.length > EVENT_HIGH_WATER_MARK) {
 								// if we have too many messages, we need to pause and let the client catch up
 								if ((await subscription.waitForDrain()) === false) return;
 							}
+						}
+						if (cursorMaxTime) subscription!.startTime = cursorMaxTime;
+						// Filter the queue to drop in-flight pre-subscribe events the listener queued
+						// while subscription.startTime was still 0. Anything strictly newer than what
+						// the cursor saw is a real post-subscribe commit and is kept.
+						if (pendingRealTimeQueue && cursorMaxTime) {
+							pendingRealTimeQueue = pendingRealTimeQueue.filter(
+								(event) => (event.localTime ?? event.version) > cursorMaxTime
+							);
 						}
 					}
 				} else {
@@ -2779,13 +2851,19 @@ export function makeTable(options) {
 					}
 					logger.trace?.('Subscription from', startTime, 'from', thisId, localTime);
 					if (startTime < localTime) {
-						// start time specified, get the audit history for this record
+						// start time specified, get the audit history for this record. Set startTime up
+						// front so the listener gate skips any in-flight 'committed' for this version
+						// during the yields below — otherwise that event would be queued and drained as a
+						// duplicate of the entry send.
+						subscription!.startTime = localTime ?? entry?.version;
 						const history = [];
 						let nextTime = localTime;
 						let nodeId = entry?.nodeId;
 						do {
-							//TODO: Would like to do this asynchronously, but we will need to run catch after this to ensure we didn't miss anything
-							//await auditStore.prefetch([key]); // do it asynchronously for better fairness/concurrency and avoid page faults
+							if (++recordsSinceYield >= REPLAY_YIELD_INTERVAL) {
+								recordsSinceYield = 0;
+								await rest();
+							}
 							const auditRecord = auditStore.getSync(nextTime, tableId, thisId, nodeId);
 							if (auditRecord) {
 								if (startTime < nextTime) {
@@ -2807,7 +2885,6 @@ export function makeTable(options) {
 						for (let i = history.length; i > 0; ) {
 							send(history[--i]);
 						}
-						subscription.startTime = localTime; // make sure we don't re-broadcast the current version that we already sent
 					}
 					if (!request.omitCurrent && entry?.value) {
 						// if retain and it exists, send the current value first
@@ -2819,10 +2896,12 @@ export function makeTable(options) {
 					}
 				}
 				// now send any queued messages
-				for (const event of pendingRealTimeQueue) {
-					send(event);
+				if (pendingRealTimeQueue) {
+					for (const event of pendingRealTimeQueue) {
+						send(event);
+					}
+					pendingRealTimeQueue = null;
 				}
-				pendingRealTimeQueue = null;
 			})();
 			result.catch((error) => {
 				harperLogger.error?.('Error in real-time subscription:', error);
@@ -2834,7 +2913,6 @@ export function makeTable(options) {
 				}
 				subscription.send(event);
 			}
-			if (request.listener) subscription.on('data', request.listener);
 			return subscription;
 		}
 
