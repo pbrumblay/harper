@@ -16,8 +16,8 @@ import { existsSync } from 'node:fs';
 
 suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
 	const legacyPath = process.env.HARPER_LEGACY_VERSION_PATH;
+	if (!legacyPath) return;
 	before(async () => {
-		if (!legacyPath) return;
 		await startHarper(ctx, {
 			config: {},
 			env: {
