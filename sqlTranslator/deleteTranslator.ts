@@ -1,11 +1,11 @@
-const alasql = require('alasql');
-const search = require('../dataLayer/search.js');
-const log = require('../utility/logging/harper_logger.js');
-const harperBridge = require('../dataLayer/harperBridge/harperBridge.js');
-const util = require('util');
-const hdbUtils = require('../utility/common_utils.js');
+import * as alasql from 'alasql';
+import * as search from '../dataLayer/search.js';
+import log from '../utility/logging/harper_logger.js';
+import harperBridge from '../dataLayer/harperBridge/harperBridge.js';
+import * as util from 'util';
+import * as hdbUtils from '../utility/common_utils.js';
 import * as terms from '../utility/hdbTerms.js';
-const globalSchema = require('../utility/globalSchema.js');
+import * as globalSchema from '../utility/globalSchema.js';
 
 const RECORD = 'record';
 const SUCCESS = 'successfully deleted';
@@ -16,7 +16,7 @@ const pGetTableSchema = util.promisify(globalSchema.getTableSchema);
 
 
 
-function generateReturnMessage(deleteResultsObject) {
+function generateReturnMessage(deleteResultsObject: any) {
 	return `${deleteResultsObject.deleted_hashes.length} ${RECORD}${
 		deleteResultsObject.deleted_hashes.length === 1 ? `` : `s`
 	} ${SUCCESS}`;
@@ -31,8 +31,8 @@ export async function convertDelete({ statement, hdb_user }) {
 	let { table: from, where } = statement;
 
 	let whereString = hdbUtils.isEmpty(where) ? '' : ` WHERE  ${where.toString()}`;
-	let selectString = `SELECT ${tableInfo.hash_attribute} FROM ${from.toString()} ${whereString}`;
-	let searchStatement = alasql.parse(selectString).statements[0];
+	let selectString = `SELECT ${(tableInfo as any).hash_attribute} FROM ${from.toString()} ${whereString}`;
+	let searchStatement = (alasql as any).parse(selectString).statements[0];
 
 	let deleteObj: any = {
 		operation: terms.OPERATIONS_ENUM.DELETE,
