@@ -7,6 +7,7 @@
 import { CONFIG_PARAMS, OPERATIONS_ENUM, SYSTEM_TABLE_NAMES, SYSTEM_SCHEMA_NAME } from '../utility/hdbTerms.ts';
 import { type Database } from 'lmdb';
 import { getIndexedValues } from '../utility/lmdb/commonUtility.js';
+import { getThisNodeId, exportIdMapping } from './nodeIdMapping.ts';
 import lodash from 'lodash';
 import { ExtendedIterable, SKIP } from '@harperfast/extended-iterable';
 import type {
@@ -90,6 +91,7 @@ const NULL_WITH_TIMESTAMP = new Uint8Array(9);
 NULL_WITH_TIMESTAMP[8] = 0xc0; // null
 const UNCACHEABLE_TIMESTAMP = Infinity; // we use this when dynamic content is accessed that we can't safely cache, and this prevents earlier timestamps from change the "last" modification
 const RECORD_PRUNING_INTERVAL = 60000; // one minute
+const CACHEABLE_STATUS_CODES = new Set([200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501]);
 envMngr.initSync();
 const LMDB_PREFETCH_WRITES = envMngr.get(CONFIG_PARAMS.STORAGE_PREFETCHWRITES);
 const LOCK_TIMEOUT = 10000;
@@ -362,6 +364,10 @@ export function makeTable(options) {
 						// we listen for events by iterating through the async iterator provided by the subscription
 						for await (const event of subscription) {
 							try {
+								if (!event || typeof event !== 'object') {
+									logger.error?.('Bad subscription event', event);
+									continue;
+								}
 								const firstWrite = event.type === 'transaction' ? event.writes[0] : event;
 								if (!firstWrite) {
 									logger.error?.('Bad subscription event', event);
@@ -1424,7 +1430,8 @@ export function makeTable(options) {
 		 */
 		static evict(id, existingRecord, existingVersion) {
 			let entry;
-			let transaction = txnForContext({ transaction: new DatabaseTransaction() }).getReadTxn();
+			const lmdbTransaction = txnForContext({ transaction: new DatabaseTransaction() });
+			let transaction = lmdbTransaction.getReadTxn();
 			let options = { transaction };
 			try {
 				if (hasSourceGet || audit) {
@@ -1451,7 +1458,13 @@ export function makeTable(options) {
 					return removeEntry(primaryStore, entry ?? primaryStore.getEntry(id), options);
 				}
 			} finally {
-				return transaction.commit();
+				if (primaryStore.ifVersion) {
+					// LMDB: committing the wrapper calls doneReadTxn(), removing it from trackedTxns
+					return lmdbTransaction.commit();
+				}
+				// RocksDB: eviction writes went directly into the raw transaction via options;
+				// commit it directly, as DatabaseTransaction.commit() would abort it (no tracked writes)
+				return transaction?.commit();
 			}
 		}
 		/**
@@ -3912,15 +3925,15 @@ export function makeTable(options) {
 
 	function precedesExistingVersion(txnTime: number, existingEntry: Entry, nodeId?: number): number {
 		if (nodeId === undefined) {
-			nodeId = server.replication?.getThisNodeId(auditStore);
+			nodeId = getThisNodeId(auditStore);
 		}
 
 		if (txnTime <= existingEntry?.version) {
 			if (existingEntry?.version === txnTime && nodeId !== undefined) {
 				// if we have a timestamp tie, we break the tie by comparing the node name of the
 				// existing entry to the node name of the update
-				const nodeNameToId = server.replication?.exportIdMapping(auditStore);
-				let existingNodeId = existingEntry.nodeId;
+				const nodeNameToId = exportIdMapping(auditStore);
+				let existingNodeId = existingEntry.nodeId ?? 0;
 				if (nodeId === existingNodeId) {
 					return 0; // early match for a tie
 				}
@@ -4037,15 +4050,14 @@ export function makeTable(options) {
 							if (typeof updatedRecord !== 'object') throw new Error('Only objects can be cached and stored in tables');
 							if (updatedRecord.status > 0 && updatedRecord.headers) {
 								// if the source has a status code and headers, treat it as a response
-								if (updatedRecord.status >= 300) {
-									if (updatedRecord.status === 304) {
-										// revalidation of our current cached record
-										updatedRecord = existingRecord;
-										version = existingVersion;
-									} else {
-										// if the source has an error status, we need to throw an error
-										throw new ServerError(updatedRecord.body || 'Error from source', updatedRecord.status);
-									} // there are definitely more status codes to handle
+								const status = updatedRecord.status;
+								if (status === 304) {
+									// revalidation of our current cached record
+									updatedRecord = existingRecord;
+									version = existingVersion;
+								} else if (!CACHEABLE_STATUS_CODES.has(status)) {
+									// non-cacheable status - propagate to client without caching
+									throw new ServerError(updatedRecord.body || 'Error from source', status);
 								} else {
 									let headers: any;
 									const sourceHeaders = updatedRecord.headers;
@@ -4073,27 +4085,37 @@ export function makeTable(options) {
 									if (data !== undefined) {
 										// we have structured data that we have parsed
 										delete headers['content-type']; // don't store the content type if we have already parsed it
-										updatedRecord = {
-											headers,
-											data,
-										};
+										updatedRecord = { headers, data };
 									} else {
-										updatedRecord = {
-											headers,
-											body: createBlob(updatedRecord.body),
-										};
+										updatedRecord = { headers, body: createBlob(updatedRecord.body) };
 									}
+									if (status !== 200) updatedRecord.status = status;
 								}
 							}
 							if (typeof updatedRecord.toJSON === 'function') updatedRecord = updatedRecord.toJSON();
 							if (primaryKey && updatedRecord[primaryKey] !== id) updatedRecord[primaryKey] = id;
 						}
 						resolved = true;
-						resolve({
+						const resolvedEntry: Entry = {
 							key: id,
 							version,
 							value: updatedRecord,
-						});
+							expiresAt: sourceContext.expiresAt,
+							metadataFlags: 0,
+							size: 0,
+							localTime: 0,
+							nodeId: 0,
+							residencyId: 0,
+						};
+						// Give the plain object the RecordObject prototype so getExpiresAt/getUpdatedTime
+						// are available on the immediately-resolved entry. We mutate the prototype
+						// in-place rather than copying so that the commit callback (which adds
+						// createdAt/updatedAt to updatedRecord) is still reflected in the entry value.
+						if (updatedRecord && updatedRecord.constructor === Object) {
+							Object.setPrototypeOf(updatedRecord, primaryStore.encoder.structPrototype);
+							entryMap.set(updatedRecord, resolvedEntry);
+						}
+						resolve(resolvedEntry);
 					} catch (error) {
 						error.message += ` while resolving record ${id} for ${tableName}`;
 						if (

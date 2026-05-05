@@ -9,14 +9,12 @@ import {
 	sendOperation,
 	type ContextWithHarper,
 	killHarper,
-} from '../utils/harperLifecycle.ts';
+} from '@harperfast/integration-testing';
 import { ok } from 'node:assert';
 import { join } from 'node:path';
 const testsBun = process.env.HARPER_RUNTIME === 'bun';
-
-suite('Start 4.x server and test upgrade', (ctx: ContextWithHarper) => {
-	const legacyPath = process.env.HARPER_LEGACY_VERSION_PATH;
-	if (!legacyPath || testsBun || process.platform === 'win32') return;
+const legacyPath = process.env.HARPER_LEGACY_VERSION_PATH;
+suite('Start 4.x server and test upgrade', { skip: !legacyPath || testsBun || process.platform === 'win32' }, (ctx: ContextWithHarper) => {
 	before(async () => {
 		await startHarper(ctx, {
 			config: {},

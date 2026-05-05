@@ -1,5 +1,14 @@
 import { onMessageByType } from '../server/threads/manageThreads.js';
-import { readdirSync, readFileSync, existsSync, realpathSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import {
+	readdirSync,
+	readFileSync,
+	existsSync,
+	lstatSync,
+	realpathSync,
+	mkdirSync,
+	rmSync,
+	symlinkSync,
+} from 'node:fs';
 import { join, basename, dirname } from 'node:path';
 import { isMainThread } from 'node:worker_threads';
 import { parseDocument } from 'yaml';
@@ -17,7 +26,8 @@ import * as staticFiles from '../server/static.ts';
 import * as loadEnv from '../resources/loadEnv.ts';
 import harperLogger from '../utility/logging/harper_logger.js';
 import * as dataLoader from '../resources/dataLoader.ts';
-import { watchDir, getWorkerIndex } from '../server/threads/manageThreads.js';
+import { restartWorkers, getWorkerIndex } from '../server/threads/manageThreads.js';
+import { resetRestartNeeded, subscribeToRestartRequests } from './requestRestart.ts';
 import { scopedImport } from '../security/jsLoader.ts';
 import { server } from '../server/Server.ts';
 import { Resources } from '../resources/Resources.ts';
@@ -147,23 +157,26 @@ function symlinkHarperModule(componentDirectory: string) {
 
 				// validate harper module
 				const harperModule = join(nodeModulesDir, 'harper');
-				if (existsSync(harperModule)) {
-					if (realpathSync(harperModule) !== realpathSync(PACKAGE_ROOT)) {
-						// if it exists but is incorrectly linked, fix it
-						rmSync(harperModule, { recursive: true, force: true });
-						// create link to harper module
-						symlinkSync(PACKAGE_ROOT, harperModule, 'dir');
-					}
-				} else {
-					// create link to harper module
+				let harperModuleLinked = false;
+				try {
+					lstatSync(harperModule); // throws ENOENT if absent; succeeds even for dangling symlinks
+					harperModuleLinked = realpathSync(harperModule) === realpathSync(PACKAGE_ROOT);
+				} catch {}
+				if (!harperModuleLinked) {
+					rmSync(harperModule, { recursive: true, force: true });
 					symlinkSync(PACKAGE_ROOT, harperModule, 'dir');
 				}
 				// if there is a harperdb module, fix that too
 				const harperdbModule = join(nodeModulesDir, 'harperdb');
-				if (existsSync(harperdbModule) && realpathSync(harperdbModule) !== realpathSync(PACKAGE_ROOT)) {
-					// if it exists but is incorrectly linked, fix it
+				let harperdbModulePresent = false;
+				let harperdbModuleLinked = false;
+				try {
+					lstatSync(harperdbModule);
+					harperdbModulePresent = true;
+					harperdbModuleLinked = realpathSync(harperdbModule) === realpathSync(PACKAGE_ROOT);
+				} catch {}
+				if (harperdbModulePresent && !harperdbModuleLinked) {
 					rmSync(harperdbModule, { recursive: true, force: true });
-					// create link to harper module
 					symlinkSync(PACKAGE_ROOT, harperdbModule, 'dir');
 				}
 
@@ -498,10 +511,16 @@ export async function loadComponent(
 		}
 
 		compName = parentCompName;
-		// Auto restart threads on changes to any app folder. TODO: Make this configurable
 		if (isMainThread && !watchesSetup && autoReload) {
-			watchDir(componentDirectory, async () => {
-				return loadComponentDirectories(); // return the promise
+			let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+			subscribeToRestartRequests(() => {
+				if (debounceTimer) clearTimeout(debounceTimer);
+				debounceTimer = setTimeout(async () => {
+					debounceTimer = null;
+					resetRestartNeeded();
+					await loadComponentDirectories();
+					restartWorkers();
+				}, 500);
 			});
 		}
 		if ((config.extensionModule || config.pluginModule) && (!isMainThread || config.runOnMainThread)) {
