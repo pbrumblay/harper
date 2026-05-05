@@ -121,14 +121,29 @@ jobs:
           claude_args: |
             --model claude-sonnet-4-6
             --max-turns 72
-            # Tool allowlist is a security boundary — see the allowlist
-            # comment in claude-mention.yml for why `Bash(npx:*)` is
-            # absent and why `Bash(npm install)` (no-arg) is still
-            # partial mitigation only: the agent has `Write`/`Edit` on
-            # package.json, so an injected `postinstall` script + bare
-            # `npm install` is a viable RCE chain. Branch protection and
-            # the author_association gate are what actually bound blast
-            # radius here.
+            # `--allowedTools` is convenience pre-approval, not a
+            # security boundary — see claude-mention.yml for the full
+            # rationale. Tools NOT listed below will still execute in
+            # CI; the entries here document the expected surface.
+            #
+            # Real containment for this workflow (issue-to-PR mode
+            # does AUTHORING work — branch creation, file edits,
+            # commits, push):
+            #   * Token scope: `contents: write`, `pull-requests: write`,
+            #     `issues: write`, `id-token: write`. Repo-scoped only.
+            #   * Branch protection on protected refs (`main` /
+            #     `release_*` / `v*.x`) — prevents pushes to those
+            #     refs even with broader git access.
+            #   * Auth gate — only trusted labelers (HarperFast team
+            #     members) trigger the workflow at all.
+            #   * Allowed labels list (`claude-fix:typo` / `:docs` /
+            #     `:deps` / `:bug`) — narrow trigger surface.
+            #   * Runner ephemerality.
+            #
+            # Notable absences in spirit (`Bash(npx:*)` deliberately
+            # not listed; `Bash(npm install)` no-arg) are prompt-level
+            # signals, not enforcement — same caveat as in
+            # claude-mention.yml.
             --allowedTools "Read,Write,Edit,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr create:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(git:*),Bash(npm install),Bash(npm ci:*),Bash(npm run:*),Bash(npm test:*)"
           prompt: |
             You were invoked because issue #${{ github.event.issue.number }}
