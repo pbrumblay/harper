@@ -187,7 +187,7 @@ async function descTable(describeTableObject, attrPerms) {
 	let db_size;
 	try {
 		if (tableObj.primaryStore instanceof RocksDatabase) {
-			db_size = tableObj.getSize();
+			db_size = tableObj.getSize() + tableObj.getAuditSize();
 		} else {
 			db_size = (await fs.stat(tableObj.primaryStore.path)).size;
 		}
