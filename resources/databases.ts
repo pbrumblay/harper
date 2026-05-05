@@ -45,7 +45,6 @@ export function isReadOnlyMode(): boolean {
 	if (_isReadOnlyMode !== undefined) return _isReadOnlyMode;
 	// Check environment variable
 	const envReadOnly = process.env.HARPER_READONLY;
-	harperLogger.info(`HARPER_READONLY: ${envReadOnly}`);
 	if (envReadOnly && envReadOnly !== '0' && envReadOnly !== 'false') {
 		_isReadOnlyMode = true;
 		return true;
