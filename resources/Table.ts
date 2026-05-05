@@ -2525,6 +2525,9 @@ export function makeTable(options) {
 								if (value && typeof value === 'object') {
 									const targetTable = resolver.definition?.tableClass || TableResource;
 									if (!transformCache) transformCache = {};
+									// Use the target table's own read transaction; each table's readTxn is
+									// scoped to its RocksDB column family and cannot read another table's store.
+									const targetReadTxn = targetTable === TableResource ? readTxn : targetTable._readTxnForContext(context);
 									const transform =
 										transformCache[attribute_name] ||
 										(transformCache[attribute_name] = targetTable.transformEntryForSelect(
@@ -2534,7 +2537,7 @@ export function makeTable(options) {
 												? null
 												: attribute.select || (Array.isArray(attribute) ? attribute : null),
 											context,
-											readTxn,
+											targetReadTxn,
 											filterMap,
 											ensure_loaded
 										));
@@ -2546,7 +2549,7 @@ export function makeTable(options) {
 												attribute.select,
 												typeof attribute.sort === 'object' && attribute.sort,
 												context,
-												readTxn,
+												targetReadTxn,
 												transform
 											)
 											[this.isSync ? Symbol.iterator : Symbol.asyncIterator]();
