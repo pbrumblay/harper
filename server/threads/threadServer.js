@@ -407,11 +407,15 @@ async function listenOnPortsBun() {
 				listening.push(
 					new Promise((resolve, reject) => {
 						server
-							.listen({ port: portNum, host: rawHostname || '::', reusePort: !isWindows }, () => {
+							.listen({ port: portNum, host: rawHostname || '::' }, () => {
 								resolve({ port });
 								harperLogger.trace('Listening on port ' + port, threadId);
 							})
-							.on('error', reject);
+							.on('error', (err) => {
+								// Another worker already bound this port — that's fine
+								if (err.code === 'EADDRINUSE') resolve({ port });
+								else reject(err);
+							});
 					})
 				);
 			}
