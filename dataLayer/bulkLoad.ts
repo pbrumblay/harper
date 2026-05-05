@@ -10,7 +10,6 @@ import { HTTP_STATUS_CODES, HDB_ERROR_MSGS, CHECK_LOGS_WRAPPER } from '../utilit
 
 import logger from '../utility/logging/harper_logger.js';
 import * as papaParse from 'papaparse';
-hdbUtils.promisifyPapaParse();
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { chain } from 'stream-chain';
@@ -545,7 +544,7 @@ async function callPapaParse(jsonMessage) {
 		let stream = fs.createReadStream(jsonMessage.file_path, { highWaterMark: HIGHWATERMARK });
 		stream.setEncoding('utf8');
 
-		await papaParse.parsePromise(
+		await hdbUtils.parsePromise(
 			stream,
 			validateChunk.bind(null, jsonMessage, attrsPermsErrors),
 			typeFunction.bind(null, mapOfTransforms)
@@ -559,7 +558,7 @@ async function callPapaParse(jsonMessage) {
 		stream = fs.createReadStream(jsonMessage.file_path, { highWaterMark: HIGHWATERMARK });
 		stream.setEncoding('utf8');
 
-		await papaParse.parsePromise(
+		await hdbUtils.parsePromise(
 			stream,
 			insertChunk.bind(null, jsonMessage, insertResults),
 			typeFunction.bind(null, mapOfTransforms)

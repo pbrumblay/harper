@@ -522,8 +522,8 @@ export function checkGlobalSchemaTable(schemaName: string, tableName: string) {
  * In the case of an error, reject promise object must be called from chunking-function, it will bubble up
  * through bind to this function.
  */
-export function promisifyPapaParse() {
-	papaParse.parsePromise = function (stream, chunkFunc, typingFunction) {
+export function parsePromise(stream: any, chunkFunc: any, typingFunction: any): Promise<any> {
+
 		return new Promise(function (resolve, reject) {
 			papaParse.parse(stream, {
 				header: true,
@@ -536,7 +536,6 @@ export function promisifyPapaParse() {
 				complete: resolve,
 			});
 		});
-	};
 }
 
 /**
