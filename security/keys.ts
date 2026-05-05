@@ -69,7 +69,7 @@ onMessageFromWorkers(async (message) => {
 let certificateTable;
 export function getCertTable() {
 	if (!certificateTable) {
-		certificateTable = getDatabases()['system']['hdb_certificate'];
+		certificateTable = getDatabases()['system']?.['hdb_certificate'];
 		if (!certificateTable) {
 			certificateTable = table({
 				table: 'hdb_certificate',
