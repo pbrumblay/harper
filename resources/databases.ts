@@ -1359,5 +1359,5 @@ export function getDefaultCompression() {
  */
 export async function flushDatabases() {
 	// flush all RocksDB databases
-	return Promise.all(Array.from(rocksdbDatabaseEnvs.values()).map(db => db.flush()));
+	return Promise.all(Array.from(rocksdbDatabaseEnvs.values()).map((db) => db.flush()));
 }
