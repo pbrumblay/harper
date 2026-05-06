@@ -302,6 +302,9 @@ jobs:
         with:
           name: harper-build-artifacts-windows
 
+      - name: Relink bin scripts
+        run: npm install --ignore-scripts
+
       - name: Install harperdb@4 for legacy tests
         run: npm install --ignore-scripts --prefix "${{ runner.temp }}/harperdb-legacy" harperdb@4
 
@@ -310,7 +313,7 @@ jobs:
           HARPER_INTEGRATION_TEST_LOG_DIR: ${{ runner.temp }}/harper-integration-test-logs
           HARPER_LEGACY_VERSION_PATH: ${{ runner.temp }}/harperdb-legacy/node_modules/harperdb
           HARPER_INTEGRATION_TEST_INSTALL_SCRIPT: dist/bin/harper.js
-        run: npm run test:integration -- --shard=${{ matrix.shard }}/4
+        run: npm run test:integration:all -- --shard=${{ matrix.shard }}/4
 
       - name: Upload Harper server logs
         if: failure()
@@ -357,7 +360,7 @@ jobs:
           HARPER_RUNTIME: bun
           HARPER_INTEGRATION_TEST_INSTALL_SCRIPT: dist/bin/harper.js
         run: |
-          npm run test:integration -- --shard=${{ matrix.shard }}/4
+          npm run test:integration:all -- --shard=${{ matrix.shard }}/4
 
       - name: Upload Harper server logs
         if: failure()
