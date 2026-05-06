@@ -181,7 +181,13 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope, useC
 		if (parts[0] === 'file:') {
 			return specifier;
 		}
-		const resolved = createRequire(referrer).resolve(specifier);
+		let resolveReferrer = referrer;
+		if (referrer.startsWith('file:')) {
+			try {
+				resolveReferrer = pathToFileURL(realpathSync(fileURLToPath(referrer))).toString();
+			} catch {}
+		}
+		const resolved = createRequire(resolveReferrer).resolve(specifier);
 		if (isAbsolute(resolved)) {
 			return pathToFileURL(resolved).toString();
 		}
@@ -206,18 +212,30 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope, useC
 			cjsModule.exports = parseJsonModule(source, url);
 			return cjsModule;
 		}
-		const require = createRequire(url);
+		let requireUrl = url;
+		if (url.startsWith('file://')) {
+			try {
+				requireUrl = pathToFileURL(realpathSync(fileURLToPath(url))).toString();
+			} catch {}
+		}
+		const require = createRequire(requireUrl);
 
 		const cjsRequire = (spec: string) => {
-			const resolvedPath = require.resolve(spec);
-			if (isAbsolute(resolvedPath)) {
-				const source = readFileSync(resolvedPath, { encoding: 'utf-8' });
-				return loadCJS(resolvedPath, source).exports;
-			} else {
-				return require(spec);
+			const resolvedUrl = resolveModule(spec, url);
+			if (resolvedUrl === 'harper') {
+				return getHarperExports(scope);
 			}
+			if (resolvedUrl.startsWith('file://')) {
+				const source = readFileSync(new URL(resolvedUrl), { encoding: 'utf-8' });
+				return loadCJS(resolvedUrl, source).exports;
+			}
+			return require(resolvedUrl);
 		};
-		cjsRequire.resolve = require.resolve;
+		cjsRequire.resolve = (spec: string) => {
+			const resolvedUrl = resolveModule(spec, url);
+			if (resolvedUrl.startsWith('file://')) return fileURLToPath(resolvedUrl);
+			return resolvedUrl;
+		};
 
 		const cjsWrapper = `
 			(function(module, exports, require, __filename, __dirname) {
@@ -228,7 +246,7 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope, useC
 		const runOptions = {
 			filename: url,
 			async importModuleDynamically(specifier: string, script) {
-				const resolvedUrl = resolveModule(specifier, script.sourceURL);
+				const resolvedUrl = resolveModule(specifier, script?.sourceURL ?? url);
 				const useApplicationLoader = shouldUseApplicationLoader(specifier, resolvedUrl);
 				const dynamicModule = await loadModuleWithCache(resolvedUrl, useApplicationLoader);
 				return dynamicModule;
@@ -937,13 +955,13 @@ function checkAllowedModulePath(moduleUrl: string, allowedPath?: string): boolea
 	throw new Error(`Module ${moduleUrl} is not allowed to be imported`);
 }
 
-function getContext() {
+export function getContext() {
 	return contextStorage.getStore() ?? {};
 }
-function getUser() {
+export function getUser() {
 	return contextStorage.getStore()?.user;
 }
-function getResponse() {
+export function getResponse() {
 	return contextStorage.getStore()?.response;
 }
 

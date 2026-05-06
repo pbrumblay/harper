@@ -1,6 +1,9 @@
 const assert = require('node:assert');
+const { Worker } = require('worker_threads');
+const { setupTestDBPath } = require('../testUtils');
 const { table } = require('#src/resources/databases');
 const { HierarchicalNavigableSmallWorld } = require('#src/resources/indexes/HierarchicalNavigableSmallWorld');
+const { setMainIsWorker } = require('#js/server/threads/manageThreads');
 
 describe('HierarchicalNavigableSmallWorld indexing', () => {
 	if (process.env.HARPER_STORAGE_ENGINE === 'lmdb') return; // don't try to test lmdb
@@ -142,6 +145,59 @@ describe('HierarchicalNavigableSmallWorld indexing', () => {
 		);
 		assert.equal(results[0].id, 2);
 	});
+	it('produces different rankings under cosine, euclidean, and dot product metrics', async () => {
+		const records = [
+			{ id: 0, name: 'A', vector: [0.1, 0.1] }, // best cosine (direction match)
+			{ id: 1, name: 'B', vector: [1.2, 0.8] }, // best euclidean (closest in space)
+			{ id: 2, name: 'C', vector: [7.0, 8.0] }, // best dot product (max projection)
+		];
+
+		await HNSWTest.dropTable?.();
+
+		HNSWTest = table({
+			table: 'HNSWMetricTest',
+			database: 'test',
+			attributes: [
+				{ name: 'id', isPrimaryKey: true },
+				{ name: 'name', indexed: true },
+				{ name: 'vector', indexed: { type: 'HNSW' }, type: 'Array' },
+			],
+		});
+
+		for (let r of records) {
+			await HNSWTest.put(r.id, r);
+		}
+
+		const target = [1, 1];
+
+		const cosine = await fromAsync(
+			HNSWTest.search({
+				sort: { attribute: 'vector', target, distance: 'cosine' },
+				select: ['id'],
+				limit: 1,
+			})
+		);
+
+		const euclidean = await fromAsync(
+			HNSWTest.search({
+				sort: { attribute: 'vector', target, distance: 'euclidean' },
+				select: ['id'],
+				limit: 1,
+			})
+		);
+
+		const dot = await fromAsync(
+			HNSWTest.search({
+				sort: { attribute: 'vector', target, distance: 'dotProduct' },
+				select: ['id'],
+				limit: 1,
+			})
+		);
+
+		assert.equal(cosine[0].id, 0);
+		assert.equal(euclidean[0].id, 1);
+		assert.equal(dot[0].id, 2);
+	});
 	after(() => {
 		HNSWTest.dropTable();
 	});
@@ -237,6 +293,68 @@ describe('HierarchicalNavigableSmallWorld indexing', () => {
 		assert(invertedSimiliarities <= 6, `expected at most 6 distance inversions, got ${invertedSimiliarities}`);
 	}
 });
+
+describe('HNSW concurrent PUT race condition (issue #386)', () => {
+	if (process.env.HARPER_STORAGE_ENGINE === 'lmdb') return;
+	const WORKER_COUNT = 4;
+	const PUTS_PER_WORKER = 2;
+	const DIMS = 768;
+	let ConcurrentTest;
+	let workers = [];
+
+	before(() => {
+		setupTestDBPath();
+		setMainIsWorker(true);
+		ConcurrentTest = table({
+			table: 'HNSWConcurrentTest',
+			database: 'test',
+			attributes: [
+				{ name: 'id', isPrimaryKey: true },
+				{ name: 'embedding', indexed: { type: 'HNSW' }, type: 'Array' },
+			],
+		});
+		for (let w = 0; w < WORKER_COUNT; w++) {
+			workers.push(new Worker(__dirname + '/vectorIndex-thread.js'));
+		}
+	});
+
+	it('handles concurrent multi-worker PUTs without race conditions', async () => {
+		const replies = await Promise.all(
+			workers.map(
+				(worker, w) =>
+					new Promise((resolve) => {
+						worker.once('message', resolve);
+						worker.once('error', (err) =>
+							resolve({ type: 'error', start: w * PUTS_PER_WORKER, message: err.message, stack: err.stack })
+						);
+						worker.postMessage({
+							type: 'insert',
+							start: w * PUTS_PER_WORKER,
+							count: PUTS_PER_WORKER,
+							dims: DIMS,
+						});
+					})
+			)
+		);
+		const errors = replies.filter((r) => r.type === 'error');
+		assert.deepEqual(
+			errors,
+			[],
+			`expected no worker errors, got: ${errors.map((e) => `[start=${e.start}] ${e.message} ${e.stack}`).join('; ')}`
+		);
+
+		const expected = WORKER_COUNT * PUTS_PER_WORKER;
+		let count = 0;
+		for await (const _ of ConcurrentTest.search([])) count++;
+		assert.equal(count, expected, `expected ${expected} records after concurrent puts, got ${count}`);
+	});
+
+	after(async () => {
+		await Promise.all(workers.map((w) => w.terminate()));
+		ConcurrentTest.dropTable();
+	});
+});
+
 async function fromAsync(iterable) {
 	let results = [];
 	for await (let entry of iterable) {
