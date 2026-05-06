@@ -233,6 +233,7 @@ jobs:
         env:
           HARPER_INTEGRATION_TEST_LOG_DIR: /tmp/harper-integration-test-logs
           HARPER_LEGACY_VERSION_PATH: /tmp/harperdb-legacy/node_modules/harperdb
+          HARPER_INTEGRATION_TEST_INSTALL_SCRIPT: dist/bin/harper.js
         run: |
           npm run test:integration:all -- --shard=${{ matrix.shard }}/4
 
@@ -308,6 +309,7 @@ jobs:
         env:
           HARPER_INTEGRATION_TEST_LOG_DIR: ${{ runner.temp }}/harper-integration-test-logs
           HARPER_LEGACY_VERSION_PATH: ${{ runner.temp }}/harperdb-legacy/node_modules/harperdb
+          HARPER_INTEGRATION_TEST_INSTALL_SCRIPT: dist/bin/harper.js
         run: npm run test:integration -- --shard=${{ matrix.shard }}/4
 
       - name: Upload Harper server logs
@@ -346,10 +348,14 @@ jobs:
         with:
           name: harper-build-artifacts-node-24
 
+      - name: Relink bin scripts
+        run: npm install --ignore-scripts
+
       - name: Run Integration Test Shard ${{ matrix.shard }}
         env:
           HARPER_INTEGRATION_TEST_LOG_DIR: /tmp/harper-integration-test-logs
           HARPER_RUNTIME: bun
+          HARPER_INTEGRATION_TEST_INSTALL_SCRIPT: dist/bin/harper.js
         run: |
           npm run test:integration -- --shard=${{ matrix.shard }}/4
 
