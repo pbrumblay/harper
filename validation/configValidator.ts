@@ -44,8 +44,6 @@ export const routeConstraints = Joi.alternatives([
 let hdbRoot;
 let skipFsVal = false;
 
-
-
 export function configValidator(configJson, skipFsValidation = false) {
 	skipFsVal = skipFsValidation;
 	hdbRoot = configJson.rootPath;

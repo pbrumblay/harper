@@ -255,8 +255,6 @@ function customValidate(object, constraints) {
 	return generateRolePermResponse(validationErrors);
 }
 
-
-
 /**
  * Validates that permissions object for CU or SU roles do not also include permissions
  * @param obj

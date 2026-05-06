@@ -43,7 +43,6 @@ import { asyncSerialization, hasAsyncSerialization } from '../server/serverHelpe
 import { HAS_BLOBS } from './auditStore.ts';
 import { getHeapStatistics } from 'node:v8';
 import { setTimeout as delay, setImmediate as rest } from 'node:timers/promises';
-import { RocksDatabase } from '@harperfast/rocksdb-js';
 import { _assignPackageExport } from '../globals.js';
 
 type StorageInfo = {
@@ -1037,7 +1036,7 @@ export function startPreCommitBlobsForRecord(
 				currentStore = store;
 				return Promise.all(
 					blobsNeedingSaving.map((blob) => {
-						return saveBlob((blob as any), true).saving ?? Promise.resolve();
+						return saveBlob(blob as any, true).saving ?? Promise.resolve();
 					})
 				);
 			},

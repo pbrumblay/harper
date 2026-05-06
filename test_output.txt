@@ -1,0 +1,137 @@
+> mocha 'unitTests/**/*test.*js' --exclude 'unitTests/apiTests/**/*' --exclude 'unitTests/dataLayer/harperBridge/**/*' --exclude 'unitTests/resources/**/*'
+HARPER BRIDGE IN DELETE []
+Current directory /home/kzyp/dev/ts-fixes/bin
+HARPER BRIDGE IN DELETE []
+HARPER BRIDGE IN SQLSEARCH []
+SQLSearch IS [class SQLSearch]
+  test CLI operations
+    - Test describe_table returns the table
+    - Test describe_all when the table doesnt exist
+    - Test SQL query
+    - Test search_by_id returns a record
+  Test install module
+    ✔ Test error from installer is handled correctly
+  Test status module
+    ✔ Test status is returned as expected
+    ✔ Test status when nothing is running
+  Test upgrade.js
+    upgrade()
+      - Nominal case - upgrade runs to completion w/o update obj passed in as arg
+      - Nominal case - upgrade runs to completion w update obj passed in as arg
+      - Should exit process if no upgrade obj arg is passed AND getVersionUpdateInfo returns null - i.e. versions are current
+      - Should exit process if no upgrade obj arg is passed AND there is an issue getting the current version
+      - Should exit process if upgradePrompt returns false
+      - Should exit process with code 1 if upgradePrompt throws an exception
+      - Should exit process with code 1 if boot prop file does not exist - i.e. HDB has not been installed
+      - Should exit process with code 1 if settings file does not exist - i.e. HDB has not been installed
+      - Test error from runUpgrade is handled
+    runUpgrade()
+      ✔ Nominal case
+      ✔ Should catch and throw exception from runUpgradeDirectives
+      ✔ Should catch an exception from insertHdbUpgradeInfo and continue - i.e. NOT rethrow
+    Test printToLogAndConsole
+      ✔ Should log to console and final logger
+  Component
+    with singular pattern
+      with files as a string
+        ✔ should instantiate without any other options
+        ✔ should instantiate with urlPath option
+        ✔ should throw an error if the pattern contains ".."
+        ✔ should throw an error if the pattern starts with "/"
+      with files as an object
+        ✔ should instantiate without any other options
+        ✔ should instantiate with urlPath option
+        ✔ should instantiate with files.only option set to files
+        ✔ should instantiate with files.only option set to directories
+        ✔ should instantiate with files.ignore option set to a string
+        ✔ should throw an error if the pattern contains ".."
+        ✔ should throw an error if the pattern starts with "/"
+    with multiple patterns
+      with files as a string
+        ✔ should instantiate without any other options
+        ✔ should instantiate with urlPath option
+        ✔ should throw an error if any pattern contains ".."
+        ✔ should throw an error if any pattern starts with "/"
+      with files as an object
+        ✔ should instantiate without any other options
+        ✔ should instantiate with urlPath option
+        ✔ should instantiate with files.only option set to files
+        ✔ should instantiate with files.only option set to directories
+        ✔ should instantiate with files.ignore option set to a string
+        ✔ should throw an error if any pattern contains ".."
+        ✔ should throw an error if any pattern starts with "/"
+  ComponentLoader Status Integration
+    Basic component status tracking
+      ✔ should initialize loading status for non-root components
+unhandled rejection: OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+    at OptionsWatcher.#handleError (/home/kzyp/dev/ts-fixes/components/OptionsWatcher.ts:153:22)
+    at FSWatcher.emit (node:events:508:28)
+    at FSWatcher._handleError (/home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:539:18)
+    at NodeFsHandler._boundHandleError (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:300:49)
+    at createFsWatchInstance (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:136:9)
+    at setFsWatchListener (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:165:19)
+    at NodeFsHandler._watchWithNodeFs (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:330:22)
+    at NodeFsHandler._handleFile (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:396:29)
+    at NodeFsHandler._addToNodeFs (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:620:31)
+    at async /home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:348:25
+    at async Promise.all (index 0)
+      1) should initialize loading status for non-root components
+  30 passing (41ms)
+  13 pending
+  1 failing
+  1) ComponentLoader Status Integration
+       Basic component status tracking
+         should initialize loading status for non-root components:
+     Uncaught OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+      at OptionsWatcher.#handleError (components/OptionsWatcher.ts:153:22)
+      at FSWatcher.emit (node:events:508:28)
+      at FSWatcher._handleError (node_modules/chokidar/index.js:539:18)
+      at NodeFsHandler._boundHandleError (node_modules/chokidar/handler.js:300:49)
+      at createFsWatchInstance (node_modules/chokidar/handler.js:136:9)
+      at setFsWatchListener (node_modules/chokidar/handler.js:165:19)
+      at NodeFsHandler._watchWithNodeFs (node_modules/chokidar/handler.js:330:22)
+      at NodeFsHandler._handleFile (node_modules/chokidar/handler.js:396:29)
+      at NodeFsHandler._addToNodeFs (node_modules/chokidar/handler.js:620:31)
+      at async /home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:348:25
+      at async Promise.all (index 0)
+Starting inspector on 127.0.0.1:9229 failed: address already in use
+(node:8877) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 exit listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8877) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 unhandledRejection listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+[main/0] [error]: I am a log
+[main/0] [error]: OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+    at OptionsWatcher.#handleError (/home/kzyp/dev/ts-fixes/components/OptionsWatcher.ts:153:22)
+[90m    at FSWatcher.emit (node:events:508:28)[39m
+    at FSWatcher._handleError (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/index.js:539:18)
+    at NodeFsHandler._boundHandleError (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:300:49)
+    at createFsWatchInstance (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:136:9)
+    at setFsWatchListener (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:165:19)
+    at NodeFsHandler._watchWithNodeFs (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:330:22)
+    at NodeFsHandler._handleFile (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:396:29)
+    at NodeFsHandler._addToNodeFs (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:620:31)
+    at async /home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/index.js:348:25
+    at async Promise.all (index 0)
+uncaughtException OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+    at OptionsWatcher.#handleError (/home/kzyp/dev/ts-fixes/components/OptionsWatcher.ts:153:22)
+    at FSWatcher.emit (node:events:508:28)
+    at FSWatcher._handleError (/home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:539:18)
+    at NodeFsHandler._boundHandleError (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:300:49)
+    at createFsWatchInstance (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:136:9)
+    at setFsWatchListener (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:165:19)
+    at NodeFsHandler._watchWithNodeFs (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:330:22)
+    at NodeFsHandler._handleFile (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:396:29)
+    at NodeFsHandler._addToNodeFs (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:620:31)
+    at async /home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:348:25
+    at async Promise.all (index 0)
+[main/0] [error]: uncaughtException OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+    at OptionsWatcher.#handleError (/home/kzyp/dev/ts-fixes/components/OptionsWatcher.ts:153:22)
+[90m    at FSWatcher.emit (node:events:508:28)[39m
+    at FSWatcher._handleError (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/index.js:539:18)
+    at NodeFsHandler._boundHandleError (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:300:49)
+    at createFsWatchInstance (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:136:9)
+    at setFsWatchListener (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:165:19)
+    at NodeFsHandler._watchWithNodeFs (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:330:22)
+    at NodeFsHandler._handleFile (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:396:29)
+    at NodeFsHandler._addToNodeFs (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:620:31)
+    at async /home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/index.js:348:25
+    at async Promise.all (index 0)

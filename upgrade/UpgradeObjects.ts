@@ -8,5 +8,3 @@ export class UpgradeObject {
 		this[terms.UPGRADE_JSON_FIELD_NAMES_ENUM.UPGRADE_VERSION] = upgradeVersion;
 	}
 }
-
-

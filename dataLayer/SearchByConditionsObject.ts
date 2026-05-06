@@ -57,8 +57,4 @@ class SortAttribute {
 	}
 }
 
-export {
-	SearchByConditionsObject,
-	SearchCondition,
-	SortAttribute,
-};
+export { SearchByConditionsObject, SearchCondition, SortAttribute };

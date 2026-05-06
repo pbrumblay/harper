@@ -4,7 +4,8 @@ import prompt from 'prompt';
 import chalk from 'chalk';
 import log from '../utility/logging/harper_logger.js';
 import * as os from 'os';
-const assignCMDENVVariables = require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
+const assignCMDENVVariables =
+	require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
 
 const UPGRADE_PROCEED = ['yes', 'y'];
 
@@ -116,5 +117,3 @@ export async function upgradeCertsPrompt() {
 
 	return UPGRADE_PROCEED.includes(response.GENERATE_CERTS);
 }
-
-

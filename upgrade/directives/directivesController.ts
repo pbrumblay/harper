@@ -81,5 +81,3 @@ export function getDirectiveByVersion(version: any) {
 	}
 	return null;
 }
-
-

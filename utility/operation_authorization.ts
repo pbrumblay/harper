@@ -126,7 +126,10 @@ requiredPermissions.set(
 	new (permission as any)(false, [READ_PERM], terms.OPERATIONS_ENUM.SEARCH_BY_VALUE)
 );
 requiredPermissions.set(search.search.name, new (permission as any)(false, [READ_PERM], terms.OPERATIONS_ENUM.SEARCH));
-requiredPermissions.set(schema.createSchema.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.CREATE_DATABASE));
+requiredPermissions.set(
+	schema.createSchema.name,
+	new (permission as any)(true, [], terms.OPERATIONS_ENUM.CREATE_DATABASE)
+);
 requiredPermissions.set(schema.createTable.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.CREATE_TABLE));
 requiredPermissions.set(
 	schema.createAttribute.name,
@@ -134,7 +137,10 @@ requiredPermissions.set(
 );
 requiredPermissions.set(schema.dropSchema.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.DROP_DATABASE));
 requiredPermissions.set(schema.dropTable.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.DROP_TABLE));
-requiredPermissions.set(schema.dropAttribute.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.DROP_ATTRIBUTE));
+requiredPermissions.set(
+	schema.dropAttribute.name,
+	new (permission as any)(true, [], terms.OPERATIONS_ENUM.DROP_ATTRIBUTE)
+);
 requiredPermissions.set(
 	schemaDescribe.describeSchema.name,
 	new (permission as any)(false, [READ_PERM], terms.OPERATIONS_ENUM.DESCRIBE_SCHEMA)
@@ -143,11 +149,17 @@ requiredPermissions.set(
 	schemaDescribe.describeTable.name,
 	new (permission as any)(false, [READ_PERM], terms.OPERATIONS_ENUM.DESCRIBE_TABLE)
 );
-requiredPermissions.set(delete_.deleteRecord.name, new (permission as any)(false, [DELETE_PERM], terms.OPERATIONS_ENUM.DELETE));
+requiredPermissions.set(
+	delete_.deleteRecord.name,
+	new (permission as any)(false, [DELETE_PERM], terms.OPERATIONS_ENUM.DELETE)
+);
 requiredPermissions.set(user.addUser.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.ADD_USER));
 requiredPermissions.set(user.alterUser.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.ALTER_USER));
 requiredPermissions.set(user.dropUser.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.DROP_USER));
-requiredPermissions.set(user.listUsersExternal.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.LIST_USERS));
+requiredPermissions.set(
+	user.listUsersExternal.name,
+	new (permission as any)(true, [], terms.OPERATIONS_ENUM.LIST_USERS)
+);
 requiredPermissions.set(role.listRoles.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.LIST_ROLES));
 requiredPermissions.set(role.addRole.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.ADD_ROLE));
 requiredPermissions.set(role.alterRole.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.ALTER_ROLE));
@@ -161,7 +173,10 @@ requiredPermissions.set(restart.restartService.name, new (permission as any)(tru
 requiredPermissions.set(readAuditLog.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.READ_AUDIT_LOG));
 requiredPermissions.set(getBackup.name, new (permission as any)(true, [READ_PERM]));
 requiredPermissions.set(schema.cleanupOrphanBlobs.name, new (permission as any)(true, []));
-requiredPermissions.set(systemInformation.name, new (permission as any)(true, [], terms.OPERATIONS_ENUM.SYSTEM_INFORMATION));
+requiredPermissions.set(
+	systemInformation.name,
+	new (permission as any)(true, [], terms.OPERATIONS_ENUM.SYSTEM_INFORMATION)
+);
 requiredPermissions.set(
 	configUtils.getConfiguration.name,
 	new (permission as any)(true, [], terms.OPERATIONS_ENUM.GET_CONFIGURATION)
@@ -169,7 +184,10 @@ requiredPermissions.set(
 requiredPermissions.set(transactionLog.readTransactionLog.name, new (permission as any)(true, []));
 requiredPermissions.set(transactionLog.deleteTransactionLogsBefore.name, new (permission as any)(true, []));
 requiredPermissions.set(npmUtilities.installModules.name, new (permission as any)(true, []));
-requiredPermissions.set(analytics.getOp.name, new (permission as any)(false, [READ_PERM], terms.OPERATIONS_ENUM.GET_ANALYTICS));
+requiredPermissions.set(
+	analytics.getOp.name,
+	new (permission as any)(false, [READ_PERM], terms.OPERATIONS_ENUM.GET_ANALYTICS)
+);
 requiredPermissions.set(
 	analytics.listMetricsOp.name,
 	new (permission as any)(false, [READ_PERM], terms.OPERATIONS_ENUM.LIST_METRICS)
@@ -228,7 +246,10 @@ requiredPermissions.set(functionsOperations.deployComponent.name, new (permissio
 requiredPermissions.set(regDeprecated.getRegistrationInfo.name, new (permission as any)(false, []));
 requiredPermissions.set(user.userInfo.name, new (permission as any)(false, [], terms.OPERATIONS_ENUM.USER_INFO));
 //DescribeAll will only return the schema values a user has permissions for
-requiredPermissions.set(schemaDescribe.describeAll.name, new (permission as any)(false, [], terms.OPERATIONS_ENUM.DESCRIBE_ALL));
+requiredPermissions.set(
+	schemaDescribe.describeAll.name,
+	new (permission as any)(false, [], terms.OPERATIONS_ENUM.DESCRIBE_ALL)
+);
 
 //Below function names are hardcoded b/c of circular dependency issues
 requiredPermissions.set(HANDLE_GET_JOB, new (permission as any)(false, [], terms.OPERATIONS_ENUM.GET_JOB));
@@ -250,8 +271,14 @@ requiredPermissions.set(
 	BULK_OPS.IMPORT_FROM_S3,
 	new (permission as any)(false, [INSERT_PERM, UPDATE_PERM], terms.OPERATIONS_ENUM.IMPORT_FROM_S3)
 );
-requiredPermissions.set(DATA_EXPORT.EXPORT_TO_S3, new (permission as any)(true, [], terms.OPERATIONS_ENUM.EXPORT_TO_S3));
-requiredPermissions.set(DATA_EXPORT.EXPORT_LOCAL, new (permission as any)(true, [], terms.OPERATIONS_ENUM.EXPORT_LOCAL));
+requiredPermissions.set(
+	DATA_EXPORT.EXPORT_TO_S3,
+	new (permission as any)(true, [], terms.OPERATIONS_ENUM.EXPORT_TO_S3)
+);
+requiredPermissions.set(
+	DATA_EXPORT.EXPORT_LOCAL,
+	new (permission as any)(true, [], terms.OPERATIONS_ENUM.EXPORT_LOCAL)
+);
 
 // SQL operations are distinct from operations above, so we need to store required perms for both.
 requiredPermissions.set(terms.VALID_SQL_OPS_ENUM.DELETE, new (permission as any)(false, [DELETE_PERM]));
@@ -287,7 +314,9 @@ export function verifyPermsAST(ast, userObject, operation) {
 		throw handleHDBError(new Error());
 	}
 	try {
-		const bucket = require('../sqlTranslator/sql_statement_bucket.js').default || require('../sqlTranslator/sql_statement_bucket.js');
+		const bucket =
+			require('../sqlTranslator/sql_statement_bucket.js').default ||
+			require('../sqlTranslator/sql_statement_bucket.js');
 		const alasql = require('alasql');
 
 		const permsResponse = new PermissionResponseObject();
@@ -340,7 +369,15 @@ export function verifyPermsAST(ast, userObject, operation) {
 			for (let t = 0; t < tables.length; t++) {
 				let attributes = parsedAst.getAttributesBySchemaTableName(schemaKey, tables[t]);
 				const attribute_permissions = getAttributePermissions(userObject.role.permission, schemaKey, tables[t]);
-				checkAttributePerms(attributes, attribute_permissions, operation, tables[t], schemaKey, permsResponse, undefined);
+				checkAttributePerms(
+					attributes,
+					attribute_permissions,
+					operation,
+					tables[t],
+					schemaKey,
+					permsResponse,
+					undefined
+				);
 			}
 		});
 

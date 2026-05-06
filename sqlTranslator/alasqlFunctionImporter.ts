@@ -5,8 +5,8 @@
  */
 
 import * as alasqlExtension from '../utility/functions/sql/alaSQLExtension.js';
-	import * as dateFunctions from '../utility/functions/date/dateFunctions.js';
-	import * as geo from '../utility/functions/geo.js';
+import * as dateFunctions from '../utility/functions/date/dateFunctions.js';
+import * as geo from '../utility/functions/geo.js';
 
 //import the custom function, need to define an upper and lower case version of the function so it is parsed properly in alasql
 export default function (alasql: any) {
@@ -59,4 +59,4 @@ export default function (alasql: any) {
 	alasql.fn.geoequal = alasql.fn.GEOEQUAL = alasql.fn.geoEqual = geo.geoEqual;
 	alasql.fn.geolength = alasql.fn.GEOLENGTH = alasql.fn.geoLength = geo.geoLength;
 	alasql.fn.geonear = alasql.fn.GEONEAR = alasql.fn.geoNear = geo.geoNear;
-};
+}

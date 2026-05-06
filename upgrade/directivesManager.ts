@@ -4,8 +4,6 @@ import * as hdbUtil from '../utility/common_utils.js';
 import log from '../utility/logging/harper_logger.js';
 import * as directivesController from './directives/directivesController.js';
 
-
-
 /**
  * Iterates through the directives files to find uninstalled updates and runs the files.
  *

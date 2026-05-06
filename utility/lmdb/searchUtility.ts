@@ -11,7 +11,6 @@ import * as cursorFunctions from './searchCursorFunctions.js';
 // eslint-disable-next-line no-unused-vars
 import * as lmdb from 'lmdb';
 
-
 /** UTILITY CURSOR FUNCTIONS **/
 
 /**
@@ -24,7 +23,8 @@ import * as lmdb from 'lmdb';
  * @param {number} offset - defines the entries to skip
  * @returns {[]}
  */
-export function iterateFullIndex(this: any, 
+export function iterateFullIndex(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -62,7 +62,8 @@ export function iterateFullIndex(this: any,
  * @param {number} offset - defines the entries to skip
  * @returns {Iterable}
  */
-export function iterateRangeBetween(this: any, 
+export function iterateRangeBetween(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -166,7 +167,8 @@ export function getOverflowCheck(this: any, env, transaction, hash_attribute, at
  * @param {number} limit - defines the max number of entries to iterate
  * @param {number} offset - defines the entries to skip
  */
-export function searchAll(this: any, 
+export function searchAll(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	fetchAttributes,
@@ -207,7 +209,8 @@ export function searchAll(this: any,
 * @returns {{String|Number, Object}} - object array of fetched records
 
 */
-export function searchAllToMap(this: any, 
+export function searchAllToMap(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	fetchAttributes,
@@ -246,7 +249,14 @@ export function searchAllToMap(this: any,
  * @param {number} offset - defines the entries to skip
  * @returns {Array.<Array>}
  */
-export function iterateDBI(this: any, transactionOrEnv, attribute, reverse = false, limit = undefined, offset = undefined) {
+export function iterateDBI(
+	this: any,
+	transactionOrEnv,
+	attribute,
+	reverse = false,
+	limit = undefined,
+	offset = undefined
+) {
 	common.validateEnv(transactionOrEnv);
 
 	if (attribute === undefined) {
@@ -294,7 +304,8 @@ export function countAll(this: any, env, hash_attribute) {
  * @param {number} offset - defines the entries to skip
  * @returns {[[],[]]} - ids matching the search
  */
-export function equals(this: any, 
+export function equals(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -346,7 +357,8 @@ export function count(this: any, env, attribute, searchValue) {
  * @param {number} offset - defines the entries to skip
  * @returns {lmdb.ArrayLikeIterable<unknown>} - ids matching the search
  */
-export function startsWith(this: any, 
+export function startsWith(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -422,7 +434,8 @@ export function startsWith(this: any,
  * @param {number} offset - defines the entries to skip
  * @returns {[[],[]]} - ids matching the search
  */
-export function endsWith(this: any, 
+export function endsWith(
+	this: any,
 	transaction,
 	hash_attribute,
 	attribute,
@@ -447,7 +460,8 @@ export function endsWith(this: any,
  * @param {boolean} ends_with - Must only contain this value at the end
  * @returns {[[],[]]} - ids matching the search
  */
-export function contains(this: any, 
+export function contains(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -505,7 +519,8 @@ export function contains(this: any,
  * @param {number} offset - defines the entries to skip
  * @returns {[[],[]]}
  */
-export function greaterThan(this: any, 
+export function greaterThan(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -546,7 +561,8 @@ export function greaterThan(this: any,
  * @param {number} offset - defines the entries to skip
  * @returns {[[],[]]}
  */
-export function greaterThanEqual(this: any, 
+export function greaterThanEqual(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -587,7 +603,8 @@ export function greaterThanEqual(this: any,
  * @param {number} offset - defines the entries to skip
  * @returns {[[],[]]}
  */
-export function lessThan(this: any, 
+export function lessThan(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -627,7 +644,8 @@ export function lessThan(this: any,
  * @param {number} offset - defines the entries to skip
  * @returns {[[],[]]}
  */
-export function lessThanEqual(this: any, 
+export function lessThanEqual(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -668,7 +686,8 @@ export function lessThanEqual(this: any,
  * @param {number} offset - defines the entries to skip
  * @returns {*[]}
  */
-export function between(this: any, 
+export function between(
+	this: any,
 	transactionOrEnv,
 	hash_attribute,
 	attribute,
@@ -786,7 +805,14 @@ export function batchSearchByHash(this: any, transactionOrEnv, hash_attribute, f
  * @param {[]} [notFound] - optional, meant to be an array passed by reference so that skipped ids can be aggregated.
  * @returns {Map} - Map of records found
  */
-export function batchSearchByHashToMap(this: any, transactionOrEnv, hash_attribute, fetchAttributes, ids, notFound = []) {
+export function batchSearchByHashToMap(
+	this: any,
+	transactionOrEnv,
+	hash_attribute,
+	fetchAttributes,
+	ids,
+	notFound = []
+) {
 	initializeBatchSearchByHash(transactionOrEnv, hash_attribute, fetchAttributes, ids, notFound);
 	let results = new Map();
 	for (let [id, record] of batchHashSearch(transactionOrEnv, hash_attribute, fetchAttributes, ids, notFound)) {
@@ -830,7 +856,14 @@ export function batchHashSearch(this: any, transactionOrEnv, hash_attribute, fet
  * @param {Array.<String>} ids - list of ids to search
  * @param {[]} [_notFound] -optional,  meant to be an array passed by reference so that skipped ids can be aggregated.
  */
-export function initializeBatchSearchByHash(this: any, transactionOrEnv, hash_attribute, fetchAttributes, ids, _notFound) {
+export function initializeBatchSearchByHash(
+	this: any,
+	transactionOrEnv,
+	hash_attribute,
+	fetchAttributes,
+	ids,
+	_notFound
+) {
 	common.validateEnv(transactionOrEnv);
 
 	if (hash_attribute === undefined) {
@@ -894,5 +927,3 @@ export function setGetWholeRowAttributes(this: any, env, fetchAttributes) {
 
 	return fetchAttributes;
 }
-
-

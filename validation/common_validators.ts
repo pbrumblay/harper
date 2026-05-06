@@ -81,5 +81,3 @@ export function validateSchemaName(value, helpers) {
 
 	return value;
 }
-
-

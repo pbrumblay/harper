@@ -3,8 +3,6 @@
 import * as hdbUtil from '../utility/common_utils.js';
 import * as configUtils from '../config/configUtils.js';
 
-
-
 /**
  * We need to make sure we are setting empty string for values that are null/undefined/empty string - PropertiesReader
  * castes values in some awkward ways and this covers those scenarios AND ensures we have default values set for new

@@ -82,11 +82,11 @@ export let externalLogger: any = {
 		return externalLogger.withTag(tag);
 	},
 	forComponent(name: string) {
-			return externalLogger.forComponent(name);
-		}
+		return externalLogger.forComponent(name);
+	},
 };
 _assignPackageExport('logger', externalLogger);
- // default logger used for the global used by external components
+// default logger used for the global used by external components
 let mainLogFd;
 let writeToLogFile;
 let logImmediately;
@@ -298,7 +298,7 @@ module.exports = {
 /**
  * We call this if stdio is not functional
  */
-export function disableStdio(unused?: any) {
+export function disableStdio(_unused?: any) {
 	nativeStdWrite = function () {}; // make this a noop
 }
 
@@ -488,15 +488,15 @@ let currentLevel = 'info'; // default is info
 let currentServiceName;
 let currentTag;
 export function createLogger(options: any = {} as any) {
-let {
-	path: logFilePath,
-	level: logLevel,
-	stdStreams: logToStdstreams,
-	rotation,
-	isExternalInstance,
-	writeToLog,
-	component,
-}: any = options;
+	let {
+		path: logFilePath,
+		level: logLevel,
+		stdStreams: logToStdstreams,
+		rotation,
+		isExternalInstance,
+		writeToLog,
+		component,
+	}: any = options;
 	if (!logLevel) logLevel = 'info';
 	let level = typeof logLevel === 'number' ? logLevel : LOG_LEVEL_HIERARCHY[logLevel];
 	let logger;
@@ -679,7 +679,7 @@ function getFileLogger(path, rotation, isExternalInstance) {
 		if (logBuffer) logBuffer = null;
 	}
 
-	function closeLogFile(unused?: any) {
+	function closeLogFile(_unused?: any) {
 		try {
 			fs.closeSync(logFD);
 		} catch {}
@@ -835,7 +835,7 @@ function getLogConfig(hdbConfigPath) {
 		const toStream = configDoc.getIn(['logging', 'stdStreams']);
 		const logConsole = configDoc.getIn(['logging', 'console']);
 		const colorMode = configDoc.getIn(['logging', 'colors']) ?? true; // default to true
-		const rotation = ((configDoc.getIn(['logging', 'rotation'])) as any)?.toJSON();
+		const rotation = (configDoc.getIn(['logging', 'rotation']) as any)?.toJSON();
 		// Resolve rotation path if relative
 		if (rotation?.path) {
 			rotation.path = resolveLogPath(rotation.path, rootPath as any);
@@ -904,7 +904,15 @@ function closeLogFile() {
 	mainLogFd = null;
 }
 
-export function AuthAuditLog(this: any, username: any, status: any, type: any, originatingIp: any, requestMethod: any, path: any) {
+export function AuthAuditLog(
+	this: any,
+	username: any,
+	status: any,
+	type: any,
+	originatingIp: any,
+	requestMethod: any,
+	path: any
+) {
 	this.username = username;
 	this.status = status;
 	this.type = type;
@@ -925,7 +933,9 @@ export default {
 	info,
 	debug,
 	trace,
-	get logLevel() { return logLevel; },
+	get logLevel() {
+		return logLevel;
+	},
 	loggerWithTag,
 	suppressLogging,
 	initLogSettings,
@@ -941,5 +951,5 @@ export default {
 	disableStdio,
 	externalLogger,
 	AuthAuditLog,
-	errorToString
+	errorToString,
 };

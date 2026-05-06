@@ -246,5 +246,3 @@ function checkIfInstallIsSupported(dataVNum) {
 		throw new Error(errMsg);
 	}
 }
-
-

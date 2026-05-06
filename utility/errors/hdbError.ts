@@ -1,7 +1,6 @@
 'use strict';
 import logger from '../logging/harper_logger.js';
 import * as hdbErrors from './commonErrors.js';
-import { HTTP_STATUS_CODES, DEFAULT_ERROR_MSGS } from './commonErrors.js';
 import * as hdbTerms from '../hdbTerms.js';
 
 /**

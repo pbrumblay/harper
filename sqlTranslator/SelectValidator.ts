@@ -11,8 +11,6 @@ const { getDatabases } = require('../resources/databases.js');
 //exclusion list for validation on group bys
 const customAggregators = ['DISTINCT_ARRAY'];
 
-
-
 /**
  * Validates the tables and attributes against the actual schema
  * Validates general SQL rules

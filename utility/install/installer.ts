@@ -17,7 +17,8 @@ const hdbInfoController = require('../../dataLayer/hdbInfoController.js');
 const { packageJson } = require('../packageUtils.js');
 const hdbTerms = require('../hdbTerms.js');
 const { CONFIG_PARAMS } = hdbTerms;
-const installValidator = require('../../validation/installValidator.js').default || require('../../validation/installValidator.js');
+const installValidator =
+	require('../../validation/installValidator.js').default || require('../../validation/installValidator.js');
 import mountHdb from '../mount_hdb.js';
 const configUtils = require('../../config/configUtils.js');
 const userOps = require('../../security/user.js');

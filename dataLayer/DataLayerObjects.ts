@@ -49,5 +49,3 @@ export class DeleteResponseObject {
 		this.skipped_hashes = [];
 	}
 }
-
-

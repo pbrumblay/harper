@@ -3,8 +3,6 @@
 import Joi from 'joi';
 import * as validator from './validationWrapper.js';
 
-
-
 export function readTransactionLogValidator(req) {
 	const schema = Joi.object({
 		schema: Joi.string(),

@@ -28,7 +28,8 @@ export default async function mountHdb(hdbPath: string) {
  * @returns {Promise<void>}
  */
 async function createTables() {
-	const CreateTableObject = require('../dataLayer/CreateTableObject.js').default || require('../dataLayer/CreateTableObject.js');
+	const CreateTableObject =
+		require('../dataLayer/CreateTableObject.js').default || require('../dataLayer/CreateTableObject.js');
 
 	let tables = Object.keys(systemSchema);
 

@@ -12,7 +12,7 @@ const LMDB_CACHING = envMngr.get(terms.CONFIG_PARAMS.STORAGE_CACHING) !== false;
 export class OpenDBIObject {
 	[key: string]: any;
 	dupSort: boolean;
-	encoding: "string" | "json" | "binary" | "msgpack" | "ordered-binary";
+	encoding: 'string' | 'json' | 'binary' | 'msgpack' | 'ordered-binary';
 	useVersions: boolean;
 	sharedStructuresKey: symbol;
 	compression: any;
@@ -43,5 +43,3 @@ export class OpenDBIObject {
 		}
 	}
 }
-
-

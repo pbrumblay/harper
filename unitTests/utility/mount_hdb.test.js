@@ -5,7 +5,11 @@ const { expect } = chai;
 const rewire = require('rewire');
 const sinon = require('sinon');
 const init_paths = require('#js/dataLayer/harperBridge/lmdbBridge/lmdbUtility/initializePaths');
-const bridge = require('#js/dataLayer/harperBridge/harperBridge').default || require('#js/dataLayer/harperBridge/harperBridge').default || require('#js/dataLayer/harperBridge/harperBridge').default || require('#js/dataLayer/harperBridge/harperBridge');
+const bridge =
+	require('#js/dataLayer/harperBridge/harperBridge').default ||
+	require('#js/dataLayer/harperBridge/harperBridge').default ||
+	require('#js/dataLayer/harperBridge/harperBridge').default ||
+	require('#js/dataLayer/harperBridge/harperBridge');
 const mount_hdb = rewire('#js/utility/mount_hdb');
 const path = require('path');
 const { get: envGet } = require('#js/utility/environment/environmentManager');

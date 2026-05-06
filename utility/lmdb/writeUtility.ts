@@ -29,7 +29,14 @@ const UPDATED_TIME_ATTRIBUTE_NAME = hdbTerms.TIME_STAMP_NAMES_ENUM.UPDATED_TIME;
  * @param {boolean|number} timestamp
  * @returns {Promise<InsertRecordsResponseObject>}
  */
-export async function insertRecords(this: any, env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
+export async function insertRecords(
+	this: any,
+	env,
+	hash_attribute,
+	writeAttributes,
+	records,
+	timestamp = common.getNextMonotonicTime()
+) {
 	validateWrite(env, hash_attribute, writeAttributes, records);
 
 	initializeTransaction(env, hash_attribute, writeAttributes);
@@ -163,7 +170,14 @@ function initializeTransaction(env, hash_attribute, writeAttributes) {
  * @param {boolean|number} timestamp
  * @returns {Promise<UpdateRecordsResponseObject>}
  */
-export async function updateRecords(this: any, env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
+export async function updateRecords(
+	this: any,
+	env,
+	hash_attribute,
+	writeAttributes,
+	records,
+	timestamp = common.getNextMonotonicTime()
+) {
 	//validate
 	validateWrite(env, hash_attribute, writeAttributes, records);
 
@@ -203,7 +217,14 @@ export async function updateRecords(this: any, env, hash_attribute, writeAttribu
  * @param {boolean|number} timestamp
  * @returns {Promise<UpdateRecordsResponseObject>}
  */
-export async function upsertRecords(this: any, env, hash_attribute, writeAttributes, records, timestamp = common.getNextMonotonicTime()) {
+export async function upsertRecords(
+	this: any,
+	env,
+	hash_attribute,
+	writeAttributes,
+	records,
+	timestamp = common.getNextMonotonicTime()
+) {
 	//validate
 	try {
 		validateWrite(env, hash_attribute, writeAttributes, records);
@@ -399,5 +420,3 @@ function validateWrite(env, hash_attribute, writeAttributes, records) {
 function noop() {
 	// prefetch callback
 }
-
-

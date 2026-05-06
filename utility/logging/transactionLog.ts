@@ -2,13 +2,16 @@
 
 import * as hdbUtils from '../common_utils.js';
 import log from './harper_logger.js';
-import { handleHDBError, hdbErrors } from '../errors/hdbError.js';
+import { handleHDBError} from '../errors/hdbError.js';
 import { HTTP_STATUS_CODES } from '../errors/commonErrors.js';
 
-import { readTransactionLogValidator, deleteTransactionLogsBeforeValidator } from '../../validation/transactionLogValidator.js';
-const harperBridge = require('../../dataLayer/harperBridge/harperBridge.js').default || require('../../dataLayer/harperBridge/harperBridge.js');
-
-
+import {
+	readTransactionLogValidator,
+	deleteTransactionLogsBeforeValidator,
+} from '../../validation/transactionLogValidator.js';
+const harperBridge =
+	require('../../dataLayer/harperBridge/harperBridge.js').default ||
+	require('../../dataLayer/harperBridge/harperBridge.js');
 
 export async function readTransactionLog(req: any) {
 	const validation = readTransactionLogValidator(req);

@@ -1936,7 +1936,7 @@ export function makeTable(options) {
 				},
 			};
 			this.#savingOperation = write;
-write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
+			write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
 			return transaction.addWrite(write as any);
 		}
 
@@ -2657,7 +2657,7 @@ write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
 			const subscription = addSubscription(
 				TableResource,
 				thisId,
-function (id: Id, auditRecord?: any, localTime?: any, beginTxn?: any) {
+				function (id: Id, auditRecord?: any, localTime?: any, beginTxn?: any) {
 					if (dropDuringReplay) return;
 					try {
 						let type = auditRecord.type;
@@ -4582,7 +4582,7 @@ function (id: Id, auditRecord?: any, localTime?: any, beginTxn?: any) {
 		record: any,
 		before?: () => Promise<void> | void,
 		saveInRecord?: boolean
-): any {
+	): any {
 		const preCommit = startPreCommitBlobsForRecord(record, primaryStore.rootStore, saveInRecord);
 		if (preCommit) {
 			// track the blobs on the write so abort/skip paths can clean up the files if the commit doesn't reference them
@@ -4593,9 +4593,9 @@ function (id: Id, auditRecord?: any, localTime?: any, beginTxn?: any) {
 			return callSources
 				? async (): Promise<any> => {
 						// if we are calling the sources first and waiting for blobs, do those in order
-										const result = callSources();
-										if (result && (result as any).then) await result;
-										await preCommit.complete();
+						const result = callSources();
+						if (result && (result as any).then) await result;
+						await preCommit.complete();
 					}
 				: () => preCommit.complete();
 		}

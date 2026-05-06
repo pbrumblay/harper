@@ -6,7 +6,8 @@
 
 import * as alasql from 'alasql';
 import RecursiveIterator from 'recursive-iterator';
-const harperLogger = require('../utility/logging/harper_logger.js').default || require('../utility/logging/harper_logger.js');
+const harperLogger =
+	require('../utility/logging/harper_logger.js').default || require('../utility/logging/harper_logger.js');
 import * as hdbUtils from '../utility/common_utils.js';
 import * as terms from '../utility/hdbTerms.js';
 
@@ -175,7 +176,13 @@ function filterReadRestrictedAttrs(attrPerms: any[]) {
 	return attrPerms.filter((perm) => perm[terms.PERMS_CRUD_ENUM.READ]);
 }
 
-function interpretAST(ast: any, affectedAttributes: any, tableLookup: any, schemaLookup: any, tableToSchemaLookup: any) {
+function interpretAST(
+	ast: any,
+	affectedAttributes: any,
+	tableLookup: any,
+	schemaLookup: any,
+	tableToSchemaLookup: any
+) {
 	getRecordAttributesAST(ast, affectedAttributes, tableLookup, schemaLookup, tableToSchemaLookup);
 }
 
@@ -187,7 +194,13 @@ function interpretAST(ast: any, affectedAttributes: any, tableLookup: any, schem
  * @param {Map} affectedAttributes - A map of attributes affected in the call.  Defined as [schema, Map[table, [attributesArray]]].
  * @param {Map} tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function addSchemaTableToMap(record: any, affectedAttributes: any, tableLookup: any, schemaLookup?: any, tableToSchemaLookup?: any) {
+function addSchemaTableToMap(
+	record: any,
+	affectedAttributes: any,
+	tableLookup: any,
+	schemaLookup?: any,
+	tableToSchemaLookup?: any
+) {
 	if (!record || !record.databaseid) {
 		return;
 	}
@@ -223,7 +236,13 @@ function addSchemaTableToMap(record: any, affectedAttributes: any, tableLookup: 
  * @param {Map} affectedAttributes - A map containing attributes affected by the statement. Defined as [schema, Map[table, [attributesArray]]].
  * @param {Map} tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function getRecordAttributesAST(ast: any, affectedAttributes: any, tableLookup: any, schemaLookup: any, tableToSchemaLookup: any) {
+function getRecordAttributesAST(
+	ast: any,
+	affectedAttributes: any,
+	tableLookup: any,
+	schemaLookup: any,
+	tableToSchemaLookup: any
+) {
 	if (!ast) {
 		harperLogger.info(`getRecordAttributesAST: invalid SQL syntax tree`);
 		return;
@@ -250,7 +269,13 @@ function getRecordAttributesAST(ast: any, affectedAttributes: any, tableLookup: 
  * @param affectedAttributes - A map containing attributes affected by the statement. Defined as [schema, Map[table, [attributesArray]]].
  * @param tableLookup - A map that will be filled in.  This map contains alias to table definitions as [alias, tableName].
  */
-function getSelectAttributes(ast: any, affectedAttributes: any, tableLookup: any, schemaLookup: any, tableToSchemaLookup: any) {
+function getSelectAttributes(
+	ast: any,
+	affectedAttributes: any,
+	tableLookup: any,
+	schemaLookup: any,
+	tableToSchemaLookup: any
+) {
 	if (!ast) {
 		harperLogger.info(`getSelectAttributes: invalid SQL syntax tree`);
 		return;

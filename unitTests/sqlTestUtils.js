@@ -3,7 +3,8 @@
 const path = require('path');
 const fs = require('fs-extra');
 const sql = require('#js/sqlTranslator/index');
-const SelectValidator = require('#js/sqlTranslator/SelectValidator').default || require('#js/sqlTranslator/SelectValidator');
+const SelectValidator =
+	require('#js/sqlTranslator/SelectValidator').default || require('#js/sqlTranslator/SelectValidator');
 const testUtils = require('./testUtils');
 const { createMockDB, tearDownMockDB, deepClone } = testUtils;
 testUtils.preTestPrep();

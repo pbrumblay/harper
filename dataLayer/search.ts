@@ -1,7 +1,5 @@
 'use strict';
 
-
-
 const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 import { transformReq } from '../utility/common_utils.js';
 
@@ -34,7 +32,8 @@ export async function searchByValue(searchObject: any) {
 
 export function search(statement: any, callback: any) {
 	try {
-		const SelectValidator = require('../sqlTranslator/SelectValidator.js').default || require('../sqlTranslator/SelectValidator.js');
+		const SelectValidator =
+			require('../sqlTranslator/SelectValidator.js').default || require('../sqlTranslator/SelectValidator.js');
 		const SQLSearch = require('./SQLSearch.js').default || require('./SQLSearch.js');
 		let validator = new SelectValidator(statement);
 		validator.validate();

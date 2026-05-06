@@ -10,7 +10,7 @@ import * as signalling from '../utility/signalling.js';
 const hdbTerms = require('../utility/hdbTerms.js');
 import * as util from 'util';
 const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
-import { handleHDBError, hdbErrors, ClientError } from '../utility/errors/hdbError.js';
+import { handleHDBError, ClientError } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 import { SchemaEventMsg } from '../server/threads/itc.js';
@@ -42,8 +42,6 @@ const PRIMARY_KEY_CONSTRAINTS = Joi.string()
 		'string.base': "'primary_key' must be a string",
 	})
 	.required();
-
-
 
 /** EXPORTED FUNCTIONS **/
 

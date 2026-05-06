@@ -52,8 +52,6 @@ validate.validators.hasValidFileExt = function (value, options) {
 		: `must include one of the following valid file extensions - '${options.join("', '")}'`;
 };
 
-
-
 export function validateObject(object, fileConstraints) {
 	if (!object || !fileConstraints) {
 		return new Error('validateObject parameters were null');

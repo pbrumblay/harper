@@ -15,7 +15,7 @@ const INSTALL_LOG_LOCATION = path.resolve(__dirname, `../logs`);
 
 export default function (object: any) {
 	return validator.validateBySchema(object, readLogSchema);
-};
+}
 
 const readLogSchema = Joi.object({
 	from: Joi.custom(validateDatetime),

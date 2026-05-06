@@ -21,4 +21,4 @@ export default function (deleteObject: any, dateFormat: any) {
 		dateFormat === 'timestamp' ? { ...validationSchema, ...timestampSchema } : { ...validationSchema, ...dateSchema };
 	const bulkDeleteSchema = Joi.object(finalSchema);
 	return validator.validateBySchema(deleteObject, bulkDeleteSchema);
-};
+}

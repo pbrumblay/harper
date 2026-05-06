@@ -144,5 +144,3 @@ function postValidateChecks(object, validateRes) {
 	}
 	return validateRes;
 }
-
-

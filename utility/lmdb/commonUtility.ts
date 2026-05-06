@@ -5,7 +5,6 @@ import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
 import * as lmdb from 'lmdb';
 import * as lmdbTerms from './terms.js';
 
-
 const PRIMITIVES = ['number', 'string', 'symbol', 'boolean', 'bigint'];
 /**
  * validates the env argument
@@ -95,7 +94,7 @@ export function getIndexedValues(this: any, value: any, indexNulls?: any) {
 
 let lastTime = 0; // reported time used to ensure monotonic time.
 let startTime = 0; // the start time of the (current time relative to performance time counter)
-function adjustStartTime(this: any, ) {
+function adjustStartTime(this: any) {
 	// calculate the start time
 	// TODO: We may actually want to implement a gradual time shift if the clock time really changes substantially
 	// and for sub-millisecond updates, may want to average them so we can progressively narrow in on true time
@@ -109,7 +108,7 @@ setInterval(adjustStartTime, TIME_ADJUSTMENT_INTERVAL).unref();
  * A monotonic timestamp that is guaranteed to be higher than the last call to this function.
  * Will use decimal microseconds as necessary to differentiate from previous calls without too much drift.
  */
-export function getNextMonotonicTime(this: any, ) {
+export function getNextMonotonicTime(this: any) {
 	let now = performance.now() + startTime;
 	if (now > lastTime) {
 		// current time is higher than last time, can safely return it
@@ -121,4 +120,3 @@ export function getNextMonotonicTime(this: any, ) {
 	lastTime += 0.000488;
 	return lastTime;
 }
-

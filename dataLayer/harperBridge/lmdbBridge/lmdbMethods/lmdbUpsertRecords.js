@@ -1,7 +1,8 @@
 'use strict';
 
 // eslint-disable-next-line no-unused-vars
-const UpsertObject = require('../../../dataObjects/UpsertObject.js').default || require('../../../dataObjects/UpsertObject.js');
+const UpsertObject =
+	require('../../../dataObjects/UpsertObject.js').default || require('../../../dataObjects/UpsertObject.js');
 const insertUpdateValidate = require('../../bridgeUtility/insertUpdateValidate.js');
 const lmdbProcessRows = require('../lmdbUtility/lmdbProcessRows.js');
 const lmdbCheckNewAttributes = require('../lmdbUtility/lmdbCheckForNewAttributes.js');

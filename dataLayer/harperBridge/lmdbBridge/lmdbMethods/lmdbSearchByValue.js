@@ -2,7 +2,8 @@
 
 // eslint-disable-next-line no-unused-vars
 const SearchObject = require('../../../SearchObject.js').default || require('../../../SearchObject.js');
-const searchValidator = require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
+const searchValidator =
+	require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
 const commonUtils = require('../../../../utility/common_utils.js');
 const hdbTerms = require('../../../../utility/hdbTerms.js');
 const lmdb_search = require('../lmdbUtility/lmdbSearch.js');

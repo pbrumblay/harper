@@ -10,11 +10,8 @@ import * as globalSchema from '../utility/globalSchema.js';
 const RECORD = 'record';
 const SUCCESS = 'successfully deleted';
 
-const cbConvertDelete = util.callbackify(convertDelete);
 const pSearchSearch = util.promisify(search.search);
 const pGetTableSchema = util.promisify(globalSchema.getTableSchema);
-
-
 
 function generateReturnMessage(deleteResultsObject: any) {
 	return `${deleteResultsObject.deleted_hashes.length} ${RECORD}${

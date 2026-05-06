@@ -163,4 +163,4 @@ export default function (searchObject: any, type: any) {
 	}
 
 	return validationError;
-};
+}

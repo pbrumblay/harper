@@ -13,17 +13,14 @@ import * as util from 'util';
 const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 import * as globalSchema from '../utility/globalSchema.js';
 import log from '../utility/logging/harper_logger.js';
-import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { handleHDBError} from '../utility/errors/hdbError.js';
 import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
-
 
 const pGlobalSchema = util.promisify(globalSchema.getTableSchema);
 
 const UPDATE_ACTION = 'updated';
 const INSERT_ACTION = 'inserted';
 const UPSERT_ACTION = 'upserted';
-
-
 
 //IMPORTANT - This validation function is the async version of the code in harperBridge/bridgeUtility/insertUpdateValidate.js
 // make sure any changes below are also made there. This is to resolve a circular dependency.
@@ -232,7 +229,14 @@ async function upsertData(upsertObject: any) {
  * @returns {{ message: string, new_attributes: *, txn_time: * }}
  */
 
-function returnObject(action: string, written_hashes: any[], object: any, skipped: any[], new_attributes: any, txnTime: any) {
+function returnObject(
+	action: string,
+	written_hashes: any[],
+	object: any,
+	skipped: any[],
+	new_attributes: any,
+	txnTime: any
+) {
 	let return_object: any = {
 		message: `${action} ${written_hashes.length} of ${written_hashes.length + skipped.length} records`,
 		new_attributes,

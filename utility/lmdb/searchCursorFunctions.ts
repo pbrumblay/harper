@@ -171,5 +171,3 @@ export function lessThanEqualCompare(this: any, compareValue, key, value, result
 		pushResults(key, value, results, hash_attribute, attribute);
 	}
 }
-
-

@@ -18,8 +18,6 @@ import * as hdbUtils from '../utility/common_utils.js';
 //here we call to define and import custom functions to alasql
 alasqlFunctionImporter(alasql);
 
-
-
 const SQL_UPDATE_ERROR_MSG = 'There was a problem performing this update. Please check the logs and try again.';
 
 /**

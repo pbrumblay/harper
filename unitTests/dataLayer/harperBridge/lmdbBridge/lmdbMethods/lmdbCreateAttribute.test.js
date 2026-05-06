@@ -12,7 +12,8 @@ const BASE_TXN_PATH = path.join(BASE_PATH, 'transactions');
 const BASE_TEST_PATH = path.join(BASE_SCHEMA_PATH, LMDB_TEST_FOLDER_NAME);
 
 const rewire = require('rewire');
-const harperBridge = require('#js/dataLayer/harperBridge/harperBridge').default || require('#js/dataLayer/harperBridge/harperBridge');
+const harperBridge =
+	require('#js/dataLayer/harperBridge/harperBridge').default || require('#js/dataLayer/harperBridge/harperBridge');
 const lmdb_create_schema = harperBridge.createSchema;
 const lmdb_create_table = harperBridge.createTable;
 const lmdb_create_attribute = harperBridge.createAttribute;

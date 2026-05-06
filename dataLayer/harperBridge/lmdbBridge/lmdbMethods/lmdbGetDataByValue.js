@@ -1,6 +1,7 @@
 'use strict';
 
-const searchValidator = require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
+const searchValidator =
+	require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
 const commonUtils = require('../../../../utility/common_utils.js');
 const hdbTerms = require('../../../../utility/hdbTerms.js');
 const lmdbSearch = require('../lmdbUtility/lmdbSearch.js');

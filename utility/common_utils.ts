@@ -37,56 +37,6 @@ const AUTOCAST_COMMON_STRINGS = {
 	NaN: NaN,
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  * Converts a message to an error containing the error as a message. Will always return an error if the passed in error is
  * not a message.
@@ -523,19 +473,18 @@ export function checkGlobalSchemaTable(schemaName: string, tableName: string) {
  * through bind to this function.
  */
 export function parsePromise(stream: any, chunkFunc: any, typingFunction: any): Promise<any> {
-
-		return new Promise(function (resolve, reject) {
-			papaParse.parse(stream, {
-				header: true,
-				transformHeader: removeBOM,
-				chunk: chunkFunc.bind(null, reject),
-				skipEmptyLines: true,
-				transform: typingFunction,
-				dynamicTyping: false,
-				error: reject,
-				complete: resolve,
-			});
+	return new Promise(function (resolve, reject) {
+		papaParse.parse(stream, {
+			header: true,
+			transformHeader: removeBOM,
+			chunk: chunkFunc.bind(null, reject),
+			skipEmptyLines: true,
+			transform: typingFunction,
+			dynamicTyping: false,
+			error: reject,
+			complete: resolve,
 		});
+	});
 }
 
 /**

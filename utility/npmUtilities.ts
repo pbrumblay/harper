@@ -10,8 +10,6 @@ const { HTTP_STATUS_CODES } = hdbErrors;
 import * as validator from '../validation/validationWrapper.js';
 import harperLogger from './logging/harper_logger.js';
 
-
-
 import { CONFIG_PARAMS } from './hdbTerms.js';
 import { getConfigPath } from '../config/configUtils.js';
 import { nonInteractiveSpawn } from '../components/Application.js';

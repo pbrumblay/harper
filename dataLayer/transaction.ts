@@ -2,7 +2,6 @@
 
 const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 
-
 /**
  * This is wrapper for write transactions, ensuring that all reads and writes within the callback occur atomically
  * @param schema

@@ -74,11 +74,13 @@ describe('Test readLog module', () => {
 		});
 
 		beforeEach(() => {
-			getConfigPath_rw = read_log.__set__('configUtils_js_1', { getConfigPath: (key) => {
-						if (key === hdb_terms.HDB_SETTINGS_NAMES.LOG_PATH_KEY) {
-							return TEST_LOG_DIR;
-						}
-					} });
+			getConfigPath_rw = read_log.__set__('configUtils_js_1', {
+				getConfigPath: (key) => {
+					if (key === hdb_terms.HDB_SETTINGS_NAMES.LOG_PATH_KEY) {
+						return TEST_LOG_DIR;
+					}
+				},
+			});
 			validator_rw = read_log.__set__('readLogValidator_js_1', { default: validator_stub });
 		});
 
@@ -100,7 +102,10 @@ describe('Test readLog module', () => {
 				start: 'pancake',
 			};
 
-			await testUtils.testHDBError(readLogFunction(test_request), testUtils.generateHDBError("'start' must be a number", 400));
+			await testUtils.testHDBError(
+				readLogFunction(test_request),
+				testUtils.generateHDBError("'start' must be a number", 400)
+			);
 		});
 
 		it('Test no filter with correct number of logs returned', async () => {

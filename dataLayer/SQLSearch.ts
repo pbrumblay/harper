@@ -1340,8 +1340,9 @@ class SQLSearch {
 				throw new Error(SEARCH_ERROR_MSG);
 			}
 		}
-		return Object.values(((Object.values(this.data)[0] as any).__mergedData));
+		return Object.values((Object.values(this.data)[0] as any).__mergedData);
 	}
 }
 
-console.log("HARPER BRIDGE IN SQLSEARCH", Object.keys(harperBridge)); export default SQLSearch;
+console.log('HARPER BRIDGE IN SQLSEARCH', Object.keys(harperBridge));
+export default SQLSearch;

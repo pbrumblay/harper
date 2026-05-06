@@ -5,7 +5,10 @@ const environmentUtility = require('../../../../utility/lmdb/environmentUtility.
 const { getTransactionAuditStorePath } = require('../lmdbUtility/initializePaths.js');
 const lmdbTerms = require('../../../../utility/lmdb/terms.js');
 // eslint-disable-next-line no-unused-vars
-const CreateTableObject = require('../../../CreateTableObject.js').default || require('../../../CreateTableObject.js').default || require('../../../CreateTableObject.js');
+const CreateTableObject =
+	require('../../../CreateTableObject.js').default ||
+	require('../../../CreateTableObject.js').default ||
+	require('../../../CreateTableObject.js');
 
 module.exports = createTransactionsAuditEnvironment;
 

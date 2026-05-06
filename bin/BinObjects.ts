@@ -14,5 +14,3 @@ export class HdbInfoInsertObject {
 		this.hdb_version_num = hdbVersionNum;
 	}
 }
-
-

@@ -39,8 +39,6 @@ const ACCEPTABLE_URL_CONTENT_TYPE_ENUM = {
 	'application/vnd.ms-excel': true,
 };
 
-
-
 /**
  * Load csv values specified as a string in the message 'data' field.
  * @param jsonMessage

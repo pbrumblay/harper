@@ -6,7 +6,9 @@ const writeUtility = require('../../../../utility/lmdb/writeUtility.js');
 const { getSystemSchemaPath, getSchemaPath } = require('../lmdbUtility/initializePaths.js');
 const { validateBySchema } = require('../../../../validation/validationWrapper.js');
 const Joi = require('joi');
-const LMDBCreateAttributeObject = require('../lmdbUtility/LMDBCreateAttributeObject.js').default || require('../lmdbUtility/LMDBCreateAttributeObject.js');
+const LMDBCreateAttributeObject =
+	require('../lmdbUtility/LMDBCreateAttributeObject.js').default ||
+	require('../lmdbUtility/LMDBCreateAttributeObject.js');
 const returnObject = require('../../bridgeUtility/insertUpdateReturnObj.js');
 const { handleHDBError, hdbErrors, ClientError } = require('../../../../utility/errors/hdbError.js');
 const hdbUtils = require('../../../../utility/common_utils.js');

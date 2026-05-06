@@ -11,7 +11,11 @@ import * as terms from './hdbTerms.js';
  * @param followupAsyncFunc - The response function that will be called with the operation function response as an input.  The function is expected to be promisifed, callbacks not supported.
  * @returns {Promise<{}>}
  */
-export async function callOperationFunctionAsAwait(promisifiedFunction: any, functionInput: any, followupAsyncFunc?: any) {
+export async function callOperationFunctionAsAwait(
+	promisifiedFunction: any,
+	functionInput: any,
+	followupAsyncFunc?: any
+) {
 	if (!promisifiedFunction || typeof promisifiedFunction !== 'function') {
 		throw new Error('Invalid function parameter');
 	}
@@ -57,5 +61,3 @@ export async function callOperationFunctionAsAwait(promisifiedFunction: any, fun
 		throw err;
 	}
 }
-
-

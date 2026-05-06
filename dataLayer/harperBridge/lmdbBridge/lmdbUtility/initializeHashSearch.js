@@ -1,7 +1,8 @@
 'use strict';
 
 const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');
-const searchValidator = require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
+const searchValidator =
+	require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
 const { getSchemaPath } = require('./initializePaths.js');
 
 module.exports = initialize;

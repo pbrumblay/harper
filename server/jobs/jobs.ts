@@ -22,9 +22,8 @@ import moment from 'moment';
 import * as fileLoadValidator from '../../validation/fileLoadValidator.js';
 import bulkDeleteValidator from '../../validation/bulkDeleteValidator.js';
 import { deleteTransactionLogsBeforeValidator } from '../../validation/transactionLogValidator.js';
-import { handleHDBError, hdbErrors, ClientError } from '../../utility/errors/hdbError.js';
+import { handleHDBError, ClientError } from '../../utility/errors/hdbError.js';
 import { HTTP_STATUS_CODES } from '../../utility/errors/commonErrors.js';
-
 
 //Promisified functions
 const pSearchByValue = search.searchByValue;
@@ -32,8 +31,6 @@ const pSearchSearchByHash = search.searchByHash;
 const pInsert = insert.insert;
 const pInsertUpdate = insert.update;
 let pSqlEvaluate;
-
-
 
 export async function handleGetJob(jsonBody: any) {
 	if (jsonBody.id === undefined) throw new ClientError("'id' is required");
@@ -190,9 +187,12 @@ export async function addJob(jsonBody: any) {
 	// Sending the request via IPC to the job process was causing some messages to be lost under load.
 	newJob.request = jsonBody;
 
-	let insertObject = new (Insert_Object as any)(hdbTerms.SYSTEM_SCHEMA_NAME, hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME, 'id', [
-		newJob,
-	]);
+	let insertObject = new (Insert_Object as any)(
+		hdbTerms.SYSTEM_SCHEMA_NAME,
+		hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME,
+		'id',
+		[newJob]
+	);
 	let insertResult;
 	try {
 		insertResult = await pInsert(insertObject);
@@ -290,9 +290,11 @@ export async function updateJob(jobObject: any) {
 		jobObject.end_datetime = moment().valueOf();
 	}
 
-	let updateObject = new (UpdateObject as any)(hdbTerms.SYSTEM_SCHEMA_NAME, hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME, [
-		jobObject,
-	]);
+	let updateObject = new (UpdateObject as any)(
+		hdbTerms.SYSTEM_SCHEMA_NAME,
+		hdbTerms.SYSTEM_TABLE_NAMES.JOB_TABLE_NAME,
+		[jobObject]
+	);
 	let updateResult = undefined;
 	updateResult = await pInsertUpdate(updateObject);
 	return updateResult;

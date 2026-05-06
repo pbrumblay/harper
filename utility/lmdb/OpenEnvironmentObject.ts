@@ -52,6 +52,3 @@ export default class OpenEnvironmentObject {
 		this.noReadAhead = envMngr.get(terms.CONFIG_PARAMS.STORAGE_NOREADAHEAD);
 	}
 }
-
-
-

@@ -2,7 +2,8 @@
 
 const fs = require('fs-extra');
 const SearchObject = require('../../../SearchObject.js').default || require('../../../SearchObject.js');
-const SearchByHashObject = require('../../../SearchByHashObject.js').default || require('../../../SearchByHashObject.js');
+const SearchByHashObject =
+	require('../../../SearchByHashObject.js').default || require('../../../SearchByHashObject.js');
 const DeleteObject = require('../../../DeleteObject.js').default || require('../../../DeleteObject.js');
 const dropTable = require('./lmdbDropTable.js');
 const deleteRecords = require('./lmdbDeleteRecords.js');

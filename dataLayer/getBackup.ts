@@ -9,11 +9,8 @@ const harperBridge = require('./harperBridge/harperBridge.js').default || requir
 import GetBackupObject from './GetBackupObject.js';
 import * as hdbUtils from '../utility/common_utils.js';
 import * as hdbTerms from '../utility/hdbTerms.js';
-import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { handleHDBError} from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
-
-
-
 
 /**
  *

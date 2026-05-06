@@ -42,5 +42,3 @@ export const TRANSACTIONS_DBI_NAMES_ENUM = {
 };
 
 export const TRANSACTIONS_DBIS = Object.values(TRANSACTIONS_DBI_NAMES_ENUM);
-
-

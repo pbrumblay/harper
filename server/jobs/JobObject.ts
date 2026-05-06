@@ -29,5 +29,3 @@ export default class JobObject {
 		this.request = undefined;
 	}
 }
-
-

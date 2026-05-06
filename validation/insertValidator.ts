@@ -37,4 +37,4 @@ const insertSchema = Joi.object({
 
 export default function (insertObject: any) {
 	return validator.validateBySchema(insertObject, insertSchema);
-};
+}

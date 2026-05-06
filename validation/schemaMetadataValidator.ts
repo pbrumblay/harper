@@ -4,8 +4,6 @@ export const schemaDescribe = require('../dataLayer/schemaDescribe.js');
 const { hdbErrors } = require('../utility/errors/hdbError.js');
 const { getDatabases } = require('../resources/databases.js');
 
-
-
 /**
  * Checks the global hdbSchema for a schema and table
  * @param schemaName

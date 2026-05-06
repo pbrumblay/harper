@@ -4,15 +4,13 @@ import logger from '../utility/logging/harper_logger.js';
 import { validateBySchema } from '../validation/validationWrapper.js';
 import Joi from 'joi';
 import * as hdbUtils from '../utility/common_utils.js';
-import { handleHDBError, hdbErrors, ClientError } from '../utility/errors/hdbError.js';
+import { handleHDBError, ClientError } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 import * as envMngr from '../utility/environment/environmentManager.js';
 envMngr.initSync();
 const { getDatabases } = require('../resources/databases.js');
 import * as fs from 'fs-extra';
-
-
 
 /**
  * This method is exposed to the API and internally for system operations.  If the op is being made internally, the `opObj`

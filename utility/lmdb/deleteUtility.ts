@@ -122,5 +122,3 @@ export async function deleteRecords(this: any, env, hash_attribute, ids, whenDel
 		throw e;
 	}
 }
-
-

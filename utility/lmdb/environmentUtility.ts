@@ -98,7 +98,12 @@ export function validateEnvDBIName(env: any, dbiName: string) {
  * @param {Boolean} isTxn - defines if is a transactions environment
  * @returns {Promise<lmdb.RootDatabase>} - LMDB environment object
  */
-export async function createEnvironment(basePath: string, envName: string, isTxn: boolean = false, isV3: boolean = false) {
+export async function createEnvironment(
+	basePath: string,
+	envName: string,
+	isTxn: boolean = false,
+	isV3: boolean = false
+) {
 	pathEnvNameValidation(basePath, envName);
 	let dbName = path.basename(basePath);
 
@@ -461,5 +466,3 @@ export function initializeDBIs(env: any, hash_attribute: string, writeAttributes
 	}
 	if (createdAttributes) resetDatabases();
 }
-
-

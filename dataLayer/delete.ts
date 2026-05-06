@@ -11,7 +11,7 @@ import * as globalSchema from '../utility/globalSchema.js';
 const pGlobalSchema = promisify(globalSchema.getTableSchema);
 const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 import { DeleteResponseObject } from './DataLayerObjects.js';
-import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { handleHDBError} from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 const DeleteAuditLogsBeforeResults = require('./harperBridge/lmdbBridge/lmdbMethods/DeleteAuditLogsBeforeResults.js');
@@ -19,9 +19,6 @@ const DeleteAuditLogsBeforeResults = require('./harperBridge/lmdbBridge/lmdbMeth
 const SUCCESS_MESSAGE = 'records successfully deleted';
 
 // Callbackified functions
-const cbDeleteRecord = callbackify(deleteRecord);
-
-
 
 /**
  * Deletes files that have a system date before the date parameter.
@@ -30,7 +27,7 @@ const cbDeleteRecord = callbackify(deleteRecord);
  *
  * @param deleteObj - the request passed from chooseOperation.
  */
-console.log("HARPER BRIDGE IN DELETE", Object.keys(harperBridge));
+console.log('HARPER BRIDGE IN DELETE', Object.keys(harperBridge));
 export async function deleteFilesBefore(deleteObj: any) {
 	let validation = bulkDeleteValidator(deleteObj, 'date');
 	if (validation) {

@@ -5,7 +5,8 @@ testUtils.preTestPrep();
 
 let DeleteResponseObject = require('#js/dataLayer/DataLayerObjects').DeleteResponseObject;
 const rewire = require('rewire');
-const harperBridge = require('#js/dataLayer/harperBridge/harperBridge').default || require('#js/dataLayer/harperBridge/harperBridge');
+const harperBridge =
+	require('#js/dataLayer/harperBridge/harperBridge').default || require('#js/dataLayer/harperBridge/harperBridge');
 const _delete = rewire('#js/dataLayer/delete');
 const log = require('#js/utility/logging/harper_logger');
 const hdb_utils = require('#js/utility/common_utils');

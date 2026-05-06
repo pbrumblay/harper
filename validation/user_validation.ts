@@ -47,5 +47,3 @@ export function dropUserValidation(object) {
 	constraints.active.presence = false;
 	return validator.validateObject(object, constraints);
 }
-
-

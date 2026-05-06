@@ -12,4 +12,4 @@ const deleteSchema = Joi.object({
 
 export default function (deleteObject: any) {
 	return validator.validateBySchema(deleteObject, deleteSchema);
-};
+}
