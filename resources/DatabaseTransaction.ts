@@ -60,7 +60,7 @@ export type TransactionWrite = {
 	fullUpdate?: boolean;
 	saved?: boolean;
 	deferSave?: boolean;
-	nodeName?: string;
+		nodeName?: string;
 	nodeId?: number;
 	promise?: Promise<any>;
 	result?: any;
@@ -303,8 +303,13 @@ export class DatabaseTransaction implements Transaction {
 								);
 							}
 						}
-						// now reset transactions tracking; this transaction be reused and committed again
-						this.writes = [];
+						// commit succeeded; clean up files for any writes whose commit-handler took an early-return.
+																		// deferred until here so a retry that *would* have referenced the blob can flip skipped back to false first.
+																		for (const write of this.writes) {
+																			if (write?.skipped && write?.savedBlobs) cleanupUnusedBlobs(write.savedBlobs);
+																		}
+																		// now reset transactions tracking; this transaction be reused and committed again
+																		this.writes = [];
 						if (this.#context?.resourceCache) this.#context.resourceCache = null;
 						this.next = null;
 						let txnTime = this.timestamp;
@@ -335,26 +340,39 @@ export class DatabaseTransaction implements Transaction {
 					}
 				);
 			}
-			const txnResolution: CommitResolution = {
-				txnTime: this.timestamp,
-			};
-			if (this.next) {
-				// now run any other transactions
-				options.timestamp = this.timestamp;
-				const nextResolution = this.next?.commit(options);
-				if ((nextResolution as any)?.then)
-					return (nextResolution as any)?.then((nextResolution) => ({
-						txnTime: this.timestamp,
-						next: nextResolution,
-					}));
-				txnResolution.next = nextResolution as any;
-			}
-			return txnResolution;
-		});
+			for (const write of this.writes) {
+							console.log('SYNC CLEANUP:', write?.skipped, write?.savedBlobs);
+							if (write?.skipped && write?.savedBlobs) cleanupUnusedBlobs(write.savedBlobs);
+						}
+						this.writes = [];
+						if (this.#context?.resourceCache) this.#context.resourceCache = null;
+						const txnResolution: CommitResolution = {
+							txnTime: this.timestamp,
+						};
+						if (this.next) {
+							// now run any other transactions
+							options.timestamp = this.timestamp;
+							const nextResolution = this.next?.commit(options);
+							if ((nextResolution as any)?.then)
+								return (nextResolution as any)?.then((nextResolution) => ({
+									txnTime: this.timestamp,
+									next: nextResolution,
+								}));
+							txnResolution.next = nextResolution as any;
+						}
+						return txnResolution;
+				},
+				(error) => {
+					this.abort();
+					throw error;
+				});
 	}
 	abort(): void {
 		while (this.readTxnsUsed > 0) this.doneReadTxn(); // release the read snapshot when we abort, we assume we don't need it
 		this.open = TRANSACTION_STATE.CLOSED;
+		for (const write of this.writes) {
+			if (write?.savedBlobs) cleanupUnusedBlobs(write.savedBlobs);
+		}
 		// reset the transaction
 		this.writes = [];
 		if (this.#context?.resourceCache) this.#context.resourceCache = null;
