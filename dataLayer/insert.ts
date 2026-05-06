@@ -13,7 +13,7 @@ import * as util from 'util';
 const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 import * as globalSchema from '../utility/globalSchema.js';
 import log from '../utility/logging/harper_logger.js';
-import { handleHDBError} from '../utility/errors/hdbError.js';
+import { handleHDBError } from '../utility/errors/hdbError.js';
 import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 const pGlobalSchema = util.promisify(globalSchema.getTableSchema);

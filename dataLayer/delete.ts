@@ -11,7 +11,7 @@ import * as globalSchema from '../utility/globalSchema.js';
 const pGlobalSchema = promisify(globalSchema.getTableSchema);
 const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
 import { DeleteResponseObject } from './DataLayerObjects.js';
-import { handleHDBError} from '../utility/errors/hdbError.js';
+import { handleHDBError } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 const DeleteAuditLogsBeforeResults = require('./harperBridge/lmdbBridge/lmdbMethods/DeleteAuditLogsBeforeResults.js');

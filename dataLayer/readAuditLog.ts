@@ -6,7 +6,7 @@ import ReadAuditLogObject from './ReadAuditLogObject.js';
 import * as hdbUtils from '../utility/common_utils.js';
 import * as hdbTerms from '../utility/hdbTerms.js';
 import * as envMgr from '../utility/environment/environmentManager.js';
-import { handleHDBError} from '../utility/errors/hdbError.js';
+import { handleHDBError } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 const SEARCH_TYPES = Object.values(hdbTerms.READ_AUDIT_LOG_SEARCH_TYPES_ENUM);

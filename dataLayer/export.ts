@@ -9,7 +9,7 @@ import * as path from 'path';
 import hdbLogger from '../utility/logging/harper_logger.js';
 import { promisify } from 'util';
 import * as hdbCommon from '../utility/common_utils.js';
-import { handleHDBError} from '../utility/errors/hdbError.js';
+import { handleHDBError } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 import { streamAsJSON } from '../server/serverHelpers/JSONStream.js';

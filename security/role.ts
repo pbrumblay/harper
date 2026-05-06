@@ -14,7 +14,7 @@ const pSearchSearchByHash = search.searchByHash;
 const pDeleteDelete = util.promisify(delete_.delete_);
 import SearchObject from '../dataLayer/SearchObject.js';
 import SearchByHashObject from '../dataLayer/SearchByHashObject.js';
-import {handleHDBError } from '../utility/errors/hdbError.js';
+import { handleHDBError } from '../utility/errors/hdbError.js';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
 
 import { UserEventMsg } from '../server/threads/itc.js';

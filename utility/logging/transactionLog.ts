@@ -2,7 +2,7 @@
 
 import * as hdbUtils from '../common_utils.js';
 import log from './harper_logger.js';
-import { handleHDBError} from '../errors/hdbError.js';
+import { handleHDBError } from '../errors/hdbError.js';
 import { HTTP_STATUS_CODES } from '../errors/commonErrors.js';
 
 import {
