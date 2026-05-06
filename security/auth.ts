@@ -360,21 +360,6 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 	scope.server.http(authentication, port || securePort ? { port, securePort } : { port: 'all' });
 }
 
-// start on the main thread too so we can auth the operations API
-export function startOnMainThread({ server, port, securePort }) {
-	server.http(authentication, port || securePort ? { port, securePort } : { port: 'all' });
-	// keep it cleaned out periodically
-	if (!started) {
-		started = true;
-		setInterval(() => {
-			authorizationCache = new Map();
-		}, env.get(CONFIG_PARAMS.AUTHENTICATION_CACHETTL)).unref();
-		user.addListener(() => {
-			authorizationCache = new Map();
-		});
-	}
-}
-
 // operations
 export async function login(loginObject) {
 	if (!loginObject.baseRequest?.login) throw new Error('No session for login');
