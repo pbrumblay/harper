@@ -1,7 +1,5 @@
 'use strict';
 
-
-
 import * as insert from '../dataLayer/insert.js';
 import * as util from 'util';
 const cbInsertInsert = util.callbackify(insert.insert);
@@ -9,15 +7,15 @@ import { search } from '../dataLayer/search.js';
 import { update } from '../dataLayer/update.js';
 const cbUpdateUpdate = util.callbackify(update);
 import { convertDelete as deleteTranslator } from './deleteTranslator.js';
+const cbDeleteTranslator = util.callbackify(deleteTranslator);
 import * as alasql from 'alasql';
 import * as opAuth from '../utility/operation_authorization.js';
 const logger = require('../utility/logging/harper_logger.js').default || require('../utility/logging/harper_logger.js');
 import alasqlFunctionImporter from './alasqlFunctionImporter.js';
 import * as hdbUtils from '../utility/common_utils.js';
 import * as terms from '../utility/hdbTerms.js';
-import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { handleHDBError } from '../utility/errors/hdbError.js';
 import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
-
 
 //here we call to define and import custom functions to alasql
 alasqlFunctionImporter(alasql);
@@ -155,7 +153,7 @@ export function processAST(jsonMessage: any, parsedSqlObject: any, callback: any
 				sqlFunction = cbUpdateUpdate;
 				break;
 			case terms.VALID_SQL_OPS_ENUM.DELETE:
-				sqlFunction = deleteTranslator;
+				sqlFunction = cbDeleteTranslator;
 				break;
 			default:
 				throw new Error(`unsupported SQL type ${parsedSqlObject.variant} in SQL: ${jsonMessage}`);
