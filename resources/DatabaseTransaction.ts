@@ -1,3 +1,4 @@
+import { cleanupUnusedBlobs } from './blob.ts';
 import { Transaction as LMDBTransaction } from 'lmdb';
 import { getNextMonotonicTime } from '../utility/lmdb/commonUtility.js';
 import { ServerError } from '../utility/errors/hdbError.js';
@@ -63,6 +64,11 @@ export type TransactionWrite = {
 	nodeId?: number;
 	promise?: Promise<any>;
 	result?: any;
+	// blobs that were pre-saved as part of this write; used to clean up files if the commit is skipped or aborted
+	savedBlobs?: Blob[];
+	// the commit handler's most recent decision: true means it took an early-return that left savedBlobs unreferenced.
+	// reset at the top of each commit-handler invocation so retries see a fresh state.
+	skipped?: boolean;
 };
 
 type RocksTransactionWithRetry = RocksTransaction & { isRetry?: boolean };
