@@ -5,6 +5,7 @@ const {
 	buildLinearChain,
 	resolveDeps,
 	matchesRoute,
+	stripPrefix,
 	makeCallbackChain,
 } = require('#src/server/middlewareChain');
 
@@ -19,8 +20,8 @@ function entry(name, opts = {}) {
 }
 
 /** Build a simple request object. */
-function req(pathname = '/', host = undefined) {
-	return { pathname, headers: { asObject: host ? { host } : {} } };
+function req(pathname = '/', host = undefined, url = undefined) {
+	return { pathname, url: url ?? pathname, headers: { asObject: host ? { host } : {} } };
 }
 
 // --------------------------------------------------------------------------
@@ -557,5 +558,86 @@ describe('makeCallbackChain', () => {
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req('/api/v2/products'));
 		assert.deepStrictEqual(order, ['long']);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// stripPrefix
+// ---------------------------------------------------------------------------
+
+describe('stripPrefix', () => {
+	it('strips the prefix from pathname', () => {
+		const r = stripPrefix(req('/api/products'), '/api');
+		assert.strictEqual(r.pathname, '/products');
+	});
+
+	it('strips the prefix from url', () => {
+		const r = stripPrefix(req('/api/products', undefined, '/api/products?q=1'), '/api');
+		assert.strictEqual(r.url, '/products?q=1');
+	});
+
+	it('returns "/" when pathname equals prefix exactly', () => {
+		const r = stripPrefix(req('/api'), '/api');
+		assert.strictEqual(r.pathname, '/');
+	});
+
+	it('does not mutate the original request', () => {
+		const original = req('/api/products');
+		stripPrefix(original, '/api');
+		assert.strictEqual(original.pathname, '/api/products');
+	});
+
+	it('sub-route chain receives stripped pathname', () => {
+		const seen = [];
+		const responders = [
+			{
+				name: 'api-handler',
+				port: 9000,
+				urlPath: '/api',
+				listener: (r, next) => {
+					seen.push(r.pathname);
+					return next(r);
+				},
+			},
+		];
+		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
+		chain(req('/api/products'));
+		assert.deepStrictEqual(seen, ['/products']);
+	});
+
+	it('sub-route chain receives "/" for exact prefix match', () => {
+		const seen = [];
+		const responders = [
+			{
+				name: 'api-handler',
+				port: 9000,
+				urlPath: '/api',
+				listener: (r, next) => {
+					seen.push(r.pathname);
+					return next(r);
+				},
+			},
+		];
+		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
+		chain(req('/api'));
+		assert.deepStrictEqual(seen, ['/']);
+	});
+
+	it('default chain receives unmodified pathname', () => {
+		const seen = [];
+		const responders = [
+			{ name: 'api-handler', port: 9000, urlPath: '/api', listener: (r, next) => next(r) },
+			{
+				name: 'default-handler',
+				port: 9000,
+				listener: (r, next) => {
+					seen.push(r.pathname);
+					return next(r);
+				},
+			},
+		];
+		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
+		chain(req('/other/path'));
+		assert.deepStrictEqual(seen, ['/other/path']);
 	});
 });

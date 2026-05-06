@@ -143,6 +143,26 @@ export function matchesRoute(request: any, route: { host?: string; urlPath?: str
 }
 
 /**
+ * Returns a proxy of `request` with `pathname` and `url` rewritten so that
+ * `prefix` is stripped from the path. e.g. prefix='/foo', pathname='/foo/bar' → '/bar'.
+ * The original request object is not mutated.
+ */
+export function stripPrefix(request: any, prefix: string): any {
+	const origPathname: string = request.pathname ?? '/';
+	const stripped = origPathname === prefix ? '/' : origPathname.slice(prefix.length);
+	return new Proxy(request, {
+		get(target, prop) {
+			if (prop === 'pathname') return stripped;
+			if (prop === 'url') {
+				const origUrl: string = target.url ?? '';
+				return stripped + origUrl.slice(origPathname.length);
+			}
+			return Reflect.get(target, prop);
+		},
+	});
+}
+
+/**
  * Builds a dispatching chain when sub-routes (urlPath/host) are present.
  *
  * Each sub-route gets its own complete chain. If a sub-route entry declares
@@ -187,7 +207,9 @@ export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function): 
 
 	return function dispatch(request: any) {
 		for (const route of subRouteChains) {
-			if (matchesRoute(request, route)) return route.chain(request);
+			if (matchesRoute(request, route)) {
+				return route.chain(route.urlPath ? stripPrefix(request, route.urlPath) : request);
+			}
 		}
 		return defaultChain(request);
 	};
