@@ -123,6 +123,7 @@ jobs:
             git push origin "$RELEASE_BRANCH"
             echo "✅ Cherry-picked PR #$PR_NUMBER onto $RELEASE_BRANCH"
             gh workflow run integration-tests.yml --ref "$RELEASE_BRANCH" --repo "$GITHUB_REPOSITORY"
+            gh workflow run unit-test.yml --ref "$RELEASE_BRANCH" --repo "$GITHUB_REPOSITORY"
           else
             echo "⚠️ Cherry-pick conflict — creating resolution branch"
             git cherry-pick --abort 2>/dev/null || true
