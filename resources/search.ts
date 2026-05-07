@@ -1295,9 +1295,10 @@ function estimatedEntryCount(store) {
 	const now = Date.now();
 	if ((store.estimatedEntryCountExpires || 0) < now) {
 		// use getStats for LMDB because it is fast path, otherwise RocksDB can handle fast path on its own
-		store.estimatedEntryCount = store instanceof RocksDatabase
-			? (store.getDBIntProperty('rocksdb.estimate-num-keys') ?? 0)
-			: store.getStats().entryCount;
+		store.estimatedEntryCount =
+			store instanceof RocksDatabase
+				? (store.getDBIntProperty('rocksdb.estimate-num-keys') ?? 0)
+				: store.getStats().entryCount;
 		store.estimatedEntryCountExpires = now + 10000;
 	}
 	return store.estimatedEntryCount;

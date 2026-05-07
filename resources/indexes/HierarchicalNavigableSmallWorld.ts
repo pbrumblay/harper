@@ -713,9 +713,10 @@ export class HierarchicalNavigableSmallWorld {
 	 * @returns
 	 */
 	estimateCountAsSort() {
-		const count = this.indexStore instanceof RocksDatabase
-			? (this.indexStore.getDBIntProperty('rocksdb.estimate-num-keys') ?? 0)
-			: this.indexStore.getStats().entryCount;
+		const count =
+			this.indexStore instanceof RocksDatabase
+				? (this.indexStore.getDBIntProperty('rocksdb.estimate-num-keys') ?? 0)
+				: this.indexStore.getStats().entryCount;
 		return Math.sqrt(count * this.efConstructionSearch);
 	}
 

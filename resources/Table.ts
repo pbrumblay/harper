@@ -959,9 +959,10 @@ export function makeTable(options) {
 					records: './', // an href to the records themselves
 					name: tableName,
 					database: databaseName,
-					auditSize: auditStore instanceof RocksDatabase
-						? (auditStore.getDBIntProperty('rocksdb.estimate-num-keys') ?? 0)
-						: auditStore?.getStats().entryCount,
+					auditSize:
+						auditStore instanceof RocksDatabase
+							? (auditStore.getDBIntProperty('rocksdb.estimate-num-keys') ?? 0)
+							: auditStore?.getStats().entryCount,
 					attributes,
 					recordCount: undefined,
 					estimatedRecordRange: undefined,
