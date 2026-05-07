@@ -136,7 +136,7 @@ describe('Test readLogValidator module', () => {
 		};
 
 		const result = read_log_validator(test_read_log_object);
-		expect(result.message).to.equal("'log_name' '..\\sensitive.log' is invalid.");
+		expect(result.message).to.equal("'log_name' '..\\sensitive.log' does not exist.");
 	});
 
 	it('Test log_name with non-.log extension invalid returned', () => {
