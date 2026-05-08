@@ -42,7 +42,7 @@ function validateDatetime(value, helpers) {
 }
 
 function validateReadLogPath(value, helpers) {
-	if (path.posix.basename(value) !== value && path.win32.basename(value) !== value) {
+	if (path.posix.basename(value) !== value || path.win32.basename(value) !== value) {
 		return helpers.message(`'log_name' '${value}' is invalid.`);
 	}
 
