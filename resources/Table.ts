@@ -960,9 +960,7 @@ export function makeTable(options) {
 					name: tableName,
 					database: databaseName,
 					auditSize:
-						auditStore instanceof RocksDatabase
-							? auditStore.getKeysCount()
-							: auditStore?.getStats().entryCount,
+						auditStore instanceof RocksDatabase ? auditStore.getKeysCount() : auditStore?.getStats().entryCount,
 					attributes,
 					recordCount: undefined,
 					estimatedRecordRange: undefined,
