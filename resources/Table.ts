@@ -3258,7 +3258,7 @@ export function makeTable(options) {
 			const exactCount = options?.exactCount;
 			const entryCount = !isRocksDB
 				? primaryStore.getStats().entryCount
-				: primaryStore.getKeysCount({ start: exactCount ? '' : undefined });
+				: primaryStore.getKeysCount({ start: exactCount ? null : undefined });
 			const TIME_LIMIT = options?.timeLimit ?? 1000 / 2; // one second time limit, enforced by seeing if we are halfway through at 500ms
 			const start = performance.now();
 			const halfway = Math.floor(entryCount / 2);
