@@ -3232,7 +3232,7 @@ export function makeTable(options) {
 		 */
 		static getSize() {
 			if (isRocksDB) {
-				return primaryStore.getKeysCount();
+				return primaryStore.getDBIntProperty('rocksdb.estimate-live-data-size') ?? 0;
 			}
 			const stats = primaryStore.getStats();
 			return (stats.treeBranchPageCount + stats.treeLeafPageCount + stats.overflowPages) * stats.pageSize;
