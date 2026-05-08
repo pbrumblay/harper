@@ -1297,7 +1297,7 @@ function estimatedEntryCount(store) {
 		// use getStats for LMDB because it is fast path, otherwise RocksDB can handle fast path on its own
 		store.estimatedEntryCount =
 			store instanceof RocksDatabase
-				? (store.getDBIntProperty('rocksdb.estimate-num-keys') ?? 0)
+				? store.getKeysCount()
 				: store.getStats().entryCount;
 		store.estimatedEntryCountExpires = now + 10000;
 	}
