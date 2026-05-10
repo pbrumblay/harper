@@ -37,7 +37,9 @@ function authorize(req, res, next) {
 		return next(null, req.raw.user);
 	}
 	if (req.raw?.user === undefined && req.raw?.baseRequest) {
+		let nextCalled = false;
 		return authentication(req.raw?.baseRequest, (request) => {
+			nextCalled = true;
 			if (request.user) {
 				req.raw.user = request.user;
 				return next(null, req.raw.user);
@@ -45,7 +47,18 @@ function authorize(req, res, next) {
 				request.user = null; // don't fall in this branch again
 				return authorize(req, res, next);
 			}
-		});
+		}).then(
+			(response) => {
+				if (nextCalled) {
+					return response;
+				}
+				const body = JSON.parse(response.body);
+				return next(new Error(body.error ?? body);
+			},
+			(error) => {
+				return next(error);
+			}
+		);
 	}
 	let strategy;
 	let token;
