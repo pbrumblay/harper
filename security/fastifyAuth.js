@@ -10,6 +10,7 @@ const cbFindValidateUsers = util.callbackify(userFunctions.findAndValidateUser);
 const hdbTerms = require('../utility/hdbTerms.ts');
 const tokenAuthentication = require('./tokenAuthentication.ts');
 const { AccessViolation } = require('../utility/errors/hdbError');
+const { authentication } = require('./auth.ts');
 
 passport.use(
 	new LocalStrategy(function (username, password, done) {
@@ -32,7 +33,20 @@ passport.deserializeUser(function (user, done) {
 });
 
 function authorize(req, res, next) {
-	if (req.raw?.user !== undefined) return next(null, req.raw.user);
+	if (req.raw?.user != undefined) {
+		return next(null, req.raw.user);
+	}
+	if (req.raw?.user === undefined && req.raw?.baseRequest) {
+		return authentication(req.raw?.baseRequest, (request) => {
+			if (request.user) {
+				req.raw.user = request.user;
+				return next(null, req.raw.user);
+			} else {
+				request.user = null; // don't fall in this branch again
+				return authorize(req, res, next);
+			}
+		});
+	}
 	let strategy;
 	let token;
 	if (req.headers?.authorization) {
