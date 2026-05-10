@@ -52,8 +52,14 @@ function authorize(req, res, next) {
 				if (nextCalled) {
 					return response;
 				}
+				if (response?.status === -1) {
+					// authentication declined (e.g. refresh token) — fall through to the
+					// Bearer/Basic handling below
+					req.raw.user = null;
+					return authorize(req, res, next);
+				}
 				const body = JSON.parse(response.body);
-				return next(new Error(body.error ?? body);
+				return next(new Error(body.error ?? body));
 			},
 			(error) => {
 				return next(error);
