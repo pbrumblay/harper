@@ -44,7 +44,7 @@ function authorize(req, res, next) {
 				req.raw.user = request.user;
 				return next(null, req.raw.user);
 			} else {
-				request.user = null; // don't fall in this branch again
+				req.raw.user = null; // don't fall in this branch again
 				return authorize(req, res, next);
 			}
 		}).then(
