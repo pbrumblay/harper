@@ -14,6 +14,6 @@ const constraints = {
 		presence: true,
 	},
 };
-module.exports = function (deleteObject) {
+export default function (deleteObject) {
 	return validator.validateObject(deleteObject, constraints);
-};
+}

@@ -27,7 +27,6 @@ const SUCCESS_MESSAGE = 'records successfully deleted';
  *
  * @param deleteObj - the request passed from chooseOperation.
  */
-console.log('HARPER BRIDGE IN DELETE', Object.keys(harperBridge));
 export async function deleteFilesBefore(deleteObj: any) {
 	let validation = bulkDeleteValidator(deleteObj, 'date');
 	if (validation) {
