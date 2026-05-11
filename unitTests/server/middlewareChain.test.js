@@ -5,6 +5,7 @@ const {
 	buildLinearChain,
 	resolveDeps,
 	matchesRoute,
+	normalizeUrlPath,
 	stripPrefix,
 	makeCallbackChain,
 } = require('#src/server/middlewareChain');
@@ -639,5 +640,80 @@ describe('stripPrefix', () => {
 		const chain = makeCallbackChain(responders, 9000, UNHANDLED);
 		chain(req('/other/path'));
 		assert.deepStrictEqual(seen, ['/other/path']);
+	});
+
+	it('treats trailing slash on prefix as equivalent (no malformed paths)', () => {
+		const r = stripPrefix(req('/api/foo'), '/api/');
+		assert.strictEqual(r.pathname, '/foo');
+		const r2 = stripPrefix(req('/api/foo', undefined, '/api/foo?x=1'), '/api/');
+		assert.strictEqual(r2.url, '/foo?x=1');
+	});
+
+	it('reflects downstream pathname mutations (lazy evaluation)', () => {
+		const original = req('/api/products');
+		const proxied = stripPrefix(original, '/api');
+		assert.strictEqual(proxied.pathname, '/products');
+		original.pathname = '/api/things';
+		assert.strictEqual(proxied.pathname, '/things');
+	});
+});
+
+// ---------------------------------------------------------------------------
+// normalizeUrlPath
+// ---------------------------------------------------------------------------
+
+describe('normalizeUrlPath', () => {
+	it('returns undefined for undefined/empty', () => {
+		assert.strictEqual(normalizeUrlPath(undefined), undefined);
+		assert.strictEqual(normalizeUrlPath(''), '');
+	});
+
+	it('preserves root "/"', () => {
+		assert.strictEqual(normalizeUrlPath('/'), '/');
+	});
+
+	it('strips a single trailing slash', () => {
+		assert.strictEqual(normalizeUrlPath('/api/'), '/api');
+	});
+
+	it('leaves paths without trailing slash unchanged', () => {
+		assert.strictEqual(normalizeUrlPath('/api/v2'), '/api/v2');
+	});
+});
+
+// ---------------------------------------------------------------------------
+// matchesRoute trailing-slash tolerance
+// ---------------------------------------------------------------------------
+
+describe('matchesRoute with trailing slash', () => {
+	it('matches sub-paths when route.urlPath ends with "/"', () => {
+		assert.strictEqual(matchesRoute(req('/api/foo'), { urlPath: '/api/' }), true);
+		assert.strictEqual(matchesRoute(req('/api'), { urlPath: '/api/' }), true);
+		assert.strictEqual(matchesRoute(req('/api2'), { urlPath: '/api/' }), false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// onCycle callback
+// ---------------------------------------------------------------------------
+
+describe('onCycle callback', () => {
+	it('invokes onCycle and falls back to registration order when cycles exist', () => {
+		const a = entry('a', { before: 'b' });
+		const b = entry('b', { before: 'a' });
+		let called = 0;
+		const sorted = topoSort([a, b], () => called++);
+		assert.strictEqual(called, 1);
+		assert.deepStrictEqual(sorted, [a, b]);
+	});
+
+	it('is wired through makeCallbackChain', () => {
+		const responders = [
+			entry('a', { before: 'b', listener: (r, next) => next(r) }),
+			entry('b', { before: 'a', listener: (r, next) => next(r) }),
+		];
+		let called = 0;
+		makeCallbackChain(responders, 9000, UNHANDLED, () => called++);
+		assert.strictEqual(called, 1);
 	});
 });

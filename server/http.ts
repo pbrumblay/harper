@@ -580,7 +580,11 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 }
 
 function makeCallbackChain(responders: typeof httpResponders, portNum: number | string) {
-	return buildCallbackChain(responders, portNum, unhandled);
+	return buildCallbackChain(responders, portNum, unhandled, () => {
+		harperLogger.warn(
+			`Cycle detected in middleware before/after ordering on port ${portNum}; falling back to registration order.`
+		);
+	});
 }
 function unhandled(request) {
 	if (request.user) {

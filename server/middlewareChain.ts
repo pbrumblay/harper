@@ -125,9 +125,19 @@ export function resolveDeps(entries: HttpEntry[], nameToEntry: Map<string, HttpE
 }
 
 /**
+ * Normalizes a urlPath by stripping a single trailing slash (except for the root '/').
+ * '/api' and '/api/' are treated equivalently for routing/matching.
+ */
+export function normalizeUrlPath(urlPath: string | undefined): string | undefined {
+	if (!urlPath || urlPath.length <= 1) return urlPath;
+	return urlPath.endsWith('/') ? urlPath.slice(0, -1) : urlPath;
+}
+
+/**
  * Returns true when `request` satisfies the route's host and urlPath constraints.
  * urlPath matching is prefix-based and segment-boundary-aware:
  *   '/api' matches '/api' and '/api/foo' but NOT '/api2'.
+ * Trailing slashes on `route.urlPath` are ignored.
  */
 export function matchesRoute(request: any, route: { host?: string; urlPath?: string }): boolean {
 	if (route.host) {
@@ -135,9 +145,10 @@ export function matchesRoute(request: any, route: { host?: string; urlPath?: str
 		const requestHost = hostHeader.split(':')[0];
 		if (requestHost !== route.host) return false;
 	}
-	if (route.urlPath) {
+	const urlPath = normalizeUrlPath(route.urlPath);
+	if (urlPath) {
 		const pathname: string = request.pathname ?? '/';
-		if (pathname !== route.urlPath && !pathname.startsWith(route.urlPath + '/')) return false;
+		if (pathname !== urlPath && !pathname.startsWith(urlPath + '/')) return false;
 	}
 	return true;
 }
@@ -145,16 +156,22 @@ export function matchesRoute(request: any, route: { host?: string; urlPath?: str
 /**
  * Returns a proxy of `request` with `pathname` and `url` rewritten so that
  * `prefix` is stripped from the path. e.g. prefix='/foo', pathname='/foo/bar' → '/bar'.
+ * Trailing slashes on `prefix` are ignored. The strip is computed lazily on each
+ * access so that downstream mutations to `request.pathname` remain reflected.
  * The original request object is not mutated.
  */
 export function stripPrefix(request: any, prefix: string): any {
-	const origPathname: string = request.pathname ?? '/';
-	const stripped = origPathname === prefix ? '/' : origPathname.slice(prefix.length);
+	const normalizedPrefix = normalizeUrlPath(prefix) ?? '';
 	return new Proxy(request, {
 		get(target, prop) {
-			if (prop === 'pathname') return stripped;
+			if (prop === 'pathname') {
+				const origPathname: string = target.pathname ?? '/';
+				return origPathname === normalizedPrefix ? '/' : origPathname.slice(normalizedPrefix.length);
+			}
 			if (prop === 'url') {
+				const origPathname: string = target.pathname ?? '/';
 				const origUrl: string = target.url ?? '';
+				const stripped = origPathname === normalizedPrefix ? '/' : origPathname.slice(normalizedPrefix.length);
 				return stripped + origUrl.slice(origPathname.length);
 			}
 			return Reflect.get(target, prop);
@@ -173,19 +190,21 @@ export function stripPrefix(request: any, prefix: string): any {
  *
  * Dispatch priority: host+path > host-only > path-only; longer paths win ties.
  */
-export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function): Function {
+export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function, onCycle?: () => void): Function {
 	// Global name registry across all routes (first registration wins)
 	const nameToEntry = new Map<string, HttpEntry>();
 	for (const entry of portEntries) {
 		if (entry.name && !nameToEntry.has(entry.name)) nameToEntry.set(entry.name, entry);
 	}
 
+	// Group entries by (host, normalized urlPath) so that '/api' and '/api/' coalesce.
 	type RouteGroup = { host?: string; urlPath?: string; entries: HttpEntry[] };
 	const routeGroups: RouteGroup[] = [];
 	for (const entry of portEntries) {
-		const group = routeGroups.find((g) => g.host === entry.host && g.urlPath === entry.urlPath);
+		const urlPath = normalizeUrlPath(entry.urlPath);
+		const group = routeGroups.find((g) => g.host === entry.host && g.urlPath === urlPath);
 		if (group) group.entries.push(entry);
-		else routeGroups.push({ host: entry.host, urlPath: entry.urlPath, entries: [entry] });
+		else routeGroups.push({ host: entry.host, urlPath, entries: [entry] });
 	}
 
 	const defaultGroup = routeGroups.find((g) => !g.host && !g.urlPath);
@@ -193,7 +212,7 @@ export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function): 
 
 	const subRouteChains = subRouteGroups.map((group) => {
 		const resolved = resolveDeps(group.entries, nameToEntry);
-		return { host: group.host, urlPath: group.urlPath, chain: buildLinearChain(topoSort(resolved), fallback) };
+		return { host: group.host, urlPath: group.urlPath, chain: buildLinearChain(topoSort(resolved, onCycle), fallback) };
 	});
 
 	subRouteChains.sort((a, b) => {
@@ -203,7 +222,7 @@ export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function): 
 		return (b.urlPath?.length ?? 0) - (a.urlPath?.length ?? 0);
 	});
 
-	const defaultChain = buildLinearChain(topoSort(defaultGroup?.entries ?? []), fallback);
+	const defaultChain = buildLinearChain(topoSort(defaultGroup?.entries ?? [], onCycle), fallback);
 
 	return function dispatch(request: any) {
 		for (const route of subRouteChains) {
@@ -220,8 +239,13 @@ export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function): 
  * Uses a flat linear chain when no sub-routes are present (fast path),
  * or a route-dispatching chain when any entry has urlPath or host.
  */
-export function makeCallbackChain(responders: HttpEntry[], portNum: number | string, fallback: Function): Function {
+export function makeCallbackChain(
+	responders: HttpEntry[],
+	portNum: number | string,
+	fallback: Function,
+	onCycle?: () => void
+): Function {
 	const portEntries = responders.filter(({ port }) => port === portNum || port === 'all');
-	if (portEntries.some((e) => e.urlPath || e.host)) return buildRoutedChain(portEntries, fallback);
-	return buildLinearChain(topoSort(portEntries), fallback);
+	if (portEntries.some((e) => e.urlPath || e.host)) return buildRoutedChain(portEntries, fallback, onCycle);
+	return buildLinearChain(topoSort(portEntries, onCycle), fallback);
 }

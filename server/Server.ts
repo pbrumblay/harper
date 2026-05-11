@@ -56,17 +56,6 @@ export interface ServerOptions {
 	securePort?: number;
 	mtls?: boolean;
 	usageType?: string;
-}
-interface WebSocketOptions extends ServerOptions {
-	subProtocol: string;
-}
-export interface UpgradeOptions {
-	port?: number;
-	securePort?: number;
-	runFirst?: boolean;
-}
-
-export interface HttpOptions extends ServerOptions {
 	/** @deprecated Use `before` or `after` for explicit ordering instead */
 	runFirst?: boolean;
 	/** Name for this middleware entry, used by `before`/`after` in other entries. Defaults to the registering component's name. */
@@ -80,6 +69,12 @@ export interface HttpOptions extends ServerOptions {
 	/** Only handle requests for this virtual hostname */
 	host?: string;
 }
+interface WebSocketOptions extends ServerOptions {
+	subProtocol: string;
+}
+export interface UpgradeOptions extends ServerOptions {}
+
+export interface HttpOptions extends ServerOptions {}
 export interface ContentTypeHandler {
 	serialize(data: any): Buffer | string;
 	serializeStream(data: any): Buffer | string;
