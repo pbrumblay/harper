@@ -10,6 +10,7 @@ const cbFindValidateUsers = util.callbackify(userFunctions.findAndValidateUser);
 import * as hdbTerms from '../utility/hdbTerms.js';
 import * as tokenAuthentication from './tokenAuthentication.js';
 import { AccessViolation } from '../utility/errors/hdbError.js';
+import { authentication } from './auth.js';
 
 passport.use(
 	new LocalStrategy(function (username, password, done) {
@@ -32,7 +33,39 @@ passport.deserializeUser(function (user, done) {
 });
 
 export function authorize(req: any, res: any, next: any) {
-	if (req.raw?.user !== undefined) return next(null, req.raw.user);
+        if (req.raw?.user != undefined) {
+                return next(null, req.raw.user);
+        }
+        if (req.raw?.user === undefined && req.raw?.baseRequest) {
+                let nextCalled = false;
+                return authentication(req.raw?.baseRequest, (request: any) => {
+                        nextCalled = true;
+                        if (request.user) {
+                                req.raw.user = request.user;
+                                return next(null, req.raw.user);
+                        } else {
+                                req.raw.user = null; // don't fall in this branch again
+                                return authorize(req, res, next);
+                        }
+                }).then(
+                        (response: any) => {
+                                if (nextCalled) {
+                                        return response;
+                                }
+                                if (response?.status === -1) {
+                                        // authentication declined (e.g. refresh token) — fall through to the
+                                        // Bearer/Basic handling below
+                                        req.raw.user = null;
+                                        return authorize(req, res, next);
+                                }
+                                const body = JSON.parse(response.body);
+                                return next(new Error(body.error ?? body));
+                        },
+                        (error: any) => {
+                                return next(error);
+                        }
+                );
+        }
 	let strategy;
 	let token;
 	if (req.headers?.authorization) {

@@ -18,13 +18,14 @@ import * as hdbUtils from '../utility/common_utils.js';
 import * as installation from '../utility/installation.js';
 import * as configUtils from '../config/configUtils.js';
 const assignCMDENVVariables =
-	require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
+        require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
 import * as upgrade from './upgrade.js';
 import { compactOnStart, migrateOnStart } from './copyDb.js';
 import minimist from 'minimist';
 import * as keys from '../security/keys.js';
 import { startHTTPThreads } from '../server/threads/socketRouter.js';
 import * as hdbInfoController from '../dataLayer/hdbInfoController.js';
+import { isReadOnlyMode } from '../resources/databases.js';
 import * as hdbTerms from '../utility/hdbTerms.js';
 import { getHdbPid, isProcessRunning } from '../utility/processManagement/processManagement.js';
 import { PACKAGE_ROOT } from '../utility/packageUtils.js';
@@ -36,7 +37,7 @@ let skipExitListeners = false;
 const UPGRADE_COMPLETE_MSG = 'Upgrade complete. Starting Harper.';
 const UPGRADE_ERR = 'Got an error while trying to upgrade your Harper instance. Exiting Harper.';
 const HDB_NOT_FOUND_MSG = 'Harper not found, starting install process.';
-const INSTALL_ERR = 'There was an error during install, check install_log.log for more details. Exiting.';
+const INSTALL_ERR = 'There was an error during install. Exiting.';
 const HDB_STARTED = 'Harper successfully started.';
 
 function addUnhandleRejectionListener() {
@@ -75,6 +76,12 @@ function addExitListeners() {
 async function initialize(calledByInstall = false, calledByMain = false) {
 	// Check to see if HDB is installed, if it isn't we call install.
 	console.log(chalk.magenta('Starting Harper...'));
+
+	// Display read-only mode warning early, before database initialization
+	if (isReadOnlyMode()) {
+		console.log(chalk.yellow('\n*** RUNNING IN READ-ONLY MODE ***'));
+		console.log(chalk.yellow('Database writes are disabled. Analytics collection is disabled.\n'));
+	}
 
 	addUnhandleRejectionListener();
 
@@ -255,6 +262,10 @@ function startupLog(portResolutions: any) {
 	const padding = 20;
 	const pad = (param) => param.padEnd(padding);
 	let logMsg = '\n';
+
+	if (isReadOnlyMode()) {
+		logMsg += `${pad('Mode:')}${chalk.yellow('READ-ONLY')}\n`;
+	}
 
 	logMsg += `${pad('Hostname:')}${env.get(CONFIG_PARAMS.NODE_HOSTNAME)}\n`;
 

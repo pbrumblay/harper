@@ -21,7 +21,6 @@ import * as roles from '../resources/roles.ts';
 import * as jsHandler from '../resources/jsResource.ts';
 import * as login from '../resources/login.ts';
 import * as REST from '../server/REST.ts';
-import * as fastifyRoutesHandler from '../server/fastifyRoutes.ts';
 import * as staticFiles from '../server/static.ts';
 import * as loadEnv from '../resources/loadEnv.ts';
 import harperLogger from '../utility/logging/harper_logger.js';
@@ -34,7 +33,6 @@ import { Resources } from '../resources/Resources.ts';
 import { table } from '../resources/databases.ts';
 import { startSocketServer } from '../server/threads/socketRouter.ts';
 import { getHdbBasePath } from '../utility/environment/environmentManager.js';
-import * as operationsServer from '../server/operationsServer.ts';
 import * as auth from '../security/auth.ts';
 import * as mqtt from '../server/mqtt.ts';
 import { getConfigObj, getConfigPath } from '../config/configUtils.js';
@@ -99,10 +97,11 @@ export const TRUSTED_RESOURCE_PLUGINS: any = {
 	graphqlSchema: graphqlHandler,
 	roles,
 	jsResource: jsHandler,
-	fastifyRoutes: fastifyRoutesHandler,
+	get fastifyRoutes() {
+		return require('../server/fastifyRoutes');
+	},
 	login,
 	static: staticFiles,
-	operationsApi: operationsServer,
 	customFunctions: {},
 	http: httpComponent,
 	authentication: auth,
@@ -115,6 +114,9 @@ export const TRUSTED_RESOURCE_PLUGINS: any = {
 	login: ...
 	 */
 };
+if (isMainThread) {
+	TRUSTED_RESOURCE_PLUGINS.operationsApi = require('../server/operationsServer');
+}
 
 for (const { name, packageIdentifier } of getEnvBuiltInComponents()) {
 	TRUSTED_RESOURCE_PLUGINS[name] = packageIdentifier;

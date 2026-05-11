@@ -56,6 +56,20 @@ describe('Test keys module', () => {
 		await fs.writeFile(test_ca_path, test_ca);
 
 		root_path = config_utils.getConfigFromFile('rootPath');
+
+                const originalGetConfig = config_utils.getConfigFromFile;
+                sandbox.stub(config_utils, 'getConfigFromFile').callsFake((key) => {
+                        if (key === 'tls') {
+                                return {
+                                        certificate: test_cert_path,
+                                        privateKey: test_private_key_path,
+                                        certificateAuthority: test_ca_path
+                                };
+                        }
+                        if (key === 'rootPath') return root_path || '/home/kzyp/harper';
+                        return originalGetConfig.call(config_utils, key);
+                });
+
 		env_mgr.setHdbBasePath(root_path);
 		env_mgr.setProperty('storage_path', path.join(config_utils.getConfigFromFile('rootPath'), 'database'));
 

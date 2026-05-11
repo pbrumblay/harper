@@ -10,37 +10,50 @@ import { RequestTarget } from '../resources/RequestTarget';
 import { cloneDeep } from 'lodash';
 
 const AWAITING_ACKS_HIGH_WATER_MARK = 100;
-const DurableSession: any = table({
-	database: 'system',
-	table: 'hdb_durable_session',
-	attributes: [
-		{ name: 'id', isPrimaryKey: true },
-		{
-			name: 'subscriptions',
-			type: 'array',
-			elements: {
-				attributes: [{ name: 'topic' }, { name: 'qos' }, { name: 'startTime' }, { name: 'acks' }],
-			},
-		},
-	],
-});
-const LastWill: any = table({
-	database: 'system',
-	table: 'hdb_session_will',
-	attributes: [
-		{ name: 'id', isPrimaryKey: true },
-		{ name: 'topic', type: 'string' },
-		{ name: 'data' },
-		{ name: 'qos', type: 'number' },
-		{ name: 'retain', type: 'boolean' },
-		{ name: 'user', type: 'any' },
-	],
-});
+let _DurableSession: any;
+function getDurableSession() {
+	if (!_DurableSession) {
+		_DurableSession = table({
+			database: 'system',
+			table: 'hdb_durable_session',
+			attributes: [
+				{ name: 'id', isPrimaryKey: true },
+				{
+					name: 'subscriptions',
+					type: 'array',
+				},
+				{
+					name: 'awaitingAcks',
+					type: 'array',
+				},
+			],
+		});
+	}
+	return _DurableSession;
+}
+let _LastWill: any;
+function getLastWill() {
+	if (!_LastWill) {
+		_LastWill = table({
+			database: 'system',
+			table: 'hdb_session_will',
+			attributes: [
+				{ name: 'id', isPrimaryKey: true },
+				{ name: 'topic', type: 'string' },
+				{ name: 'data' },
+				{ name: 'qos', type: 'number' },
+				{ name: 'retain', type: 'boolean' },
+				{ name: 'user', type: 'any' },
+			],
+		});
+	}
+	return _LastWill;
+}
 if (getWorkerIndex() === 0) {
 	(async () => {
 		await whenComponentsLoaded;
 		await new Promise((resolve) => setTimeout(resolve, 2000));
-		for await (const will of LastWill.search({})) {
+		for await (const will of getLastWill().search({})) {
 			const data = will.data;
 			const message = { ...will };
 			if (message.user?.username) message.user = await (server as any).getUser(message.user.username);
@@ -49,7 +62,7 @@ if (getWorkerIndex() === 0) {
 			} catch {
 				warn('Failed to publish will', data);
 			}
-			LastWill.delete(will.id);
+			getLastWill().delete(will.id);
 		}
 	})();
 }
@@ -84,6 +97,7 @@ export async function getSession({
 	clientId: sessionId,
 	user,
 	clean: nonDurable,
+	properties,
 	will,
 	keepalive,
 }: {
@@ -91,26 +105,28 @@ export async function getSession({
 	user;
 	listener: Function;
 	clean?: boolean;
+	properties?: any;
 	will: any;
 	keepalive?: number;
 }) {
 	let session;
+	if (properties?.sessionExpiryInterval > 0) nonDurable = false;
 	if (sessionId && !nonDurable) {
-		const sessionResource = await DurableSession.get(sessionId, { returnNonexistent: true });
+		const sessionResource = await getDurableSession().get(sessionId, { returnNonexistent: true });
 		session = new DurableSubscriptionsSession(sessionId, user, sessionResource);
 		if (sessionResource) session.sessionWasPresent = true;
 	} else {
 		if (sessionId) {
 			// connecting with a clean session and session id is how durable sessions are deleted
-			const sessionResource = await DurableSession.get(sessionId);
-			if (sessionResource) DurableSession.delete(sessionId);
+			const sessionResource = await getDurableSession().get(sessionId);
+			if (sessionResource) getDurableSession().delete(sessionId);
 		}
 		session = new SubscriptionsSession(sessionId, user);
 	}
 	if (will) {
 		will.id = sessionId;
 		will.user = { username: user?.username };
-		LastWill.put(will);
+		getLastWill().put(will);
 	}
 	if (keepalive) {
 		// keep alive is the interval in seconds that the client will send a ping to the server
@@ -358,13 +374,13 @@ class SubscriptionsSession {
 		transaction(context, async () => {
 			try {
 				if (!clientTerminated) {
-					const will = await LastWill.get(this.sessionId);
+					const will = await getLastWill().get(this.sessionId);
 					if (will) {
 						await publishMessage(will, will.data, context);
 					}
 				}
 			} finally {
-				await LastWill.delete(this.sessionId);
+				await getLastWill().delete(this.sessionId);
 			}
 		}).catch((error) => {
 			warn(`Error publishing MQTT will for ${this.sessionId}`, error);
@@ -460,7 +476,7 @@ export class DurableSubscriptionsSession extends SubscriptionsSession {
 							}
 							subscription.acks.push(update.timestamp);
 							trace('Received ack', topic, update.timestamp);
-							DurableSession.put(this.sessionRecord, { source: true }); // add source: true context to bypass any overloaded checks, as skipping this can lead to increased load
+							getDurableSession().put(this.sessionRecord, { source: true }); // add source: true context to bypass any overloaded checks, as skipping this can lead to increased load
 							return;
 						}
 					}
@@ -473,20 +489,20 @@ export class DurableSubscriptionsSession extends SubscriptionsSession {
 				subscription.startTime = update.timestamp;
 			}
 		}
-		DurableSession.put(this.sessionRecord, { source: true });
+		getDurableSession().put(this.sessionRecord, { source: true });
 		// TODO: Increment the timestamp for the corresponding subscription, possibly recording any interim unacked messages
 	}
 
 	async addSubscription(subscription, needsAck) {
 		await this.resumeSubscription(subscription, needsAck);
 		const { qos, startTime } = subscription;
-		if (qos > 0 && !startTime) this.saveSubscriptions();
-		return subscription.qos;
+		if (qos > 0 && !startTime) await this.saveSubscriptions();
+		return subscription;
 	}
-	removeSubscription(topic) {
+	async removeSubscription(topic) {
 		const existingSubscription = this.subscriptions.find((subscription) => subscription.topic === topic);
 		const result = super.removeSubscription(topic);
-		if (existingSubscription.qos > 0) this.saveSubscriptions();
+		if (existingSubscription.qos > 0) await this.saveSubscriptions();
 		return result;
 	}
 	saveSubscriptions() {
@@ -500,6 +516,6 @@ export class DurableSubscriptionsSession extends SubscriptionsSession {
 				startTime,
 			};
 		});
-		DurableSession.put(this.sessionRecord);
+		return getDurableSession().put(this.sessionRecord);
 	}
 }

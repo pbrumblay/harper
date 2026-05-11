@@ -37,7 +37,7 @@ export class Headers extends Map<string, [string, string | string[]]> {
 		const lowerName = name.toLowerCase();
 		if (!super.has(lowerName)) return super.set(lowerName, [name, value]);
 	}
-	append(name, value, commaDelimited) {
+	append(name: any, value: any, commaDelimited?: any) {
 		if (typeof name !== 'string') name = '' + name;
 		if (typeof value !== 'string') value = '' + value;
 		const lowerName = name.toLowerCase();

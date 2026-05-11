@@ -6,6 +6,7 @@
 
 import { CONFIG_PARAMS, OPERATIONS_ENUM, SYSTEM_TABLE_NAMES, SYSTEM_SCHEMA_NAME } from '../utility/hdbTerms.ts';
 import { type Database } from 'lmdb';
+import { Script } from 'node:vm';
 import { getIndexedValues } from '../utility/lmdb/commonUtility.js';
 import { getThisNodeId, exportIdMapping } from './nodeIdMapping.ts';
 import lodash from 'lodash';
@@ -81,10 +82,12 @@ export type Attribute = {
 	indexed?: any;
 	relationship?: any;
 	computed?: any;
+	resolve?: any;
+	computedFromExpression?: any;
 	properties?: Array<Attribute>;
 	elements?: Attribute;
 	sealed?: boolean;
-	resolve?: any;
+	
 	definition?: any;
 	set?: any;
 	enumerable?: boolean;
@@ -957,7 +960,8 @@ export function makeTable(options) {
 					records: './', // an href to the records themselves
 					name: tableName,
 					database: databaseName,
-					auditSize: auditStore?.getStats().entryCount,
+					auditSize:
+						auditStore instanceof RocksDatabase ? auditStore.getKeysCount() : auditStore?.getStats().entryCount,
 					attributes,
 					recordCount: undefined,
 					estimatedRecordRange: undefined,
@@ -3254,11 +3258,13 @@ export function makeTable(options) {
 		}
 		static async getRecordCount(options?: any) {
 			// iterate through the metadata entries to exclude their count and exclude the deletion counts
-			const entryCount = primaryStore.getStats().entryCount;
-			const TIME_LIMIT = 1000 / 2; // one second time limit, enforced by seeing if we are halfway through at 500ms
+			const exactCount = options?.exactCount;
+			const entryCount = isRocksDB
+				? primaryStore.getKeysCount({ start: exactCount ? null : undefined })
+				: primaryStore.getStats().entryCount;
+			const TIME_LIMIT = options?.timeLimit ?? 1000 / 2; // one second time limit, enforced by seeing if we are halfway through at 500ms
 			const start = performance.now();
 			const halfway = Math.floor(entryCount / 2);
-			const exactCount = options?.exactCount;
 			let recordCount = 0;
 			let entriesScanned = 0;
 			let limit: number;
@@ -3436,6 +3442,15 @@ export function makeTable(options) {
 				} else if (computed) {
 					if (typeof computed.from === 'function') {
 						this.setComputedAttribute(attribute.name, computed.from);
+					} else if (attribute.computedFromExpression) {
+						// build a fallback scope object with all attribute names set to undefined,
+						// matching the behavior in graphql.ts to prevent ReferenceErrors
+						const attributesFallback: { [key: string]: undefined } = {};
+						for (const attr of this.attributes) attributesFallback[attr.name] = undefined;
+						this.setComputedAttribute(
+							attribute.name,
+							createComputedFrom(attribute.computedFromExpression, attributesFallback)
+						);
 					}
 					propertyResolvers[attribute.name] = attribute.resolve = (object, context, entry) => {
 						const value = typeof computed.from === 'string' ? object[computed.from] : object;
@@ -4615,6 +4630,20 @@ function attributesAsObject(attribute_permissions, type) {
 }
 function noop() {
 	// prefetch callback
+}
+
+/**
+ * Recreate a computed "from" function from a stored expression string. This is used when a table
+ * is loaded from metadata on a thread that hasn't loaded the GraphQL schema, so the computed
+ * function needs to be reconstructed from the persisted expression.
+ */
+function createComputedFrom(computedFromExpression: string, attributesFallback?: any) {
+	const script = new Script(
+		attributesFallback
+			? `function computed(attributes) { return function(record) { with(attributes) { with (record) { return ${computedFromExpression}; } } } } computed;`
+			: `function computed() { return function(record) { with (record) { return ${computedFromExpression}; } } } computed;`
+	);
+	return script.runInThisContext()(attributesFallback);
 }
 
 const ENDS_WITH_TIMEZONE = /[+-][0-9]{2}:[0-9]{2}|[a-zA-Z]$/;

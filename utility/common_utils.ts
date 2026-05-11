@@ -400,7 +400,7 @@ export function getPropsFilePath() {
 	let bootPropsFilePath = path.join(getHomeDir(), terms.HDB_HOME_DIR_NAME, terms.BOOT_PROPS_FILE_NAME);
 	// this checks how we used to store the boot props file for older installations.
 	if (!fs.existsSync(bootPropsFilePath)) {
-		bootPropsFilePath = path.join(__dirname, '../', 'hdb_boot_properties.file');
+		bootPropsFilePath = path.join(PACKAGE_ROOT, 'hdb_boot_properties.file');
 	}
 	return bootPropsFilePath;
 }

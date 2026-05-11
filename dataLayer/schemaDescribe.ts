@@ -1,3 +1,4 @@
+import { RocksDatabase } from '@harperfast/rocksdb-js';
 'use strict';
 
 import logger from '../utility/logging/harper_logger.js';
@@ -180,7 +181,11 @@ async function descTable(describeTableObject: any, attrPerms?: any) {
 	}
 	let db_size;
 	try {
-		db_size = (await fs.stat(tableObj.primaryStore.path)).size;
+		if (tableObj.primaryStore instanceof RocksDatabase) {
+			db_size = tableObj.getSize() + (tableObj.getAuditSize() ?? 0);
+		} else {
+			db_size = (await fs.stat(tableObj.primaryStore.path)).size;
+		}
 	} catch (error) {
 		logger.warn(`unable to get database size`, error);
 	}

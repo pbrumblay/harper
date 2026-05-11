@@ -33,6 +33,36 @@ import { RocksIndexStore } from './RocksIndexStore.ts';
 import { when } from '../utility/when.ts';
 import { isProcessRunning } from '../utility/processManagement/processManagement.js';
 
+/**
+ * Check if Harper is running in read-only mode.
+ * Read-only mode can be enabled via:
+ * - HARPER_READONLY environment variable (truthy value)
+ * - --readonly CLI flag
+ * - storage.readOnly config setting
+ */
+let _isReadOnlyMode: boolean | undefined;
+export function isReadOnlyMode(): boolean {
+	if (_isReadOnlyMode !== undefined) return _isReadOnlyMode;
+	// Check environment variable
+	const envReadOnly = process.env.HARPER_READONLY;
+	if (envReadOnly && envReadOnly !== '0' && envReadOnly !== 'false') {
+		_isReadOnlyMode = true;
+		return true;
+	}
+	// Check CLI flag (simple argv check)
+	if (process.argv.includes('--readonly') || process.argv.includes('--read-only')) {
+		_isReadOnlyMode = true;
+		return true;
+	}
+	// Check config setting
+	if (envGet(CONFIG_PARAMS.STORAGE_READONLY)) {
+		_isReadOnlyMode = true;
+		return true;
+	}
+	_isReadOnlyMode = false;
+	return false;
+}
+
 function createOpenDBIObject(dupSort = false, isPrimary = false) {
 	return new OpenDBIObject(dupSort, isPrimary);
 }
@@ -122,8 +152,16 @@ const MEMORY_FOR_ROCKS_DB = Math.min(process.constrainedMemory?.() ?? Infinity, 
 
 function openRocksDatabase(path: string, options: RocksDatabaseOptions & { dupSort?: boolean }) {
 	options.disableWAL ??= true;
+	// Apply read-only mode if enabled
+	if (isReadOnlyMode()) {
+		options.readOnly = true;
+	}
 	RocksDatabase.config({ blockCacheSize: MEMORY_FOR_ROCKS_DB });
 	if (!existsSync(path)) {
+		// Don't create directories in read-only mode
+		if (isReadOnlyMode()) {
+			throw new Error(`Database cannot be created in read-only mode: ${path}`);
+		}
 		mkdirSync(path, { recursive: true });
 	}
 	let db: RocksRootDatabase;
@@ -343,7 +381,7 @@ export function readMetaDb(
 	auditPath?: string,
 	isLegacy?: boolean
 ) {
-	const envInit = new OpenEnvironmentObject(path, false);
+	const envInit = new OpenEnvironmentObject(path, isReadOnlyMode());
 	try {
 		let rootStore = lmdbDatabaseEnvs.get(path);
 		if (rootStore) {
@@ -378,7 +416,10 @@ function readRocksMetaDb(path: string, defaultTable?: string, databaseName: stri
 			rootStore = openRocksDatabase(path, { disableWAL: false, enableStats: true }) as any;
 			rocksdbDatabaseEnvs.set(path, rootStore);
 			initStores(path, rootStore, databaseName, defaultTable);
-			replayLogs(rootStore, databases[databaseName]);
+			// Skip transaction log replay in read-only mode
+			if (!isReadOnlyMode()) {
+				replayLogs(rootStore, databases[databaseName]);
+			}
 		}
 		return rootStore;
 	} catch (error) {
@@ -395,7 +436,7 @@ function initStores(
 	auditPath?: string,
 	isLegacy?: boolean
 ) {
-	const envInit = new OpenEnvironmentObject(path, false);
+	const envInit = new OpenEnvironmentObject(path, isReadOnlyMode());
 	const internalDbiInit = createOpenDBIObject(false);
 	let attributesDbi = rootStore.dbisDb;
 	if (!attributesDbi) {
@@ -626,14 +667,11 @@ export function resetDatabases() {
 		if (store.needsDeletion && !path.endsWith('system.mdb')) {
 			store.close();
 			lmdbDatabaseEnvs.delete(path);
-			const db = databases[store.databaseName];
-			for (const tableName in db) {
-				const table = db[tableName];
-				if (table.primaryStore.path === path) {
-					delete databases[store.databaseName];
-					databaseEventsEmitter.emit('dropDatabase', store.databaseName);
-					break;
-				}
+			// Remove the database entry so that the next getDatabases() call re-creates it
+			// with the current storage engine (e.g. RocksDB after migrateOnStart).
+			if (store.databaseName && databases[store.databaseName]) {
+				delete databases[store.databaseName];
+				databaseEventsEmitter.emit('dropDatabase', store.databaseName);
 			}
 		}
 	}
@@ -721,9 +759,9 @@ export function database({ database: databaseName, table: tableName }) {
 		databaseConfig[databaseName]?.path ||
 		process.env.STORAGE_PATH ||
 		getConfigPath(CONFIG_PARAMS.STORAGE_PATH) ||
-		(existsSync(join(hdbBasePath, DATABASES_DIR_NAME))
+		(hdbBasePath && existsSync(join(hdbBasePath, DATABASES_DIR_NAME))
 			? join(hdbBasePath, DATABASES_DIR_NAME)
-			: join(hdbBasePath, LEGACY_DATABASES_DIR_NAME));
+			: (hdbBasePath ? join(hdbBasePath, LEGACY_DATABASES_DIR_NAME) : undefined));
 
 	let rootStore: RootDatabaseKind;
 	const useRocksdb = (process.env.HARPER_STORAGE_ENGINE || envGet(CONFIG_PARAMS.STORAGE_ENGINE)) !== 'lmdb';
@@ -742,9 +780,9 @@ export function database({ database: databaseName, table: tableName }) {
 		rootStore = lmdbDatabaseEnvs.get(path);
 		if (!rootStore || rootStore.status === 'closed') {
 			// TODO: validate database name
-			const envInit = new OpenEnvironmentObject(path, false);
-			rootStore = open(envInit) as any;
-			lmdbDatabaseEnvs.set(path, rootStore as any);
+						const envInit = new OpenEnvironmentObject(path, isReadOnlyMode());
+						rootStore = open(envInit) as any;
+						lmdbDatabaseEnvs.set(path, rootStore as any);
 		}
 	}
 	if (!rootStore.auditStore) {
@@ -935,6 +973,7 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 
 		exclusiveLock(); // get an exclusive lock on the database so we can verify that we are the only thread creating the table (and assigning the table id)
 		if ((attributesDbi as any).getSync(dbiName)) {
+
 			// table was created while we were setting up
 			if (releaseExclusiveLock) releaseExclusiveLock();
 			resetDatabases();
@@ -1322,4 +1361,12 @@ export function getDefaultCompression() {
 		LMDB_COMPRESSION_OPTS['dictionary'] = readFileSync(STORAGE_COMPRESSION_DICTIONARY);
 	if (STORAGE_COMPRESSION_THRESHOLD) LMDB_COMPRESSION_OPTS['threshold'] = STORAGE_COMPRESSION_THRESHOLD;
 	return LMDB_COMPRESSION && LMDB_COMPRESSION_OPTS;
+}
+
+/**
+ * Force all RocksDB databases to flush to disk.
+ */
+export async function flushDatabases() {
+	// flush all RocksDB databases
+	return Promise.all(Array.from(rocksdbDatabaseEnvs.values()).map((db) => db.flush()));
 }

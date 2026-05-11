@@ -24,11 +24,17 @@ const appsCors = env.get(CONFIG_PARAMS.HTTP_CORS);
 const operationsCorsAccesslist = env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_CORSACCESSLIST);
 const operationsCors = env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_CORS);
 
-const sessionTable: any = table({
-	table: 'hdb_session',
-	database: 'system',
-	attributes: [{ name: 'id', isPrimaryKey: true }, { name: 'user' }],
-});
+let _sessionTable: any;
+function getSessionTable() {
+	if (!_sessionTable) {
+		_sessionTable = table({
+			table: 'hdb_session',
+			database: 'system',
+			attributes: [{ name: 'id', isPrimaryKey: true }, { name: 'user' }],
+		});
+	}
+	return _sessionTable;
+}
 const ENABLE_SESSIONS = env.get(CONFIG_PARAMS.AUTHENTICATION_ENABLESESSIONS) ?? true;
 // check the environment for a flag to bypass authentication (for testing) since it doesn't necessarily get set on child threads
 let AUTHORIZE_LOCAL =
@@ -98,7 +104,7 @@ export async function authentication(request, nextHandler) {
 				if (cookie.startsWith(cookiePrefix)) {
 					const end = cookie.indexOf(';');
 					sessionId = cookie.slice(cookiePrefix.length, end === -1 ? cookie.length : end);
-					session = await sessionTable.get(sessionId);
+					session = await getSessionTable().get(sessionId);
 					break;
 				}
 			}
@@ -305,7 +311,7 @@ export async function authentication(request, nextHandler) {
 					}
 				}
 				updatedSession.id = sessionId;
-				return sessionTable.put(updatedSession, {
+				return getSessionTable().put(updatedSession, {
 					expiresAt: expires ? Date.now() + convertToMS(expires) : undefined,
 				});
 			};
@@ -359,6 +365,7 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 	const { port, securePort }: any = scope.options.getAll() as { port?: number; securePort?: number };
 	scope.server.http(authentication, port || securePort ? ({ port, securePort } as any) : ({ port: 'all' } as any));
 }
+
 // operations
 export async function login(loginObject) {
 	if (!loginObject.baseRequest?.login) throw new Error('No session for login');
