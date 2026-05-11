@@ -88,7 +88,10 @@ jobs:
         with:
           token: ${{ steps.github-token.outputs.token }}
           title: 'chore(deps): Update rocksdb-js to ${{ steps.latest-version.outputs.latest }}'
-          body: 'Update rocksdb-js to ${{ steps.latest-version.outputs.latest }}.'
+          body: |
+            Update rocksdb-js to ${{ steps.latest-version.outputs.latest }}.
+
+            Release notes: https://github.com/HarperFast/rocksdb-js/releases/tag/v${{ steps.latest-version.outputs.latest }}
           commit-message: 'chore(deps): Update rocksdb-js to ${{ steps.latest-version.outputs.latest }}'
           committer: 'HarperFast <noreply@harperdb.io>'
           branch: update-rocksdb-js
