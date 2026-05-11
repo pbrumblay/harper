@@ -618,7 +618,16 @@ const upgradeListeners = [],
 
 function onUpgrade(listener: UpgradeListener, options: UpgradeOptions) {
 	for (const { port } of getPorts(options)) {
-		upgradeListeners[options?.runFirst ? 'unshift' : 'push']({ listener, port });
+		const entry = {
+			listener,
+			port: options?.port || port,
+			name: options?.name ?? getComponentName(),
+			before: options?.before,
+			after: options?.after,
+			urlPath: options?.urlPath || undefined,
+			host: options?.host || undefined,
+		};
+		upgradeListeners[options?.runFirst ? 'unshift' : 'push'](entry);
 		upgradeChains[port] = makeCallbackChain(upgradeListeners, port);
 	}
 }
@@ -629,6 +638,12 @@ type OnWebSocketOptions = {
 	maxPayload?: number;
 	usageType?: string;
 	mtls?: boolean;
+	runFirst?: boolean;
+	name?: string;
+	before?: string;
+	after?: string;
+	urlPath?: string;
+	host?: string;
 };
 const websocketListeners = [],
 	websocketChains = {};
@@ -697,7 +712,16 @@ function onWebSocket(listener: (ws: WebSocket) => void, options: OnWebSocketOpti
 
 		servers.push(server);
 
-		websocketListeners[options?.runFirst ? 'unshift' : 'push']({ listener, port });
+		const wsEntry = {
+			listener,
+			port: options?.port || port,
+			name: options?.name ?? getComponentName(),
+			before: options?.before,
+			after: options?.after,
+			urlPath: options?.urlPath || undefined,
+			host: options?.host || undefined,
+		};
+		websocketListeners[options?.runFirst ? 'unshift' : 'push'](wsEntry);
 		websocketChains[port] = makeCallbackChain(websocketListeners, port);
 
 		// mqtt doesn't invoke the http handler so this needs to be here to load up the http chains.
