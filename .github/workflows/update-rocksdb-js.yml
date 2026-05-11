@@ -41,6 +41,7 @@ jobs:
           fi
 
       - name: Generate GitHub token
+        if: steps.stage-changes.outputs.has_changes == 'true'
         id: github-token
         uses: actions/create-github-app-token@v2
         with:
