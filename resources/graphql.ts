@@ -49,7 +49,6 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 	return once(entryHandler, 'initialLoadComplete');
 }
 
-
 async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 	// lazy load the graphql package so we don't load it for users that don't use graphql
 	const { parse, Source, Kind } = await import('graphql');
