@@ -579,12 +579,18 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 	return httpServers[port];
 }
 
-function makeCallbackChain(responders: typeof httpResponders, portNum: number | string) {
-	return buildCallbackChain(responders, portNum, unhandled, () => {
-		harperLogger.warn(
-			`Cycle detected in middleware before/after ordering on port ${portNum}; falling back to registration order.`
-		);
-	});
+function makeCallbackChain(responders: typeof httpResponders, portNum: number | string, requestArgIndex: number = 0) {
+	return buildCallbackChain(
+		responders,
+		portNum,
+		unhandled,
+		() => {
+			harperLogger.warn(
+				`Cycle detected in middleware before/after ordering on port ${portNum}; falling back to registration order.`
+			);
+		},
+		requestArgIndex
+	);
 }
 function unhandled(request) {
 	if (request.user) {
@@ -722,7 +728,7 @@ function onWebSocket(listener: (ws: WebSocket) => void, options: OnWebSocketOpti
 			host: options?.host || undefined,
 		};
 		websocketListeners[options?.runFirst ? 'unshift' : 'push'](wsEntry);
-		websocketChains[port] = makeCallbackChain(websocketListeners, port);
+		websocketChains[port] = makeCallbackChain(websocketListeners, port, 1);
 
 		// mqtt doesn't invoke the http handler so this needs to be here to load up the http chains.
 		httpChain[port] = makeCallbackChain(httpResponders, port);

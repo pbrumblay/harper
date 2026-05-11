@@ -694,6 +694,78 @@ describe('matchesRoute with trailing slash', () => {
 });
 
 // ---------------------------------------------------------------------------
+// variadic dispatch (request at non-zero arg index, e.g. WebSocket chains)
+// ---------------------------------------------------------------------------
+
+describe('variadic dispatch with requestArgIndex', () => {
+	it('forwards all positional args to the inner chain (default chain)', () => {
+		const seen = [];
+		const responders = [
+			entry('ws-handler', {
+				listener: (ws, req, completion, next) => {
+					seen.push({ ws, pathname: req.pathname, completion });
+					return next(ws, req, completion);
+				},
+			}),
+		];
+		const chain = makeCallbackChain(responders, 9000, UNHANDLED, undefined, 1);
+		const fakeWs = { sym: 'ws' };
+		const fakeCompletion = Promise.resolve();
+		chain(fakeWs, req('/anything'), fakeCompletion);
+		assert.strictEqual(seen.length, 1);
+		assert.strictEqual(seen[0].ws, fakeWs);
+		assert.strictEqual(seen[0].pathname, '/anything');
+		assert.strictEqual(seen[0].completion, fakeCompletion);
+	});
+
+	it('routes by urlPath using arg at requestArgIndex, preserves other args (sub-route)', () => {
+		const seen = [];
+		const responders = [
+			{
+				name: 'api-ws',
+				port: 9000,
+				urlPath: '/api',
+				listener: (ws, req, completion, next) => {
+					seen.push({ ws, pathname: req.pathname, completion });
+					return next(ws, req, completion);
+				},
+			},
+		];
+		const chain = makeCallbackChain(responders, 9000, UNHANDLED, undefined, 1);
+		const fakeWs = { sym: 'ws' };
+		const fakeCompletion = Promise.resolve();
+		chain(fakeWs, req('/api/products'), fakeCompletion);
+		assert.strictEqual(seen.length, 1);
+		assert.strictEqual(seen[0].ws, fakeWs, 'ws should be forwarded at arg 0');
+		assert.strictEqual(seen[0].pathname, '/products', 'request at arg 1 should be prefix-stripped');
+		assert.strictEqual(seen[0].completion, fakeCompletion, 'completion should be forwarded at arg 2');
+	});
+
+	it('upgrade-style signature: forwards (request, socket, head) when routing', () => {
+		const seen = [];
+		const responders = [
+			{
+				name: 'upgrade-handler',
+				port: 9000,
+				urlPath: '/api',
+				listener: (req, socket, head, next) => {
+					seen.push({ pathname: req.pathname, socket, head });
+					return next(req, socket, head);
+				},
+			},
+		];
+		const chain = makeCallbackChain(responders, 9000, UNHANDLED, undefined, 0);
+		const fakeSocket = { sym: 'socket' };
+		const fakeHead = Buffer.from([]);
+		chain(req('/api/upgrade'), fakeSocket, fakeHead);
+		assert.strictEqual(seen.length, 1);
+		assert.strictEqual(seen[0].pathname, '/upgrade');
+		assert.strictEqual(seen[0].socket, fakeSocket);
+		assert.strictEqual(seen[0].head, fakeHead);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // onCycle callback
 // ---------------------------------------------------------------------------
 

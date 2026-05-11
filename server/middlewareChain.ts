@@ -189,8 +189,19 @@ export function stripPrefix(request: any, prefix: string): any {
  * sub-route chains that depend on it.
  *
  * Dispatch priority: host+path > host-only > path-only; longer paths win ties.
+ *
+ * `requestArgIndex` tells the dispatcher which positional argument carries the request
+ * object used for host/path matching. HTTP and upgrade chains pass it at index 0;
+ * WebSocket chains pass `(ws, request, chainCompletion)` so request is at index 1.
+ * The matched (and prefix-stripped) request is substituted back into the same
+ * position before forwarding to the inner chain.
  */
-export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function, onCycle?: () => void): Function {
+export function buildRoutedChain(
+	portEntries: HttpEntry[],
+	fallback: Function,
+	onCycle?: () => void,
+	requestArgIndex: number = 0
+): Function {
 	// Global name registry across all routes (first registration wins)
 	const nameToEntry = new Map<string, HttpEntry>();
 	for (const entry of portEntries) {
@@ -224,13 +235,19 @@ export function buildRoutedChain(portEntries: HttpEntry[], fallback: Function, o
 
 	const defaultChain = buildLinearChain(topoSort(defaultGroup?.entries ?? [], onCycle), fallback);
 
-	return function dispatch(request: any) {
+	return function dispatch(...args: any[]) {
+		const request = args[requestArgIndex];
 		for (const route of subRouteChains) {
 			if (matchesRoute(request, route)) {
-				return route.chain(route.urlPath ? stripPrefix(request, route.urlPath) : request);
+				if (route.urlPath) {
+					const newArgs = args.slice();
+					newArgs[requestArgIndex] = stripPrefix(request, route.urlPath);
+					return route.chain(...newArgs);
+				}
+				return route.chain(...args);
 			}
 		}
-		return defaultChain(request);
+		return defaultChain(...args);
 	};
 }
 
@@ -243,9 +260,11 @@ export function makeCallbackChain(
 	responders: HttpEntry[],
 	portNum: number | string,
 	fallback: Function,
-	onCycle?: () => void
+	onCycle?: () => void,
+	requestArgIndex: number = 0
 ): Function {
 	const portEntries = responders.filter(({ port }) => port === portNum || port === 'all');
-	if (portEntries.some((e) => e.urlPath || e.host)) return buildRoutedChain(portEntries, fallback, onCycle);
+	if (portEntries.some((e) => e.urlPath || e.host))
+		return buildRoutedChain(portEntries, fallback, onCycle, requestArgIndex);
 	return buildLinearChain(topoSort(portEntries, onCycle), fallback);
 }
