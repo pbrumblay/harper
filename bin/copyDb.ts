@@ -385,6 +385,16 @@ async function copyDbToRocks(sourceRootStore, sourceDatabase: string, targetPath
 		name: INTERNAL_DBIS_NAME,
 	});
 
+	const STRUCTURES_KEY = Symbol.for('structures');
+	const copyStructures = (sourceDbi, storeName: string) => {
+		const buffer = sourceDbi.getBinary?.(STRUCTURES_KEY);
+		if (buffer) {
+			targetRootStore.putSync([STRUCTURES_KEY, storeName], asBinary(buffer));
+		}
+	};
+
+	copyStructures(sourceDbisDb, INTERNAL_DBIS_NAME);
+
 	let written;
 	let outstandingWrites = 0;
 	const transaction = sourceDbisDb.useReadTransaction();
@@ -413,6 +423,8 @@ async function copyDbToRocks(sourceRootStore, sourceDatabase: string, targetPath
 				existingEncoder.saveStructures = tempEncoder.saveStructures;
 				existingEncoder.getStructures = tempEncoder.getStructures;
 			}
+
+			copyStructures(sourceDbi, key);
 
 			console.log('migrating', key, 'from', sourceDatabase, 'to RocksDB');
 			await copyDbiToRocks(sourceDbi, targetDbi, isPrimary, transaction);
