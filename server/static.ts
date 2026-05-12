@@ -166,7 +166,7 @@ export function handleApplication(scope: Scope) {
 				body: send(req, realpathSync(notFoundPath)),
 			};
 		},
-		{ runFirst: true }
+		{ before: (scope.options.get(['before']) as string) ?? 'authentication' }
 	);
 }
 

@@ -34,6 +34,8 @@ export async function startHTTPThreads(threadCount = 2, dynamicThreads?: boolean
 				return Promise.resolve([]);
 			}
 			await loadRootComponents();
+			const { listenOnPorts } = require('./threadServer.js');
+			await listenOnPorts();
 			// Windows does not support SO_REUSEPORT, so only a single HTTP worker is supported.
 			if (process.platform === 'win32') threadCount = 1;
 		}
