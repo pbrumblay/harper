@@ -24,6 +24,7 @@ const minimist = require('minimist');
 const keys = require('../security/keys.js');
 const { startHTTPThreads } = require('../server/threads/socketRouter.ts');
 const hdbInfoController = require('../dataLayer/hdbInfoController.js');
+const { isReadOnlyMode } = require('../resources/databases.ts');
 const hdbTerms = require('../utility/hdbTerms.ts');
 const { getHdbPid, isProcessRunning } = require('../utility/processManagement/processManagement.js');
 const { PACKAGE_ROOT } = require('../utility/packageUtils');
@@ -35,7 +36,7 @@ let skipExitListeners = false;
 const UPGRADE_COMPLETE_MSG = 'Upgrade complete. Starting Harper.';
 const UPGRADE_ERR = 'Got an error while trying to upgrade your Harper instance. Exiting Harper.';
 const HDB_NOT_FOUND_MSG = 'Harper not found, starting install process.';
-const INSTALL_ERR = 'There was an error during install, check install_log.log for more details. Exiting.';
+const INSTALL_ERR = 'There was an error during install. Exiting.';
 const HDB_STARTED = 'Harper successfully started.';
 
 function addUnhandleRejectionListener() {
@@ -74,6 +75,12 @@ function addExitListeners() {
 async function initialize(calledByInstall = false, calledByMain = false) {
 	// Check to see if HDB is installed, if it isn't we call install.
 	console.log(chalk.magenta('Starting Harper...'));
+
+	// Display read-only mode warning early, before database initialization
+	if (isReadOnlyMode()) {
+		console.log(chalk.yellow('\n*** RUNNING IN READ-ONLY MODE ***'));
+		console.log(chalk.yellow('Database writes are disabled. Analytics collection is disabled.\n'));
+	}
 
 	addUnhandleRejectionListener();
 
@@ -254,6 +261,10 @@ function startupLog(portResolutions) {
 	const padding = 20;
 	const pad = (param) => param.padEnd(padding);
 	let logMsg = '\n';
+
+	if (isReadOnlyMode()) {
+		logMsg += `${pad('Mode:')}${chalk.yellow('READ-ONLY')}\n`;
+	}
 
 	logMsg += `${pad('Hostname:')}${env.get(CONFIG_PARAMS.NODE_HOSTNAME)}\n`;
 
