@@ -37,7 +37,12 @@ suite('Component: risk-query', (ctx: ContextWithHarper) => {
 	});
 
 	after(async () => {
-		await teardownHarper(ctx);
+		try {
+			await teardownHarper(ctx);
+		} catch (error) {
+			// until https://github.com/HarperFast/integration-testing/pull/6 is merged
+			console.error(error);
+		}
 	});
 
 	test('insert via PUT /risq with shorthand fields', async () => {
