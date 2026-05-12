@@ -39,9 +39,13 @@ function authorize(req, res, next) {
 		return next(null, req.raw.user);
 	}
 	// On Bun, Harper's auth middleware passes pre-authenticated users via this internal header.
-	// It is stripped from real network requests in bunDelegateToNodeServer, so it is safe to trust here.
-	const preAuthUser = req.headers?.[INTERNAL_USER_HEADER];
-	if (preAuthUser) return next(null, JSON.parse(preAuthUser));
+	// bunDelegateToNodeServer strips it from real network requests before injecting into Fastify,
+	// so it is only safe to trust under Bun — on Node.js the raw socket path delivers headers
+	// directly to Fastify with no stripping, so a forged header could bypass auth.
+	if (typeof globalThis.Bun !== 'undefined') {
+		const preAuthUser = req.headers?.[INTERNAL_USER_HEADER];
+		if (preAuthUser) return next(null, JSON.parse(preAuthUser));
+	}
 	if (req.raw?.user === undefined && req.raw?.baseRequest) {
 		let nextCalled = false;
 		return authentication(req.raw?.baseRequest, (request) => {

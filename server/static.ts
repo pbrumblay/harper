@@ -36,7 +36,6 @@ export function handleApplication(scope: Scope) {
 
 	// Handle entry events for the default entry handler based on the `files` and `urlPath` options
 	scope.handleEntry((entry) => {
-		logger.error('static received entry', entry);
 		switch (entry.eventType) {
 			// Directories only matter for the `index` files
 			case 'addDir':
