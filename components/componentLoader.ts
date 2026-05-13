@@ -31,12 +31,10 @@ import { scopedImport } from '../security/jsLoader.ts';
 import { server } from '../server/Server.ts';
 import { Resources } from '../resources/Resources.ts';
 import { table } from '../resources/databases.ts';
-import { startSocketServer } from '../server/threads/socketRouter.ts';
 import { getHdbBasePath } from '../utility/environment/environmentManager.js';
 import * as auth from '../security/auth.ts';
 import * as mqtt from '../server/mqtt.ts';
 import { getConfigObj, getConfigPath } from '../config/configUtils.js';
-import { createReuseportFd } from '../server/serverHelpers/Request.ts';
 import { ErrorResource } from '../resources/ErrorResource.ts';
 import { Scope } from './Scope.ts';
 import { ApplicationScope } from './ApplicationScope.ts';
@@ -134,7 +132,6 @@ for (const { name, packageIdentifier } of getEnvBuiltInComponents()) {
 
 const BUILT_INS = Object.keys(TRUSTED_RESOURCE_PLUGINS);
 
-const portsStarted = [];
 export const loadedPaths = new Map();
 let errorReporter;
 export function setErrorReporter(reporter) {
@@ -478,22 +475,8 @@ export async function loadComponent(
 							...componentConfig,
 						})) || extensionModule;
 					if (isRoot && network) {
-						for (const possiblePort of [port, securePort]) {
-							try {
-								if (+possiblePort && !portsStarted.includes(possiblePort)) {
-									const sessionAffinity = env.get(CONFIG_PARAMS.HTTP_SESSIONAFFINITY);
-									if (sessionAffinity)
-										harperLogger.warn('Session affinity is not recommended and may cause memory leaks');
-									if (sessionAffinity || !createReuseportFd) {
-										// if there is a TCP port associated with the plugin, we set up the routing on the main thread for it
-										portsStarted.push(possiblePort);
-										startSocketServer(possiblePort, sessionAffinity);
-									}
-								}
-							} catch (error) {
-								console.error('Error listening on socket', possiblePort, error, componentName);
-							}
-						}
+						if (env.get(CONFIG_PARAMS.HTTP_SESSIONAFFINITY))
+							harperLogger.warn('Session affinity is not supported and will be ignored');
 					}
 				}
 				if (resources.isWorker)

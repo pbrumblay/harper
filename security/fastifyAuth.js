@@ -32,9 +32,52 @@ passport.deserializeUser(function (user, done) {
 	done(null, user);
 });
 
+const INTERNAL_USER_HEADER = 'x-harper-internal-pre-auth-user';
+
 function authorize(req, res, next) {
 	if (req.raw?.user != undefined) {
 		return next(null, req.raw.user);
+	}
+	// On Bun, Harper's auth middleware passes pre-authenticated users via this internal header.
+	// bunDelegateToNodeServer strips it from real network requests before injecting into Fastify,
+	// so it is only safe to trust under Bun — on Node.js the raw socket path delivers headers
+	// directly to Fastify with no stripping, so a forged header could bypass auth.
+	if (typeof globalThis.Bun !== 'undefined') {
+		const preAuthUser = req.headers?.[INTERNAL_USER_HEADER];
+		if (preAuthUser) return next(null, JSON.parse(preAuthUser));
+		// No pre-auth header: auth.ts didn't run for this port (ops API). Mirror what Node.js does via
+		// baseRequest — build a shim request and call authentication() so AUTHORIZE_LOCAL can apply.
+		const shimRequest = {
+			headers: { asObject: Object.assign({}, req.headers) },
+			ip: req.socket?.remoteAddress ?? '',
+			isOperationsServer: true,
+			method: req.method,
+			url: req.url,
+			pathname: (req.url ?? '/').split('?')[0],
+			authorized: undefined,
+			mtlsConfig: undefined,
+			peerCertificate: { subject: null },
+			_nodeRequest: null,
+			_nodeResponse: null,
+		};
+		let nextCalled = false;
+		return authentication(shimRequest, (request) => {
+			nextCalled = true;
+			if (request.user) return next(null, request.user);
+			req.raw.user = null;
+			return authorize(req, res, next);
+		}).then(
+			(response) => {
+				if (nextCalled) return response;
+				if (response?.status === -1) {
+					req.raw.user = null;
+					return authorize(req, res, next);
+				}
+				const body = typeof response?.body === 'string' ? JSON.parse(response.body) : (response?.body ?? {});
+				return next(new Error(body.error ?? body));
+			},
+			(error) => next(error)
+		);
 	}
 	if (req.raw?.user === undefined && req.raw?.baseRequest) {
 		let nextCalled = false;

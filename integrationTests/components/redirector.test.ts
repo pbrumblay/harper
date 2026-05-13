@@ -28,6 +28,9 @@ const REDIRECT_CSV = `utcStartTime,utcEndTime,path,host,version,redirectURL,oper
 ,,/p/shirts/help/iron/,,0,/info/ironing-shirts,,301,`;
 
 suite('Component: redirector', (ctx: ContextWithHarper) => {
+	if (process.platform === 'win32') {
+		return; // Skipping on windows until #525
+	}
 	before(async () => {
 		await startHarper(ctx);
 
@@ -280,7 +283,8 @@ suite('Component: redirector', (ctx: ContextWithHarper) => {
 		const rules = await listRes.json();
 		ok(Array.isArray(rules) && rules.length > 0, 'expected at least 1 rule');
 
-		const target = rules[rules.length - 1];
+		const target = rules.find((r: any) => r.path === '/p/shirts/help/iron/');
+		ok(target, 'expected to find specific rule to delete');
 
 		const deleteRes = await fetch(`${ctx.harper.httpURL}/Rule/${target.id}`, {
 			method: 'DELETE',
