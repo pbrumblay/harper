@@ -69,12 +69,7 @@ suite('Component: redirector', (ctx: ContextWithHarper) => {
 	});
 
 	after(async () => {
-		try {
-			await teardownHarper(ctx);
-		} catch (error) {
-			// until https://github.com/HarperFast/integration-testing/pull/6 is merged
-			console.error(error);
-		}
+		await teardownHarper(ctx);
 	});
 
 	test('query param lookup returns correct redirect', async () => {
@@ -285,7 +280,8 @@ suite('Component: redirector', (ctx: ContextWithHarper) => {
 		const rules = await listRes.json();
 		ok(Array.isArray(rules) && rules.length > 0, 'expected at least 1 rule');
 
-		const target = rules[rules.length - 1];
+		const target = rules.find((r: any) => r.path === '/p/shirts/help/iron/');
+		ok(target, 'expected to find specific rule to delete');
 
 		const deleteRes = await fetch(`${ctx.harper.httpURL}/Rule/${target.id}`, {
 			method: 'DELETE',

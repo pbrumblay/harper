@@ -58,12 +58,7 @@ suite('Component: early-hints', (ctx: ContextWithHarper) => {
 	});
 
 	after(async () => {
-		try {
-			await teardownHarper(ctx);
-		} catch (error) {
-			// until https://github.com/HarperFast/integration-testing/pull/6 is merged
-			console.error(error);
-		}
+		await teardownHarper(ctx);
 	});
 
 	test('missing q param returns 400', async () => {
