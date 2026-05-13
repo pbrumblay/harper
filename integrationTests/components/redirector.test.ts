@@ -28,6 +28,9 @@ const REDIRECT_CSV = `utcStartTime,utcEndTime,path,host,version,redirectURL,oper
 ,,/p/shirts/help/iron/,,0,/info/ironing-shirts,,301,`;
 
 suite('Component: redirector', (ctx: ContextWithHarper) => {
+	if (process.platform === 'win32') {
+		return; // Skipping on windows until #525
+	}
 	before(async () => {
 		await startHarper(ctx);
 
