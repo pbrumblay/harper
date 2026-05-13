@@ -87,7 +87,7 @@ export type Attribute = {
 	properties?: Array<Attribute>;
 	elements?: Attribute;
 	sealed?: boolean;
-	
+
 	definition?: any;
 	set?: any;
 	enumerable?: boolean;

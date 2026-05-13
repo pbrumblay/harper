@@ -1,5 +1,5 @@
 import { RocksDatabase } from '@harperfast/rocksdb-js';
-'use strict';
+('use strict');
 
 import logger from '../utility/logging/harper_logger.js';
 import { validateBySchema } from '../validation/validationWrapper.js';

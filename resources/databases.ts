@@ -761,7 +761,9 @@ export function database({ database: databaseName, table: tableName }) {
 		getConfigPath(CONFIG_PARAMS.STORAGE_PATH) ||
 		(hdbBasePath && existsSync(join(hdbBasePath, DATABASES_DIR_NAME))
 			? join(hdbBasePath, DATABASES_DIR_NAME)
-			: (hdbBasePath ? join(hdbBasePath, LEGACY_DATABASES_DIR_NAME) : undefined));
+			: hdbBasePath
+				? join(hdbBasePath, LEGACY_DATABASES_DIR_NAME)
+				: undefined);
 
 	let rootStore: RootDatabaseKind;
 	const useRocksdb = (process.env.HARPER_STORAGE_ENGINE || envGet(CONFIG_PARAMS.STORAGE_ENGINE)) !== 'lmdb';
@@ -780,9 +782,9 @@ export function database({ database: databaseName, table: tableName }) {
 		rootStore = lmdbDatabaseEnvs.get(path);
 		if (!rootStore || rootStore.status === 'closed') {
 			// TODO: validate database name
-						const envInit = new OpenEnvironmentObject(path, isReadOnlyMode());
-						rootStore = open(envInit) as any;
-						lmdbDatabaseEnvs.set(path, rootStore as any);
+			const envInit = new OpenEnvironmentObject(path, isReadOnlyMode());
+			rootStore = open(envInit) as any;
+			lmdbDatabaseEnvs.set(path, rootStore as any);
 		}
 	}
 	if (!rootStore.auditStore) {
@@ -973,7 +975,6 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 
 		exclusiveLock(); // get an exclusive lock on the database so we can verify that we are the only thread creating the table (and assigning the table id)
 		if ((attributesDbi as any).getSync(dbiName)) {
-
 			// table was created while we were setting up
 			if (releaseExclusiveLock) releaseExclusiveLock();
 			resetDatabases();

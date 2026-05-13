@@ -1,7 +1,5 @@
 > mocha 'unitTests/**/*test.*js' --exclude 'unitTests/apiTests/**/*' --exclude 'unitTests/dataLayer/harperBridge/**/*' --exclude 'unitTests/resources/**/*'
-HARPER BRIDGE IN DELETE []
 Current directory /home/kzyp/dev/ts-fixes/bin
-HARPER BRIDGE IN DELETE []
 HARPER BRIDGE IN SQLSEARCH []
 SQLSearch IS [class SQLSearch]
   test CLI operations
@@ -62,8 +60,8 @@ SQLSearch IS [class SQLSearch]
         ✔ should throw an error if any pattern starts with "/"
   ComponentLoader Status Integration
     Basic component status tracking
-      ✔ should initialize loading status for non-root components
-unhandled rejection: OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+      ✔ should initialize loading status for non-root components (48ms)
+unhandled rejection: OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml'
     at OptionsWatcher.#handleError (/home/kzyp/dev/ts-fixes/components/OptionsWatcher.ts:153:22)
     at FSWatcher.emit (node:events:508:28)
     at FSWatcher._handleError (/home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:539:18)
@@ -76,13 +74,13 @@ unhandled rejection: OptionsWatcherConfigFileError: Could not load component 'da
     at async /home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:348:25
     at async Promise.all (index 0)
       1) should initialize loading status for non-root components
-  30 passing (41ms)
+  30 passing (84ms)
   13 pending
   1 failing
   1) ComponentLoader Status Integration
        Basic component status tracking
          should initialize loading status for non-root components:
-     Uncaught OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+     Uncaught OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml'
       at OptionsWatcher.#handleError (components/OptionsWatcher.ts:153:22)
       at FSWatcher.emit (node:events:508:28)
       at FSWatcher._handleError (node_modules/chokidar/index.js:539:18)
@@ -94,12 +92,13 @@ unhandled rejection: OptionsWatcherConfigFileError: Could not load component 'da
       at NodeFsHandler._addToNodeFs (node_modules/chokidar/handler.js:620:31)
       at async /home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:348:25
       at async Promise.all (index 0)
-Starting inspector on 127.0.0.1:9229 failed: address already in use
+Debugger listening on ws://127.0.0.1:9229/9b3476be-9527-42ee-b90b-779fbe1cc575
+For help, see: https://nodejs.org/en/docs/inspector
 (node:8877) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 exit listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
 (Use `node --trace-warnings ...` to show where the warning was created)
 (node:8877) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 unhandledRejection listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
 [main/0] [error]: I am a log
-[main/0] [error]: OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+[main/0] [error]: OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml'
     at OptionsWatcher.#handleError (/home/kzyp/dev/ts-fixes/components/OptionsWatcher.ts:153:22)
 [90m    at FSWatcher.emit (node:events:508:28)[39m
     at FSWatcher._handleError (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/index.js:539:18)
@@ -111,7 +110,7 @@ Starting inspector on 127.0.0.1:9229 failed: address already in use
     at NodeFsHandler._addToNodeFs (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/handler.js:620:31)
     at async /home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/index.js:348:25
     at async Promise.all (index 0)
-uncaughtException OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+uncaughtException OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml'
     at OptionsWatcher.#handleError (/home/kzyp/dev/ts-fixes/components/OptionsWatcher.ts:153:22)
     at FSWatcher.emit (node:events:508:28)
     at FSWatcher._handleError (/home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:539:18)
@@ -123,7 +122,7 @@ uncaughtException OptionsWatcherConfigFileError: Could not load component 'dataL
     at NodeFsHandler._addToNodeFs (/home/kzyp/dev/ts-fixes/node_modules/chokidar/handler.js:620:31)
     at async /home/kzyp/dev/ts-fixes/node_modules/chokidar/index.js:348:25
     at async Promise.all (index 0)
-[main/0] [error]: uncaughtException OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-fIIoRM/test-component/harperdb-config.yaml'
+[main/0] [error]: uncaughtException OptionsWatcherConfigFileError: Could not load component 'dataLoader' for application 'test-component' due to: Error watching config file /tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml: EMFILE: too many open files, watch '/tmp/harper-test-components-TnUCZB/test-component/harperdb-config.yaml'
     at OptionsWatcher.#handleError (/home/kzyp/dev/ts-fixes/components/OptionsWatcher.ts:153:22)
 [90m    at FSWatcher.emit (node:events:508:28)[39m
     at FSWatcher._handleError (/home/kzyp/dev/ts-fixes/node_modules/[4mchokidar[24m/index.js:539:18)
