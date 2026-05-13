@@ -45,6 +45,39 @@ function authorize(req, res, next) {
 	if (typeof globalThis.Bun !== 'undefined') {
 		const preAuthUser = req.headers?.[INTERNAL_USER_HEADER];
 		if (preAuthUser) return next(null, JSON.parse(preAuthUser));
+		// No pre-auth header: auth.ts didn't run for this port (ops API). Mirror what Node.js does via
+		// baseRequest — build a shim request and call authentication() so AUTHORIZE_LOCAL can apply.
+		const shimRequest = {
+			headers: { asObject: Object.assign({}, req.headers) },
+			ip: req.socket?.remoteAddress ?? '',
+			isOperationsServer: true,
+			method: req.method,
+			url: req.url,
+			pathname: (req.url ?? '/').split('?')[0],
+			authorized: undefined,
+			mtlsConfig: undefined,
+			peerCertificate: { subject: null },
+			_nodeRequest: null,
+			_nodeResponse: null,
+		};
+		let nextCalled = false;
+		return authentication(shimRequest, (request) => {
+			nextCalled = true;
+			if (request.user) return next(null, request.user);
+			req.raw.user = null;
+			return authorize(req, res, next);
+		}).then(
+			(response) => {
+				if (nextCalled) return response;
+				if (response?.status === -1) {
+					req.raw.user = null;
+					return authorize(req, res, next);
+				}
+				const body = typeof response?.body === 'string' ? JSON.parse(response.body) : (response?.body ?? {});
+				return next(new Error(body.error ?? body));
+			},
+			(error) => next(error)
+		);
 	}
 	if (req.raw?.user === undefined && req.raw?.baseRequest) {
 		let nextCalled = false;
