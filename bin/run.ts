@@ -18,7 +18,7 @@ import * as hdbUtils from '../utility/common_utils.js';
 import * as installation from '../utility/installation.js';
 import * as configUtils from '../config/configUtils.js';
 const assignCMDENVVariables =
-	require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
+        require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
 import * as upgrade from './upgrade.js';
 import { compactOnStart, migrateOnStart } from './copyDb.js';
 import minimist from 'minimist';
@@ -26,6 +26,7 @@ import * as keys from '../security/keys.js';
 import { startHTTPThreads } from '../server/threads/socketRouter.js';
 import * as hdbInfoController from '../dataLayer/hdbInfoController.js';
 import { isReadOnlyMode } from '../resources/databases.js';
+import { getThisNodeName } from '../server/nodeName.js';
 import * as hdbTerms from '../utility/hdbTerms.js';
 import { getHdbPid, isProcessRunning } from '../utility/processManagement/processManagement.js';
 import { PACKAGE_ROOT } from '../utility/packageUtils.js';
@@ -267,7 +268,7 @@ function startupLog(portResolutions: any) {
 		logMsg += `${pad('Mode:')}${chalk.yellow('READ-ONLY')}\n`;
 	}
 
-	logMsg += `${pad('Hostname:')}${env.get(CONFIG_PARAMS.NODE_HOSTNAME)}\n`;
+	logMsg += `${pad('Hostname:')}${getThisNodeName()}\n`;
 
 	logMsg += `${pad('Worker Threads:')}${env.get(CONFIG_PARAMS.THREADS_COUNT)}\n`;
 
@@ -307,20 +308,14 @@ function startupLog(portResolutions: any) {
 	}`;
 	logMsg += `, unix socket: ${configUtils.getConfigPath(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_DOMAINSOCKET)}\n`;
 	if (env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_PORT)) {
-		logMsg +=
-			pad('') +
-			'http://' +
-			env.get(CONFIG_PARAMS.NODE_HOSTNAME) +
-			':' +
-			env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_PORT) +
-			'/\n';
+		logMsg += pad('') + 'http://' + getThisNodeName() + ':' + env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_PORT) + '/\n';
 	}
 	if (env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_SECUREPORT)) {
 		logMsg +=
 			'\n' +
 			pad('') +
 			'https://' +
-			env.get(CONFIG_PARAMS.NODE_HOSTNAME) +
+			getThisNodeName() +
 			':' +
 			env.get(CONFIG_PARAMS.OPERATIONSAPI_NETWORK_SECUREPORT) +
 			'/\n';
@@ -375,7 +370,7 @@ function startupLog(portResolutions: any) {
 			if (!restLog.includes(pair) && name === 'rest') {
 				restLog += pair;
 				if (value.protocol_name === 'HTTP' || value.protocol_name === 'HTTPS') {
-					restHostnames.push(`${value.protocol_name.toLowerCase()}://${env.get(CONFIG_PARAMS.NODE_HOSTNAME)}:${key}/`);
+					restHostnames.push(`${value.protocol_name.toLowerCase()}://${getThisNodeName()}:${key}/`);
 				}
 			}
 

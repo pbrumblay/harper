@@ -195,6 +195,27 @@ describe('Test configUtils module', () => {
 				.filter((e) => e.startsWith('atomic-write-test.yaml.') && e.endsWith('.tmp'));
 			expect(stragglers).to.be.empty;
 		});
+
+		it('generates a unique temp path even when pid and timestamp are identical', () => {
+			// Worker threads share process.pid, and worker arrivals cluster within the
+			// same millisecond — a pid+timestamp scheme would collide. Pin Date.now()
+			// so this test fails if uniqueness ever stops depending on randomness.
+			const writeStub = sandbox.stub(fs, 'writeFileSync');
+			const renameStub = sandbox.stub(fs, 'renameSync');
+			const dateStub = sandbox.stub(Date, 'now').returns(1234567890);
+			try {
+				const tempPaths = new Set();
+				for (let i = 0; i < 100; i++) {
+					atomicWriteFile(ATOMIC_TEST_PATH, 'content');
+					tempPaths.add(writeStub.lastCall.args[0]);
+				}
+				expect(tempPaths.size).to.equal(100);
+			} finally {
+				writeStub.restore();
+				renameStub.restore();
+				dateStub.restore();
+			}
+		});
 	});
 
 	describe('Test getDefaultConfig function', () => {

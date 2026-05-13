@@ -17,6 +17,7 @@ import { METRIC } from './metadata.ts';
 import { RocksDatabase } from '@harperfast/rocksdb-js';
 
 const log = forComponent('analytics').conditional;
+const isBun = typeof globalThis.Bun !== 'undefined';
 
 initSync();
 
@@ -581,7 +582,7 @@ async function aggregation(fromPeriod, toPeriod = 60000) {
 		}
 	}
 	const now = Date.now();
-	const { idle, active } = (performance as any).eventLoopUtilization();
+const { idle, active } = (globalThis as any).Bun ? { idle: 0, active: 0 } : (performance as any).eventLoopUtilization();
 	// don't record boring entries
 	if (hasUpdates || active * 10 > idle) {
 		const value = {
@@ -738,7 +739,7 @@ function recordAnalytics(message, worker?) {
 		}
 	}
 	report.totalBytesProcessed = totalBytesProcessed;
-	if (worker) {
+	if (worker && !isBun) {
 		report.metrics.push({
 			metric: METRIC.UTILIZATION,
 			...worker.performance.eventLoopUtilization(lastUtilizations.get(worker)),

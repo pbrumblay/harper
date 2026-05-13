@@ -75,7 +75,7 @@ export function handleApplication(scope: import('../components/Scope.ts').Scope)
 					mqttLog.info?.('WebSocket error', error);
 				});
 			},
-			{ ...webSocket }
+			{ ...webSocket, after: 'authentication' }
 		); // if there is no port, we are piggy-backing off of default app http server
 	// standard TCP socket
 	if (port || securePort) {

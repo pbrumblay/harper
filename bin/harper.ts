@@ -9,7 +9,9 @@ import { packageJson } from '../utility/packageUtils.js';
 const checkNode = require('../launchServiceScripts/utility/checkNodeVersion.js');
 import * as hdbTerms from '../utility/hdbTerms.js';
 const { SERVICE_ACTIONS_ENUM } = hdbTerms as any;
-process.setSourceMapsEnabled(true); // this is necessary for source maps to work, at least on the main thread.
+if (typeof process.setSourceMapsEnabled === 'function') {
+	process.setSourceMapsEnabled(true); // this is necessary for source maps to work, at least on the main thread.
+}
 
 const HELP = `
 Usage: harperdb [command]

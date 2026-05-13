@@ -4,7 +4,7 @@ const { Worker, MessageChannel, parentPort, isMainThread, threadId, workerData }
 const { join, isAbsolute, extname } = require('path');
 const { server } = require('../Server.js');
 const { totalmem } = require('os');
-const { setHeapSnapshotNearHeapLimit } = require('v8');
+const { setHeapSnapshotNearHeapLimit } = typeof globalThis.Bun !== 'undefined' ? {} : require('v8');
 const hdbTerms = require('../../utility/hdbTerms.js');
 const envMgr = require('../../utility/environment/environmentManager.js');
 const harperLogger = require('../../utility/logging/harper_logger.js');
@@ -12,6 +12,7 @@ const { randomBytes } = require('crypto');
 const { _assignPackageExport } = require('../../globals.js');
 const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
 const chokidar = require('chokidar');
+const isBun = typeof globalThis.Bun !== 'undefined';
 const MB = 1024 * 1024;
 const workers = []; // these are our child workers that we are managing
 const connectedPorts = []; // these are all known connected worker ports (siblings, children, parents)
@@ -23,6 +24,8 @@ const RESOURCE_REPORT = 'resource_report';
 const THREAD_INFO = 'thread_info';
 const ADDED_PORT = 'added-port';
 const ACKNOWLEDGEMENT = 'ack';
+const REMOVE_PORT = 'remove-port';
+const FORCE_EXIT = 'force-exit';
 let getThreadInfo;
 _assignPackageExport('threads', connectedPorts);
 
@@ -145,13 +148,16 @@ function startWorker(path, options = {}) {
 
 	if (!extname(path)) path += '.js';
 
-	const execArgv = [
-		'--enable-source-maps',
-		'--experimental-vm-modules', // used for giving applications their own top level scope
-		'--disable-warning=ExperimentalWarning', // yeah, yeah, we know it is experimental
-		'--expose-internals', // expose Node.js internal utils so jsLoader can use `decorateErrorStack()`
-	];
-	if (envMgr.get(hdbTerms.CONFIG_PARAMS.THREADS_HEAPSNAPSHOTNEARLIMIT))
+	const isBun = typeof globalThis.Bun !== 'undefined';
+	const execArgv = isBun
+		? []
+		: [
+				'--enable-source-maps',
+				'--experimental-vm-modules', // used for giving applications their own top level scope
+				'--disable-warning=ExperimentalWarning', // yeah, yeah, we know it is experimental
+				'--expose-internals', // expose Node.js internal utils so jsLoader can use `decorateErrorStack()`
+			];
+	if (!isBun && envMgr.get(hdbTerms.CONFIG_PARAMS.THREADS_HEAPSNAPSHOTNEARLIMIT))
 		execArgv.push('--heapsnapshot-near-heap-limit=1');
 
 	const worker = new Worker(isAbsolute(path) ? path : join(PACKAGE_ROOT, path), {
@@ -272,10 +278,17 @@ async function restartWorkers(
 			worker.emit('shutdown', {});
 			const overlapping = OVERLAPPING_RESTART_TYPES.indexOf(worker.name) > -1;
 			let whenDone = new Promise((resolve) => {
-				// in case the exit inside the thread doesn't timeout, call terminate if necessary
+				// in case the exit inside the thread doesn't timeout, force it from the outside
 				let timeout = setTimeout(() => {
 					harperLogger.warn('Thread did not voluntarily terminate, terminating from the outside', worker.threadId);
-					worker.terminate();
+					if (isBun) {
+						// worker.terminate() triggers a NAPI segfault in Bun; ask the worker to self-exit instead
+						try {
+							worker.postMessage({ type: FORCE_EXIT });
+						} catch {}
+					} else {
+						worker.terminate();
+					}
 				}, threadTerminationTimeout * 2).unref();
 				worker.on('exit', () => {
 					clearTimeout(timeout);
@@ -324,9 +337,18 @@ async function restartWorkers(
 function shutdownWorkers(name) {
 	return restartWorkers(name, Infinity, false);
 }
-function shutdownWorkersNow(name) {
+async function shutdownWorkersNow(name) {
 	shutdownWorkers(name); // set the state of all the workers to shut down. this should finish the important stuff synchronously
-	return Promise.all(workers.map((worker) => worker.terminate()));
+	if (isBun) {
+		// worker.terminate() triggers a NAPI segfault in Bun; ask workers to self-exit instead
+		workers.forEach((worker) => {
+			try {
+				worker.postMessage({ type: FORCE_EXIT });
+			} catch {}
+		});
+	} else {
+		await Promise.all(workers.map((worker) => worker.terminate()));
+	}
 }
 
 const messageListeners = [];
@@ -455,16 +477,21 @@ function startMonitoring() {
 	// utilization levels (last second) and so we don't have to make these calls to frequently
 	setInterval(() => {
 		for (let worker of workers) {
-			let current_ELU = worker.performance.eventLoopUtilization();
-			let recent_ELU;
-			if (worker.lastTotalELU) {
-				// get the difference between current and last to determine the last second of utilization
-				recent_ELU = worker.performance.eventLoopUtilization(current_ELU, worker.lastTotalELU);
+			if (!isBun && worker.performance?.eventLoopUtilization) {
+				let current_ELU = worker.performance.eventLoopUtilization();
+				let recent_ELU;
+				if (worker.lastTotalELU) {
+					// get the difference between current and last to determine the last second of utilization
+					recent_ELU = worker.performance.eventLoopUtilization(current_ELU, worker.lastTotalELU);
+				} else {
+					recent_ELU = current_ELU;
+				}
+				worker.lastTotalELU = current_ELU;
+				worker.recentELU = recent_ELU;
 			} else {
-				recent_ELU = current_ELU;
+				// Bun doesn't support eventLoopUtilization, use a default idle value
+				worker.recentELU = worker.recentELU || { idle: 1, active: 0, utilization: 0 };
 			}
-			worker.lastTotalELU = current_ELU;
-			worker.recentELU = recent_ELU;
 		}
 		if (monitorListener) monitorListener();
 	}, MONITORING_INTERVAL).unref();
@@ -506,8 +533,30 @@ if (parentPort && workerData?.addPorts) {
 }
 module.exports.getThreadInfo = getThreadInfo;
 
+function removePort(port, deadThreadId) {
+	const idx = connectedPorts.indexOf(port);
+	if (idx === -1) return;
+	connectedPorts.splice(idx, 1);
+	// Notify remaining peers to remove this dead sibling port. In Bun, sibling
+	// MessagePorts don't emit 'close' when a peer worker exits, so we broadcast
+	// a REMOVE_PORT message from here (which fires reliably on Worker 'exit')
+	// instead. This is also harmless on Node.js — peers that already cleaned up
+	// via 'close' will simply find threadId missing and skip the splice.
+	if (deadThreadId != null) {
+		for (let remainingPort of connectedPorts) {
+			try {
+				remainingPort.postMessage({ type: REMOVE_PORT, threadId: deadThreadId });
+			} catch {
+				// port may already be dead; ignore
+			}
+		}
+	}
+}
+
 function addPort(port, keepRef) {
 	connectedPorts.push(port);
+	// Capture threadId now — Bun resets port.threadId to -1 by the time 'exit' fires.
+	const portThreadId = port.threadId;
 	port
 		.on('message', (message) => {
 			if (message.type === ADDED_PORT) {
@@ -518,15 +567,18 @@ function addPort(port, keepRef) {
 				if (completion) {
 					completion();
 				}
+			} else if (message.type === REMOVE_PORT) {
+				const idx = connectedPorts.findIndex((p) => p.threadId === message.threadId);
+				if (idx !== -1) connectedPorts.splice(idx, 1);
 			} else {
 				notifyMessageListeners(message, port);
 			}
 		})
 		.on('close', () => {
-			connectedPorts.splice(connectedPorts.indexOf(port), 1);
+			removePort(port, portThreadId);
 		})
 		.on('exit', () => {
-			connectedPorts.splice(connectedPorts.indexOf(port), 1);
+			removePort(port, portThreadId);
 		});
 	if (keepRef) port.refCount = 100;
 	else port.unref();
@@ -592,5 +644,10 @@ if (isMainThread) {
 			// require('why-is-node-running')();
 			process.exit(0);
 		}, threadTerminationTimeout).unref(); // don't block the shutdown
+	});
+	// In Bun, worker.terminate() triggers a NAPI segfault; the main thread sends FORCE_EXIT
+	// instead, and the worker self-exits cleanly to avoid the crash.
+	onMessageByType(FORCE_EXIT, () => {
+		process.exit(0);
 	});
 }

@@ -8,7 +8,6 @@ import * as fs from 'fs-extra';
 import { once } from 'events';
 import { getConfigPath } from '../../config/configUtils.js';
 import { handleHDBError, hdbErrors } from '../errors/hdbError.js';
-const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
 import { server } from '../../server/Server.js';
 
 const DEFAULT_READ_LOG_LIMIT = 1000;

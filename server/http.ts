@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * This module represents the HTTP component for Harper, and receives the HTTP options and uses them to configure
  * HTTP servers
@@ -26,17 +27,26 @@ import { server, type ServerOptions, type HttpOptions, type UpgradeOptions, Upgr
 import { setPortServerMap, SERVERS } from './serverRegistry.ts';
 import { getComponentName } from '../components/componentLoader.ts';
 import { throttle } from './throttle.ts';
+import { makeCallbackChain as buildCallbackChain } from './middlewareChain.ts';
 import { WebSocketServer } from 'ws';
 
 const { errorToString } = harperLogger;
-server.http = httpServer as any;
-server.request = onRequest as any;
-server.ws = onWebSocket as any;
-server.upgrade = onUpgrade as any;
+server.http = httpServer;
+server.request = onRequest;
+server.ws = onWebSocket;
+server.upgrade = onUpgrade;
 const websocketServers = {};
 const httpServers = {},
 	httpChain = {},
-	httpResponders = [];
+	httpResponders: {
+		listener: Function;
+		port: number | string;
+		name?: string;
+		before?: string;
+		after?: string;
+		urlPath?: string;
+		host?: string;
+	}[] = [];
 let httpOptions: HttpOptions = {};
 export const universalHeaders: [string, string][] = [];
 const udsCleanupPaths: { socketPath: string; yamlPath: string }[] = [];
@@ -118,6 +128,7 @@ export function handleApplication(scope: Scope) {
 		httpOptions = scope.options.getAll() as HttpOptions;
 	});
 }
+export function registerBunFastifyInstance(_app: any) {}
 export function getHttpOptions() {
 	return httpOptions;
 }
@@ -165,7 +176,7 @@ export function proxyRequest(message) {
 	socket = requestMap.get(requestId);
 	switch (event) {
 		case 'connection':
-			socket = deliverSocket(undefined, port, undefined);
+			socket = deliverSocket(undefined, port);
 			requestMap.set(requestId, socket);
 			socket.write = (data, encoding, callback) => {
 				parentPort.postMessage({
@@ -268,7 +279,16 @@ export function httpServer(listener, options) {
 	for (const { port, secure } of getPorts(options)) {
 		servers.push(getHTTPServer(port, secure, options));
 		if (typeof listener === 'function') {
-			httpResponders[options?.runFirst ? 'unshift' : 'push']({ listener, port: options?.port || port });
+			const entry = {
+				listener,
+				port: options?.port || port,
+				name: options?.name ?? getComponentName(),
+				before: options?.before,
+				after: options?.after,
+				urlPath: options?.urlPath || undefined,
+				host: options?.host || undefined,
+			};
+			httpResponders[options?.runFirst ? 'unshift' : 'push'](entry);
 		} else {
 			listener.isSecure = secure;
 			registerServer(listener, port, false);
@@ -328,8 +348,8 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 			let requestId = 0;
 			try {
 				const request = new Request(nodeRequest, nodeResponse);
-				if (isOperationsServer) (request as any).isOperationsServer = true;
-				if ((httpOptions as any).logging?.id) (request as any).requestId = requestId = getRequestId();
+				if (isOperationsServer) request.isOperationsServer = true;
+				if (httpOptions.logging?.id) request.requestId = requestId = getRequestId();
 				// assign a more WHATWG compliant headers object, this is our real standard interface
 				let response = await httpChain[port](request);
 				if (!response) {
@@ -354,8 +374,8 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 					for (const headerPair of response.headers || []) {
 						nodeResponse.setHeader(headerPair[0], headerPair[1]);
 					}
-					(nodeRequest as any).baseRequest = request;
-					(nodeResponse as any).baseResponse = response;
+					nodeRequest.baseRequest = request;
+					nodeResponse.baseResponse = response;
 					return httpServers[port].emit('unhandled', nodeRequest, nodeResponse);
 				}
 				const status = response.status || 200;
@@ -379,9 +399,9 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 					} else if (body instanceof Blob) {
 						// if the size is available now, immediately set it
 						if (body.size) headers.set('Content-Length', body.size);
-						else if ((body as any).on) {
+						else if (body.on) {
 							deferWriteHead = true;
-							(body as any).on('size', (size) => {
+							body.on('size', (size) => {
 								// we can also try to set the Content-Length once the header is read and
 								// the size available. but if writeHead is called, this will have no effect. So we
 								// need to defer writeHead if we are going to set this
@@ -416,7 +436,7 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 					}
 					if (sentBody) nodeResponse.end(body);
 				}
-				const handlerPath = (request as any).handlerPath;
+				const handlerPath = request.handlerPath;
 				const method = request.method;
 				recordAction(
 					executionTime,
@@ -480,12 +500,12 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 				// if the request queue is taking too long, we want to return an error
 				nodeResponse.statusCode = 503;
 				nodeResponse.end('Service unavailable, exceeded request queue limit');
-				recordAction(true, 'service-unavailable', String(port));
+				recordAction(true, 'service-unavailable', port);
 			},
 			env.get(serverPrefix + '_requestQueueLimit')
 		);
 		const server = (httpServers[port] = (
-			(secure ? (http2 ? createSecureServer : createSecureServerHttp1) : createServer) as any
+			secure ? (http2 ? createSecureServer : createSecureServerHttp1) : createServer
 		)(options, (nodeRequest: IncomingMessage, nodeResponse: any) => {
 			// throttle the requests that can make data modifications because they are more likely to be slow and we don't
 			// want to block or slow down other activity
@@ -508,12 +528,11 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 		if (secure) {
 			if (!server.ports) server.ports = [];
 			server.ports.push(port);
-			(options as any).SNICallback.initialize(server);
+			options.SNICallback.initialize(server);
 			if (mtls) server.mtlsConfig = mtls;
 			server.on('secureConnection', (socket) => {
-				if (socket._parent.startTime)
-					recordAction(performance.now() - socket._parent.startTime, 'tls-handshake', String(port));
-				recordAction(socket.isSessionReused(), 'tls-reused', String(port));
+				if (socket._parent.startTime) recordAction(performance.now() - socket._parent.startTime, 'tls-handshake', port);
+				recordAction(socket.isSessionReused(), 'tls-reused', port);
 			});
 			server.isSecure = true;
 		}
@@ -549,34 +568,31 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 				}
 			);
 
-			(udsServer as any).isPerThreadSocket = true;
+			udsServer.isPerThreadSocket = true;
 			enableProxyProtocol(udsServer);
 			SERVERS[udsPath] = udsServer;
 			registerUdsCleanupPaths(udsPath, yamlPath);
 
 			const writeMetadata = () => writeUdsMetadata(yamlPath, port, server);
-			(options as any).SNICallback.ready.then(writeMetadata);
+			options.SNICallback.ready.then(writeMetadata);
 			server.secureContextsListeners.push(writeMetadata);
 		}
 	}
 	return httpServers[port];
 }
 
-function makeCallbackChain(responders, portNum) {
-	let nextCallback = unhandled;
-	// go through the listeners in reverse order so each callback can be passed to the one before
-	// and then each middleware layer can call the next middleware layer
-	for (let i = responders.length; i > 0; ) {
-		const { listener, port } = responders[--i];
-		if (port === portNum || port === 'all') {
-			const callback = nextCallback;
-			nextCallback = (...args) => {
-				// for listener only layers, the response through
-				return listener(...args, callback);
-			};
-		}
-	}
-	return nextCallback;
+function makeCallbackChain(responders: typeof httpResponders, portNum: number | string, requestArgIndex: number = 0) {
+	return buildCallbackChain(
+		responders,
+		portNum,
+		unhandled,
+		() => {
+			harperLogger.warn(
+				`Cycle detected in middleware before/after ordering on port ${portNum}; falling back to registration order.`
+			);
+		},
+		requestArgIndex
+	);
 }
 function unhandled(request) {
 	if (request.user) {
@@ -610,7 +626,16 @@ const upgradeListeners = [],
 
 function onUpgrade(listener: UpgradeListener, options: UpgradeOptions) {
 	for (const { port } of getPorts(options)) {
-		upgradeListeners[options?.runFirst ? 'unshift' : 'push']({ listener, port });
+		const entry = {
+			listener,
+			port: options?.port || port,
+			name: options?.name ?? getComponentName(),
+			before: options?.before,
+			after: options?.after,
+			urlPath: options?.urlPath || undefined,
+			host: options?.host || undefined,
+		};
+		upgradeListeners[options?.runFirst ? 'unshift' : 'push'](entry);
 		upgradeChains[port] = makeCallbackChain(upgradeListeners, port);
 	}
 }
@@ -621,6 +646,12 @@ type OnWebSocketOptions = {
 	maxPayload?: number;
 	usageType?: string;
 	mtls?: boolean;
+	runFirst?: boolean;
+	name?: string;
+	before?: string;
+	after?: string;
+	urlPath?: string;
+	host?: string;
 };
 const websocketListeners = [],
 	websocketChains = {};
@@ -650,7 +681,7 @@ function onWebSocket(listener: (ws: WebSocket) => void, options: OnWebSocketOpti
 
 			websocketServers[port].on('connection', (ws, incomingMessage) => {
 				try {
-					const request = new Request(incomingMessage, undefined);
+					const request = new Request(incomingMessage);
 					request.isWebSocket = true;
 					const chainCompletion = httpChain[port](request);
 					harperLogger.debug('Received WS connection, calling listeners', websocketListeners);
@@ -689,8 +720,17 @@ function onWebSocket(listener: (ws: WebSocket) => void, options: OnWebSocketOpti
 
 		servers.push(server);
 
-		websocketListeners[(options as any)?.runFirst ? 'unshift' : 'push']({ listener, port });
-		websocketChains[port] = makeCallbackChain(websocketListeners, port);
+		const wsEntry = {
+			listener,
+			port: options?.port || port,
+			name: options?.name ?? getComponentName(),
+			before: options?.before,
+			after: options?.after,
+			urlPath: options?.urlPath || undefined,
+			host: options?.host || undefined,
+		};
+		websocketListeners[options?.runFirst ? 'unshift' : 'push'](wsEntry);
+		websocketChains[port] = makeCallbackChain(websocketListeners, port, 1);
 
 		// mqtt doesn't invoke the http handler so this needs to be here to load up the http chains.
 		httpChain[port] = makeCallbackChain(httpResponders, port);

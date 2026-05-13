@@ -365,7 +365,8 @@ export function initLogSettings(forceInit = false) {
 			// setup the external logger
 			externalLogger = mainLogger.forComponent('external');
 			externalLogger.tag = null; // don't tag by default
-			if (isMainThread) {
+			if (isMainThread && typeof globalThis.Bun === 'undefined') {
+				// Bun will crash with the segfault handler, ironically
 				try {
 					const SegfaultHandler = require('segfault-handler');
 					SegfaultHandler.registerHandler(join(logRoot, 'crash.log'));

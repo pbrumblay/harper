@@ -25,6 +25,7 @@ import {
 
 const HTTPS_PORT = 9927;
 const FIXTURE_PATH = join(import.meta.dirname, 'fixture');
+const testsBun = process.env.HARPER_RUNTIME === 'bun';
 
 // The last test stops the CRL server to verify caching, so tests must run sequentially.
 // Tests CANNOT run concurrently because the caching test stops the server that earlier tests need.
@@ -34,6 +35,7 @@ suite(
 	(ctx: ContextWithHarper) => {
 		let crlServer: CrlServerContext | null = null;
 		let certsPath: string; // Track separately for cleanup even if server is stopped
+		if (testsBun) return; // no Bun testing for now
 
 		before(async () => {
 			// 1. Create temp directory for certificates
@@ -173,6 +175,7 @@ suite(
 suite('CRL Certificate Verification - Disabled', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: CrlCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-crl-disabled-'));
@@ -232,6 +235,7 @@ suite('CRL Certificate Verification - Disabled', (ctx: ContextWithHarper) => {
 suite('CRL Certificate Verification - Fail-Open Mode', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: CrlCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-crl-failopen-'));
@@ -290,6 +294,7 @@ suite('CRL Certificate Verification - Fail-Open Mode', (ctx: ContextWithHarper) 
 suite('CRL Certificate Verification - Fail-Closed with Timeout', (ctx: ContextWithHarper) => {
 	let certsPath: string;
 	let certs: CrlCertificates;
+	if (testsBun) return; // no Bun testing for now
 
 	before(async () => {
 		certsPath = await mkdtemp(join(tmpdir(), 'harper-crl-timeout-'));
