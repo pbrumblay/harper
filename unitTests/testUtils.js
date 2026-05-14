@@ -342,7 +342,6 @@ function setGlobalSchema(hash_attribute, schema, table, attributes_keys) {
  * @param testPath
  */
 function setTestPath(testPath) {
-	getDatabases(); // ensure system database path is cached before changing HDB_ROOT_KEY
 	env.setProperty(terms.CONFIG_PARAMS.ROOTPATH, testPath);
 	env.setProperty(terms.HDB_SETTINGS_NAMES.HDB_ROOT_KEY, testPath);
 	env.setProperty(terms.CONFIG_PARAMS.STORAGE_PATH, path.join(testPath, 'database'));
@@ -368,9 +367,6 @@ function getMockTestPath() {
  * @returns String representing the path value to the mock lmdb system directory
  */
 function setupTestDBPath() {
-	// Load databases from the original install path before changing it, so we can preserve the
-	// system database path (databases.system is non-enumerable and survives resetDatabases).
-	getDatabases();
 	let dbPath = PID_DIR_PATH;
 	if (!fs.existsSync(dbPath)) {
 		fs.mkdirSync(dbPath, { recursive: true });
