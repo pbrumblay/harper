@@ -18,7 +18,7 @@ import * as hdbUtils from '../utility/common_utils.js';
 import * as installation from '../utility/installation.js';
 import * as configUtils from '../config/configUtils.js';
 const assignCMDENVVariables =
-        require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
+	require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
 import * as upgrade from './upgrade.js';
 import { compactOnStart, migrateOnStart } from './copyDb.js';
 import minimist from 'minimist';

@@ -77,13 +77,13 @@ interface WebSocketOptions extends ServerOptions {
 export interface UpgradeOptions extends ServerOptions {}
 
 export interface HttpOptions extends ServerOptions {
-        runFirst?: boolean;
-        logging?: {
-                id?: boolean;
-                timing?: boolean;
-                headers?: boolean;
-        };
-        lastModified?: boolean;
+	runFirst?: boolean;
+	logging?: {
+		id?: boolean;
+		timing?: boolean;
+		headers?: boolean;
+	};
+	lastModified?: boolean;
 }
 export interface ContentTypeHandler {
 	serialize(data: any): Buffer | string;

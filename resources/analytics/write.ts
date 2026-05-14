@@ -582,7 +582,9 @@ async function aggregation(fromPeriod, toPeriod = 60000) {
 		}
 	}
 	const now = Date.now();
-const { idle, active } = (globalThis as any).Bun ? { idle: 0, active: 0 } : (performance as any).eventLoopUtilization();
+	const { idle, active } = (globalThis as any).Bun
+		? { idle: 0, active: 0 }
+		: (performance as any).eventLoopUtilization();
 	// don't record boring entries
 	if (hasUpdates || active * 10 > idle) {
 		const value = {

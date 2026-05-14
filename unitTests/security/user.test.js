@@ -57,8 +57,8 @@ describe('user.ts Unit Tests', () => {
 				role: 'super_user',
 				id: 'super_user',
 				permission: {
-					super_user: true
-				}
+					super_user: true,
+				},
 			});
 		} catch (e) {}
 		await user.setUsersWithRolesCache();
@@ -172,7 +172,12 @@ describe('user.ts Unit Tests', () => {
 			await addTestUser();
 			// Manually remove hash_function from the database record and use MD5 hash
 			const hashedPassword = await password.hash(TEST_PASSWORD, 'md5');
-			await databases.system.hdb_user.put({ username: 'test_user', password: hashedPassword, role: 'super_user', active: true });
+			await databases.system.hdb_user.put({
+				username: 'test_user',
+				password: hashedPassword,
+				role: 'super_user',
+				active: true,
+			});
 			await user.setUsersWithRolesCache();
 			const result = await user.findAndValidateUser('test_user', TEST_PASSWORD);
 			expect(result.username).to.equal('test_user');

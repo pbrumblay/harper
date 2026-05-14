@@ -79,7 +79,6 @@ function startHTTPWorker(index, threadCount = 1) {
 	});
 }
 
-
 // basically, the amount of additional idleness to expect based on previous idleness (some work will continue, some
 // won't)
 const EXPECTED_IDLE_DECAY = 1000;

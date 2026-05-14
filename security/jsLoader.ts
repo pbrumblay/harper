@@ -13,8 +13,7 @@ import * as env from '../utility/environment/environmentManager';
 import * as child_process from 'node:child_process';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
 import { contentTypes } from '../server/serverHelpers/contentTypes.ts';
-import 'ses';
-
+import type {} from 'ses';
 import {
 	mkdirSync,
 	readFileSync,
