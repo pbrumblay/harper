@@ -1,9 +1,7 @@
-'use strict';
-
 import * as insert from './insert.js';
 import * as validator from '../validation/fileLoadValidator.js';
 import needle from 'needle';
-const hdbTerms = require('../utility/hdbTerms.js');
+import * as hdbTerms from '../utility/hdbTerms.js';
 import * as hdbUtils from '../utility/common_utils.js';
 import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
 import { HTTP_STATUS_CODES, HDB_ERROR_MSGS, CHECK_LOGS_WRAPPER } from '../utility/errors/commonErrors.js';

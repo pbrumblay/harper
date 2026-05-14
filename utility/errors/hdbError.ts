@@ -102,9 +102,8 @@ export function handleHDBError(
 }
 
 /**
- * Represents a general violation of validation/authorization. This should be used in situations where we are performing
- * expected verification, and we do not need to record a stack trace. This extends Error's prototype, but doesn't
- * use the native constructor to avoid stack trace capture which is several times faster.
+ * Represents a general violation of validation/authorization. This is used in situations where we are performing
+ * expected verification. Extends Error for TypeScript class compatibility.
  * @param {Object} user - user object that caused the access violation
  * @constructor
  */
@@ -116,8 +115,7 @@ export class Violation extends Error {
 }
 
 /**
- * Represents an access violation. This is used to return a 403 or 401 response to the client. Uses fast Violation class
- * to avoid stack trace capture.
+ * Represents an access violation. This is used to return a 403 or 401 response to the client.
  * @param {Object} user - user object that caused the access violation
  * @constructor
  */

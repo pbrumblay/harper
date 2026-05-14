@@ -60,7 +60,7 @@ describe('user.ts Unit Tests', () => {
 					super_user: true,
 				},
 			});
-		} catch (e) {}
+		} catch {}
 		await user.setUsersWithRolesCache();
 	});
 

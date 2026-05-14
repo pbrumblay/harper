@@ -228,9 +228,8 @@ export function getDatabases(): Databases {
 		process.env.STORAGE_PATH ||
 		getConfigPath(CONFIG_PARAMS.STORAGE_PATH) ||
 		(databasePath && (existsSync(databasePath) ? databasePath : join(getHdbBasePath(), LEGACY_DATABASES_DIR_NAME)));
-	if (!databasePath) return databases;
 	loadedDatabases = true;
-	if (existsSync(databasePath)) {
+	if (databasePath && existsSync(databasePath)) {
 		// First load all the databases from our main database folder
 		// TODO: Load any databases defined with explicit storage paths from the config
 		for (const databaseEntry of readdirSync(databasePath, { withFileTypes: true })) {

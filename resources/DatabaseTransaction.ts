@@ -343,7 +343,6 @@ export class DatabaseTransaction implements Transaction {
 					);
 				}
 				for (const write of this.writes) {
-					console.log('SYNC CLEANUP:', write?.skipped, write?.savedBlobs);
 					if (write?.skipped && write?.savedBlobs) cleanupUnusedBlobs(write.savedBlobs);
 				}
 				this.writes = [];
