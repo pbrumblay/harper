@@ -28,13 +28,14 @@ describe('Test keys module', () => {
 	let test_public_key;
 	let actual_cert;
 	let actual_ca;
+	let ca_key;
 	let root_path;
 
 	before(async function () {
 		this.timeout(10000);
 		const uniqueOrg = 'Harper-Test-' + Date.now();
 		const ca = await mkcert.createCA({
-			organization: uniqueOrg,
+			organization: uniqueOrg + "-CA",
 			countryCode: 'USA',
 			state: 'Colorado',
 			locality: 'Denver',
@@ -42,12 +43,13 @@ describe('Test keys module', () => {
 		});
 
 		let cert = await mkcert.createCert({
-			domains: [uniqueOrg, '127.0.0.1', 'localhost', '::1'],
+			domains: [uniqueOrg + "-Cert", '127.0.0.1', 'localhost', '::1'],
 			validityDays: 1,
 			ca,
 		});
 
 		test_private_key = cert.key;
+		ca_key = ca.key;
 		test_cert = cert.cert;
 		test_ca = ca.cert;
 		test_public_key = pki.certificateFromPem(ca.cert).publicKey;
@@ -73,7 +75,7 @@ describe('Test keys module', () => {
 		testUtils.preTestPrep();
 		testUtils.setupTestDBPath();
 		
-		const { resetDatabases, databases } = require('#src/resources/databases');
+		const { resetDatabases, databases } = require('#js/resources/databases');
 		resetDatabases();
 		
 		const mountHdb = require('#js/utility/mount_hdb').default;
@@ -81,6 +83,7 @@ describe('Test keys module', () => {
 		
 		if (databases.system?.hdb_certificate) {
 			await databases.system.hdb_certificate.clear();
+console.log("COUNT BEFORE LOAD CERT:", Array.from(await databases.system.hdb_certificate.search([])).length);
 		}
 
 		keys.__set__('configuredCertsLoaded', false);
@@ -173,20 +176,27 @@ describe('Test keys module', () => {
 	});
 
 	it('Test getCertAuthority happy path', async () => {
+		const all = await keys.listCertificates();
+		console.log('ALL CERTS:', all.map(c => ({ name: c.name, is_auth: c.is_authority, pk_name: c.private_key_name })));
+		console.log('EXPECTED PK NAME:', actual_ca.private_key_name);
+		keys.__get__('privateKeys').set(actual_ca.private_key_name, ca_key);
 		const getCertAuthority = keys.__get__('getCertAuthority');
 		const key_and_cert = await getCertAuthority();
 		expect(key_and_cert).to.exist;
 		expect(key_and_cert.ca).to.exist;
+		keys.__get__('privateKeys').set(actual_ca.private_key_name, test_private_key);
 	});
 
 	it('Test reviewSelfSignedCert create a new cert', async () => {
 		const set_cert_stub = sandbox.stub(keys, 'setCertTable');
 		const get_rep_rw = keys.__set__('getReplicationCert', sandbox.stub().resolves(undefined));
+		const get_ca_rw = keys.__set__('getCertAuthority', sandbox.stub().resolves({ ca: { certificate: test_ca, private_key_name: 'test' }, private_key: test_private_key }));
 		const set_cert_rw = keys.__set__('setCertTable', set_cert_stub);
 		await keys.reviewSelfSignedCert();
 		expect(set_cert_stub.called).to.be.true;
 		get_rep_rw();
 		set_cert_rw();
+		get_ca_rw();
 	});
 
 	it('Test updateConfigCert builds new cert config correctly', () => {
@@ -225,7 +235,7 @@ describe('Test keys module', () => {
 	});
 
 	it('Test setCertTable with malformed certificate - illegal ASN.1 padding', async () => {
-		const { databases } = require('#src/resources/databases');
+		const { databases } = require('#js/resources/databases');
 		keys.__set__('certificateTable', databases.system.hdb_certificate);
 		
 		const malformedCerts = [
@@ -256,7 +266,7 @@ describe('Test keys module', () => {
 	});
 
 	it('Test setCertTable with valid certificate should work', async () => {
-		const { databases } = require('#src/resources/databases');
+		const { databases } = require('#js/resources/databases');
 		keys.__set__('certificateTable', databases.system.hdb_certificate);
 		
 		const validCert = {
