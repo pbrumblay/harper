@@ -945,14 +945,14 @@ function createSpawn(spawnFunction: (...args: any) => child_process.ChildProcess
  */
 function checkAllowedModulePath(moduleUrl: string, allowedPath?: string): boolean {
 	if (moduleUrl.startsWith('file:')) {
-		let path = moduleUrl.slice(7);
+		let path = fileURLToPath(moduleUrl);
 		try {
 			path = realpathSync(path);
 		} catch {}
 		if (!allowedPath || path.startsWith(allowedPath)) {
 			return;
 		}
-		throw new Error(`Can not load module outside of allowed path`);
+		throw new Error(`Can not load module at ${path} outside of allowed path ${allowedPath}`);
 	}
 	let simpleName = moduleUrl.startsWith('node:') ? moduleUrl.slice(5) : moduleUrl;
 	simpleName = simpleName.split('/')[0];

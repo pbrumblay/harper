@@ -7,6 +7,8 @@ const { configValidator } = require('../validation/configValidator.js');
 const fs = require('fs-extra');
 const YAML = require('yaml');
 const path = require('path');
+const { threadId } = require('node:worker_threads');
+const { randomBytes } = require('node:crypto');
 const isNumber = require('is-number');
 const PropertiesReader = require('properties-reader');
 const _ = require('lodash');
@@ -89,11 +91,34 @@ function getConfigPath(param) {
 	return path.resolve(rootPath, value);
 }
 
-// Write atomically via temp file + rename so readers don't observe a truncated/empty file
+// Write atomically via temp file + rename so readers don't observe a truncated/empty file.
+// Temp path includes randomness so two worker threads in the same process (same pid) writing
+// in the same millisecond can't collide on the temp name and then race the rename.
 function atomicWriteFile(filePath, content) {
-	const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+	const tempPath = `${filePath}.${process.pid}.${threadId}.${randomBytes(4).toString('hex')}.tmp`;
 	fs.writeFileSync(tempPath, content);
-	fs.renameSync(tempPath, filePath);
+	let retries = 5;
+	while (true) {
+		try {
+			fs.renameSync(tempPath, filePath);
+			break;
+		} catch (err) {
+			if (retries > 0 && (err.code === 'EPERM' || err.code === 'EACCES')) {
+				retries--;
+				// sleep synchronously to allow the reader to close the file
+				const start = Date.now();
+				while (Date.now() - start < 10) {}
+				continue;
+			}
+			// if it fails we should clean up the tmp file
+			try {
+				fs.unlinkSync(tempPath);
+			} catch {
+				// ignore cleanup errors
+			}
+			throw err;
+		}
+	}
 }
 
 /**

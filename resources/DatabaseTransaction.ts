@@ -157,7 +157,13 @@ export class DatabaseTransaction implements Transaction {
 		this.writes.push(operation);
 		if (!operation.deferSave) {
 			// Setting saved to false means to defer saving
-			this.save(operation);
+			const saveResult = this.save(operation);
+			if (saveResult?.then) {
+				// When the transaction is already committed (immediateCommit path), save() returns
+				// the commit promise. Propagate it so callers can await the actual write being
+				// committed rather than resolving before it is durable.
+				return saveResult.then(() => operation);
+			}
 		}
 		return operation;
 	}
@@ -255,7 +261,14 @@ export class DatabaseTransaction implements Transaction {
 						if (this.writes.length > 0) {
 							commitResolution = transaction.commit();
 						} else {
-							commitResolution = transaction.abort();
+							try {
+								commitResolution = transaction.abort();
+							} catch {
+								// The transaction has uncommitted writes that were already cleared from
+								// this.writes by a concurrent immediate-commit path (e.g. writes made with
+								// an explicitly-reused closed transaction). Those writes are handled by the
+								// concurrent commit, so there is nothing left to do here.
+							}
 						}
 					}
 				}
