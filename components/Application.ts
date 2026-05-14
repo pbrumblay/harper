@@ -132,10 +132,17 @@ export async function extractApplication(application: Application) {
 	let tarballPath: string;
 	let tarball: Readable;
 	if (application.payload) {
-		// Given a payload, create a Readable from the Buffer or string
-		tarball = Readable.from(
-			application.payload instanceof Buffer ? application.payload : Buffer.from(application.payload, 'base64')
-		);
+		const payload = application.payload;
+		if (payload instanceof Readable) {
+			// Stream payloads (e.g. multipart file part from the operations API) are piped
+			// straight into extraction so multi-GB components don't have to materialize as a Buffer.
+			tarball = payload;
+		} else if (typeof payload === 'string') {
+			// base64 string payload
+			tarball = Readable.from(Buffer.from(payload, 'base64'));
+		} else {
+			tarball = Readable.from(payload);
+		}
 	} else {
 		// Given a package, there are a a couple options
 		const parentDirPath = dirname(application.dirPath);
@@ -411,14 +418,14 @@ export async function installApplication(application: Application) {
 
 interface ApplicationOptions {
 	name: string;
-	payload?: Buffer | string;
+	payload?: Buffer | string | Readable;
 	packageIdentifier?: string;
 	install?: { command?: string; timeout?: number; allowInstallScripts?: boolean };
 }
 
 export class Application {
 	name: string;
-	payload?: Buffer | string;
+	payload?: Buffer | string | Readable;
 	packageIdentifier?: string;
 	install?: { command?: string; timeout?: number; allowInstallScripts?: boolean };
 	dirPath: string;

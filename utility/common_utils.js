@@ -823,8 +823,16 @@ function httpRequest(options, data) {
 			reject(err);
 		});
 
-		req.write(data instanceof Buffer ? data : JSON.stringify(data));
-		req.end();
+		// A Readable body is streamed with chunked transfer-encoding (e.g. multipart deploys
+		// over the 2 GB Buffer cap); .pipe also takes care of closing the request when the
+		// source ends. Everything else is sent as a single write.
+		if (data && typeof data.pipe === 'function') {
+			data.on('error', reject);
+			data.pipe(req);
+		} else {
+			req.write(data instanceof Buffer ? data : JSON.stringify(data));
+			req.end();
+		}
 	});
 }
 
