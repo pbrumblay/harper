@@ -8,7 +8,7 @@ import log from '../logging/harper_logger.js';
 import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
 import DBIDefinition from './DBIDefinition.js';
 import { OpenDBIObject } from './OpenDBIObject.js';
-const OpenEnvironmentObject = require('./OpenEnvironmentObject.js');
+const OpenEnvironmentObject = require('./OpenEnvironmentObject.js').default || require('./OpenEnvironmentObject.js');
 import * as lmdbTerms from './terms.js';
 import * as hdbTerms from '../hdbTerms.js';
 import { resetDatabases } from '../../resources/databases.js';

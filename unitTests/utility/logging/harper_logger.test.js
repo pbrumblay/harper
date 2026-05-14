@@ -141,7 +141,7 @@ describe('Test harper_logger module', () => {
 			test_error.code = 'EACCES';
 			const harper_logger = requireUncached(HARPER_LOGGER_MODULE);
 			const properties_reader_stub = sandbox.stub().throws(test_error);
-			harper_logger.__set__('properties_reader_1', { default: properties_reader_stub });
+			harper_logger.__set__('PropertiesReader', properties_reader_stub);
 			const error_stub = sandbox.stub();
 			const error_rw = harper_logger.__set__('error', error_stub);
 			harper_logger.__set__('hdbProperties', undefined);
@@ -825,7 +825,7 @@ describe('Test harper_logger module', () => {
 			this.externalLogger.level = 1;
 		});
 		it('Test using the global logger', async () => {
-			harperLoggerModule.warn('Test of the global logger');
+			harperLoggerModule.externalLogger.warn('Test of the global logger');
 
 			// Wait for the log to be written
 			await new Promise((resolve) => setTimeout(resolve, 100));
