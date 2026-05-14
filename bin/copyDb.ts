@@ -469,6 +469,10 @@ async function copyDbToRocks(sourceRootStore, sourceDatabase: string, targetPath
 					} of sourceDbi.getRange({ start, transaction, versions: true })) {
 						try {
 							start = key;
+							if (typeof key === 'symbol') {
+								skippedRecord++;
+								continue;
+							}
 							if (value == null) {
 								skippedRecord++;
 								continue;
@@ -509,6 +513,9 @@ async function copyDbToRocks(sourceRootStore, sourceDatabase: string, targetPath
 					for (const { key, value } of sourceDbi.getRange({ start, transaction })) {
 						try {
 							start = key;
+							if (typeof key === 'symbol') {
+								continue;
+							}
 							written = targetDbi.put(key, value);
 							recordsCopied++;
 							if (transaction.openTimer) transaction.openTimer = 0;
