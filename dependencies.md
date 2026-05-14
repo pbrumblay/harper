@@ -159,3 +159,15 @@ Generally, dependencies are added by simply adding them to the dependencies list
 - Can be deferred: Yes, only loaded when certificate verification is enabled (loaded with pkijs)
 - Binary compilation: No
 - Eventual removal: Required as long as we use pkijs. Could be replaced if Node.js adds native ASN.1 parsing or if we implement our own X.509 parser.
+
+## busboy
+
+- Need for usage: Streaming multipart/form-data parser for the operations API. Required so `deploy_component` payloads can exceed the Node.js 2 GB Buffer cap by being piped straight into extraction (gunzip + tar-fs) instead of buffered. Used only on the operations API ingest path; outbound multipart bodies on the CLI are formatted inline in `bin/multipartBuilder.ts` and do not depend on busboy.
+- Size/memory cost: ~50 KB on disk including its sole transitive dep `streamsearch` (~7 KB). Memory overhead is per-request and bounded by busboy's configured `fieldSize`/`fields` limits plus the natural backpressure of the file Readable it emits.
+- Security: No CVEs against busboy ≥ 1.0. Pre-1.0 had a couple of low-severity DoS reports against the field/parts limits, all fixed by the configurable limits we now use (`fieldSize`, `fields`, `files`). Active maintenance by the Fastify org (busboy is the underpinning of @fastify/multipart and most Node multipart implementations).
+- Environment interaction: None. Pure Node streams, no global mutation, no polyfills.
+- Overlap: None. Node's built-in HTTP/streams don't parse multipart. Alternatives considered: `@fastify/multipart` (adds Fastify-specific decorators we don't need and steers towards the buffered-file model we're trying to avoid), `formidable` (heavier, file-to-disk by default), and writing our own parser (multipart edge cases like nested boundaries, quoted parameters, and CRLF/LF tolerance are not worth re-implementing). busboy gives us the precise low-level event model — field/file with Readable — that the operations API needs.
+- Transitive dependencies: `streamsearch` only (also Fastify-maintained).
+- Binary compilation: No.
+- Can be deferred: The require happens only when `server/serverHelpers/multipartParser.ts` is imported, which is loaded by `registerContentHandlers` at operations-server boot. Realistically always loaded.
+- Eventual removal: Could be replaced by writing our own streaming multipart parser (a few hundred lines plus tests for edge cases) if maintenance ever lapses, or by Node.js's `request.formData()` once that API supports streaming file parts without buffering (currently it doesn't on the standard Node http server interface used by Fastify).

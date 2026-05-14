@@ -135,6 +135,45 @@ describe('multipartParser', () => {
 		queueMicrotask(() => stream.destroy(new Error('socket reset')));
 		await assert.rejects(promise, /socket reset/);
 	});
+
+	it('propagates a rawStream error mid-file by destroying body.payload so consumers do not hang', function (testDone) {
+		// Reproduces the leak fixed at server/serverHelpers/multipartParser.ts:106 —
+		// a socket reset mid-upload (after the file part has started, i.e. after `done` has
+		// already fired) used to leave busboy and the file Readable open forever, so a
+		// downstream `pipeline(payload, gunzip(), extract(...))` would hang indefinitely.
+		this.timeout(5000);
+		const boundary = '----HarperMultipartLeakTest';
+		const headerThroughFileStart =
+			`--${boundary}\r\n` +
+			`Content-Disposition: form-data; name="operation"\r\n` +
+			`\r\n` +
+			`deploy_component\r\n` +
+			`--${boundary}\r\n` +
+			`Content-Disposition: form-data; name="payload"; filename="package.tar.gz"\r\n` +
+			`Content-Type: application/gzip\r\n` +
+			`\r\n` +
+			`first-chunk-of-file-bytes`;
+		const raw = new PassThrough();
+		raw.on('error', () => {}); // we deliberately destroy raw with an error below
+		parse(`multipart/form-data; boundary=${boundary}`, raw)
+			.then((body) => {
+				assert.ok(body.payload, 'file part should have been dispatched');
+				let errored = false;
+				body.payload.on('error', (err) => {
+					errored = true;
+					assert.match(err.message, /(socket reset|Request stream error)/);
+				});
+				body.payload.on('close', () => {
+					if (!errored) return testDone(new Error('body.payload closed without an error event'));
+					testDone();
+				});
+				body.payload.resume();
+				// Simulate a socket reset mid-upload.
+				raw.destroy(new Error('socket reset'));
+			})
+			.catch(testDone);
+		raw.write(headerThroughFileStart);
+	});
 });
 
 // Quiet eslint about unused `once`

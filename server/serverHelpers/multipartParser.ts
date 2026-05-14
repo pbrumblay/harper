@@ -103,7 +103,20 @@ export function parseMultipartRequest(
 		if (!doneCalled) callDone(null, body);
 	});
 
-	rawStream.on('error', (err) => callDone(toClientError(err, 'Request stream error')));
+	rawStream.on('error', (err) => {
+		const clientErr = toClientError(err, 'Request stream error');
+		// If `done` hasn't fired yet, the route handler hasn't started and this surfaces as a
+		// dispatch error. If it has — i.e. the file part is mid-stream — `callDone` is a no-op
+		// but the file Readable already handed out as `body.payload` is its own object that
+		// `bb.destroy()` does NOT propagate to. We have to destroy it explicitly, otherwise
+		// the consumer (`pipeline(tarball, gunzip(), extract(...))` in Application.ts) hangs
+		// until TCP keepalives close the socket. Node's `.pipe()` doesn't forward errors from
+		// source to destination either, hence we don't rely on it here.
+		callDone(clientErr);
+		const payload = body.payload as (Readable & { destroyed?: boolean }) | undefined;
+		if (payload && !payload.destroyed) payload.destroy(clientErr);
+		bb.destroy(clientErr);
+	});
 
 	rawStream.pipe(bb);
 }
