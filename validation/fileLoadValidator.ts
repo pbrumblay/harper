@@ -1,11 +1,11 @@
 const clone = require('clone');
 import * as validator from './validationWrapper.ts';
-const commonUtils = require('../utility/common_utils.ts');
+import * as commonUtils from '../utility/common_utils.ts';
 import * as hdbTerms from '../utility/hdbTerms.ts';
 const fs = require('fs');
 const joi = require('joi');
 const { string } = joi.types();
-const { hdbErrors, handleHDBError } = require('../utility/errors/hdbError.ts');
+import { hdbErrors, handleHDBError } from '../utility/errors/hdbError.ts';
 const { HTTP_STATUS_CODES } = hdbErrors;
 
 import { commonValidators } from './common_validators.ts';

@@ -346,7 +346,7 @@ async function getRecords(exportObject: any) {
 			break;
 		case 'sql': {
 			if (!pSql) {
-				const sql = require('../sqlTranslator/index.ts');
+				const sql = require('../sqlTranslator/index');
 				pSql = promisify(sql.evaluateSQL);
 			}
 			operation = pSql;

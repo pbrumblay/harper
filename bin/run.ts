@@ -1,10 +1,10 @@
 'use strict';
 
-const env = require('../utility/environment/environmentManager.ts');
+import * as env from '../utility/environment/environmentManager.ts';
 env.initSync();
 
 // This unused restart require is here so that main thread loads ITC event listener defined in restart file. Do not remove.
-require('./restart.ts');
+require('./restart');
 import * as terms from '../utility/hdbTerms.ts';
 const { CONFIG_PARAMS } = terms;
 import hdbLogger from '../utility/logging/harper_logger.ts';
@@ -18,7 +18,7 @@ import * as hdbUtils from '../utility/common_utils.ts';
 import * as installation from '../utility/installation.ts';
 import * as configUtils from '../config/configUtils.js';
 const assignCMDENVVariables =
-	require('../utility/assignCmdEnvVariables.ts').default || require('../utility/assignCmdEnvVariables.ts');
+	require('../utility/assignCmdEnvVariables').default || require('../utility/assignCmdEnvVariables');
 import * as upgrade from './upgrade.js';
 import { compactOnStart, migrateOnStart } from './copyDb.ts';
 import minimist from 'minimist';
@@ -109,7 +109,7 @@ async function initialize(calledByInstall = false, calledByMain = false) {
 
 		// If HARPER_SET_CONFIG is present, filter out any config keys that are set in it
 		// to prevent individual env vars from overriding explicit runtime configuration
-		const { filterArgsAgainstRuntimeConfig } = require('../config/harperConfigEnvVars.ts');
+		const { filterArgsAgainstRuntimeConfig } = require('../config/harperConfigEnvVars');
 		parsedArgs = filterArgsAgainstRuntimeConfig(parsedArgs);
 
 		if (!hdbUtils.isEmpty(parsedArgs) && !hdbUtils.isEmptyOrZeroLength(Object.keys(parsedArgs))) {

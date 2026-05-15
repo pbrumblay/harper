@@ -1,4 +1,4 @@
-const { hdbTable, hdbDatabase } = require('./common_validators.ts');
+import { hdbTable, hdbDatabase } from './common_validators.ts';
 import * as validator from './validationWrapper.ts';
 import Joi from 'joi';
 const INVALID_ATTRIBUTE_NAMES = {

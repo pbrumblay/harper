@@ -1,8 +1,8 @@
 'use strict';
 
-export const schemaDescribe = require('../dataLayer/schemaDescribe.ts');
-const { hdbErrors } = require('../utility/errors/hdbError.ts');
-const { getDatabases } = require('../resources/databases.ts');
+export const schemaDescribe = require('../dataLayer/schemaDescribe');
+import { hdbErrors } from '../utility/errors/hdbError.ts';
+import { getDatabases } from '../resources/databases.ts';
 
 /**
  * Checks the global hdbSchema for a schema and table

@@ -10,7 +10,7 @@ import { convertDelete as deleteTranslator } from './deleteTranslator.ts';
 const cbDeleteTranslator = util.callbackify(deleteTranslator);
 import * as alasql from 'alasql';
 import * as opAuth from '../utility/operation_authorization.ts';
-const logger = require('../utility/logging/harper_logger.ts').default || require('../utility/logging/harper_logger.ts');
+const logger = require('../utility/logging/harper_logger').default || require('../utility/logging/harper_logger');
 import alasqlFunctionImporter from './alasqlFunctionImporter.ts';
 import * as hdbUtils from '../utility/common_utils.ts';
 import * as terms from '../utility/hdbTerms.ts';

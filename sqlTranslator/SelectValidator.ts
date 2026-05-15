@@ -4,9 +4,9 @@ import RecursiveIterator from 'recursive-iterator';
 import * as alasql from 'alasql';
 import clone from 'clone';
 import * as commonUtils from '../utility/common_utils.ts';
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.ts');
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.ts';
 const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
-const { getDatabases } = require('../resources/databases.ts');
+import { getDatabases } from '../resources/databases.ts';
 
 //exclusion list for validation on group bys
 const customAggregators = ['DISTINCT_ARRAY'];

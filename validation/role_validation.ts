@@ -1,8 +1,8 @@
 const validate = require('validate.js'),
-	validator = require('./validationWrapper.ts'),
-	terms = require('../utility/hdbTerms.ts'),
-	{ validateOperations } = require('../utility/operationPermissions.ts'),
-	{ handleHDBError, hdbErrors } = require('../utility/errors/hdbError.ts');
+	validator = require('./validationWrapper'),
+	terms = require('../utility/hdbTerms'),
+	{ validateOperations } = require('../utility/operationPermissions'),
+	{ handleHDBError, hdbErrors } = require('../utility/errors/hdbError');
 
 const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
 

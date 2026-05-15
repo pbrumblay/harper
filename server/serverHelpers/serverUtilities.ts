@@ -1,5 +1,5 @@
 import * as search from '../../dataLayer/search.ts';
-const bulkLoad = require('../../dataLayer/bulkLoad.ts');
+import * as bulkLoad from '../../dataLayer/bulkLoad.ts';
 import * as schema from '../../dataLayer/schema.ts';
 import * as schemaDescribe from '../../dataLayer/schemaDescribe.ts';
 import * as delete_ from '../../dataLayer/delete.ts';
@@ -41,7 +41,7 @@ const pSearchSearch = util.promisify(search.search);
 let pEvaluateSql: (sql: string) => Promise<any>;
 function evaluateSQL(command) {
 	if (!pEvaluateSql) {
-		const sql = require('../../sqlTranslator/index.ts');
+		const sql = require('../../sqlTranslator/index');
 		pEvaluateSql = util.promisify(sql.evaluateSQL);
 	}
 	return pEvaluateSql(command);
@@ -136,7 +136,7 @@ export function chooseOperation(json: OperationRequestBody) {
 	// on all affected tables/attributes.
 	try {
 		if (json.operation === 'sql' || (json.search_operation && json.search_operation.operation === 'sql')) {
-			const sql = require('../../sqlTranslator/index.ts');
+			const sql = require('../../sqlTranslator/index');
 			const sqlStatement = json.operation === 'sql' ? json.sql : json.search_operation.sql;
 			const parsedSqlObject = sql.convertSQLToAST(sqlStatement);
 			json.parsed_sql_object = parsedSqlObject;

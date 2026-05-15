@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import log from '../utility/logging/harper_logger.ts';
 import * as os from 'os';
 const assignCMDENVVariables =
-	require('../utility/assignCmdEnvVariables.ts').default || require('../utility/assignCmdEnvVariables.ts');
+	require('../utility/assignCmdEnvVariables').default || require('../utility/assignCmdEnvVariables');
 
 const UPGRADE_PROCEED = ['yes', 'y'];
 

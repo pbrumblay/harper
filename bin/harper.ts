@@ -62,15 +62,15 @@ async function harper() {
 		case SERVICE_ACTIONS_ENUM.HELP:
 			return HELP;
 		case SERVICE_ACTIONS_ENUM.START:
-			return require('./run.ts').launch();
+			return require('./run').launch();
 		case SERVICE_ACTIONS_ENUM.INSTALL:
-			return (require('./install.ts').default || require('./install.ts'))();
+			return (require('./install').default || require('./install'))();
 		case SERVICE_ACTIONS_ENUM.STOP:
-			return (require('./stop.ts').default || require('./stop.ts'))().then(() => {
+			return (require('./stop').default || require('./stop'))().then(() => {
 				process.exit(0);
 			});
 		case SERVICE_ACTIONS_ENUM.RESTART:
-			return require('./restart.ts').restart({});
+			return require('./restart').restart({});
 		case SERVICE_ACTIONS_ENUM.VERSION:
 			return packageJson.version;
 		case SERVICE_ACTIONS_ENUM.UPGRADE:
@@ -80,15 +80,15 @@ async function harper() {
 				.upgrade(null)
 				.then(() => 'Your instance of Harper is up to date!');
 		case SERVICE_ACTIONS_ENUM.STATUS:
-			return (require('./status.ts').default || require('./status.ts'))();
+			return (require('./status').default || require('./status'))();
 		case SERVICE_ACTIONS_ENUM.RENEWCERTS:
-			return require('../security/keys.ts')
+			return require('../security/keys')
 				.renewSelfSigned()
 				.then(() => 'Successfully renewed self-signed certificates');
 		case SERVICE_ACTIONS_ENUM.COPYDB: {
 			let sourceDb = process.argv[3];
 			let targetDbPath = process.argv[4];
-			return require('./copyDb.ts').copyDb(sourceDb, targetDbPath);
+			return require('./copyDb').copyDb(sourceDb, targetDbPath);
 		}
 		case SERVICE_ACTIONS_ENUM.DEV:
 			process.env.DEV_MODE = 'true';
@@ -128,7 +128,7 @@ async function harper() {
 		}
 		// fall through
 		case undefined: // run harperdb in the foreground in standard mode
-			return require('./run.ts').main();
+			return require('./run').main();
 		default:
 			const cliApiOp = cliOperations.buildRequest();
 			logger.trace('calling cli operations with:', cliApiOp);

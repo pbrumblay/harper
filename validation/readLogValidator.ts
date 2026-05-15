@@ -7,7 +7,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { getConfigPath } = require('../config/configUtils.js');
 import * as hdbTerms from '../utility/hdbTerms.ts';
-const { LOG_LEVELS } = require('../utility/hdbTerms.ts');
+import { LOG_LEVELS } from '../utility/hdbTerms.ts';
 
 const LOG_DATE_FORMAT = 'YYYY-MM-DD hh:mm:ss';
 

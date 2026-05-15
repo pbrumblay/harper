@@ -49,7 +49,7 @@ async function restart(req: any) {
 	if (calledFromCli) {
 		const hdbPid = processMan.getHdbPid();
 		console.error(hdbPid ? 'Restarting Harper...' : 'Starting Harper...');
-		require('./run.ts').launch(true);
+		require('./run').launch(true);
 		return RESTART_RESPONSE;
 	}
 
@@ -79,7 +79,7 @@ async function restart(req: any) {
 				process.exit(0);
 			}
 			// now launch the new process and exit this process
-			require('./run.ts').launch(true);
+			require('./run').launch(true);
 		}, 50); // can't await this because it is going to do an exit(), but wait for 50ms so we give the HTTP thread a
 		// chance to return a response
 	} else {

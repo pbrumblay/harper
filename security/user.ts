@@ -82,29 +82,29 @@ export interface CRUDPermissions {
 }
 
 //requires must be declared after module.exports to avoid cyclical dependency
-const insert = require('../dataLayer/insert.ts');
-const delete_ = require('../dataLayer/delete.ts');
-const validation = require('../validation/user_validation.ts');
-const search = require('../dataLayer/search.ts');
-const signalling = require('../utility/signalling.ts');
-const hdbUtility = require('../utility/common_utils.ts');
+import * as insert from '../dataLayer/insert.ts';
+import * as delete_ from '../dataLayer/delete.ts';
+import * as validation from '../validation/user_validation.ts';
+import * as search from '../dataLayer/search.ts';
+import * as signalling from '../utility/signalling.ts';
+import * as hdbUtility from '../utility/common_utils.ts';
 const validate = require('validate.js');
-const logger = require('../utility/logging/harper_logger.ts');
+import * as logger from '../utility/logging/harper_logger.ts';
 const { promisify } = require('util');
-const env = require('../utility/environment/environmentManager.ts');
+import * as env from '../utility/environment/environmentManager.ts';
 const systemSchema = require('../json/systemSchema.json');
-const { hdbErrors, ClientError } = require('../utility/errors/hdbError.ts');
+import { hdbErrors, ClientError } from '../utility/errors/hdbError.ts';
 const { HTTP_STATUS_CODES, AUTHENTICATION_ERROR_MSGS, HDB_ERROR_MSGS } = hdbErrors;
 const { UserEventMsg } = require('../server/threads/itc.js');
 const _ = require('lodash');
-const harperLogger = require('../utility/logging/harper_logger.ts');
+import * as harperLogger from '../utility/logging/harper_logger.ts';
 
 // Need to use `.js` even for other TS files since TS compiler won't replace requires.
 // Whenever we can fix the cyclical dependency issue in this file (and switch to imports) we can use the correct file extensions.
-const password = require('../utility/password.ts');
-const { server } = require('../server/Server.ts');
-const terms = require('../utility/hdbTerms.ts');
-const { expandOperationsPerms } = require('../utility/operationPermissions.ts');
+import * as password from '../utility/password.ts';
+import { server } from '../server/Server.ts';
+import * as terms from '../utility/hdbTerms.ts';
+import { expandOperationsPerms } from '../utility/operationPermissions.ts';
 
 server.getUser = (username: string, password?: string | null): Promise<User> => {
 	return findAndValidateUser(username, password, password != null);

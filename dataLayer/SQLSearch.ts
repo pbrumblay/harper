@@ -14,10 +14,10 @@ import clone from 'clone';
 import RecursiveIterator from 'recursive-iterator';
 import log from '../utility/logging/harper_logger.ts';
 import * as commonUtils from '../utility/common_utils.ts';
-const harperBridge = require('./harperBridge/harperBridge.ts').default || require('./harperBridge/harperBridge.ts');
-const hdbTerms = require('../utility/hdbTerms.ts');
+const harperBridge = require('./harperBridge/harperBridge').default || require('./harperBridge/harperBridge');
+import * as hdbTerms from '../utility/hdbTerms.ts';
 import { hdbErrors } from '../utility/errors/hdbError.ts';
-const { getDatabases } = require('../resources/databases.ts');
+import { getDatabases } from '../resources/databases.ts';
 
 const WHERE_CLAUSE_IS_NULL = 'IS NULL';
 const SEARCH_ERROR_MSG = 'There was a problem performing this search. Please check the logs and try again.';

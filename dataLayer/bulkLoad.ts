@@ -21,7 +21,7 @@ import * as AWSConnector from '../utility/AWS/AWSConnector.js';
 import { BulkLoadFileObject, BulkLoadDataObject } from './dataObjects/BulkLoadObjects.js';
 import PermissionResponseObject from '../security/data_objects/PermissionResponseObject.ts';
 import { verifyBulkLoadAttributePerms } from '../utility/operation_authorization.ts';
-const { databases } = require('../resources/databases.ts');
+import { databases } from '../resources/databases.ts';
 import { coerceType } from '../resources/Table.ts';
 
 const CSV_NO_RECORDS_MSG = 'No records parsed from csv file.';

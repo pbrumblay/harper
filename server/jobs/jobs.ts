@@ -235,7 +235,7 @@ export async function getJobsInDateRange(jsonBody: any) {
 
 	try {
 		if (!pSqlEvaluate) {
-			const hdbSql = require('../../sqlTranslator/index.ts');
+			const hdbSql = require('../../sqlTranslator/index');
 			pSqlEvaluate = promisify(hdbSql.evaluateSQL);
 		}
 		return await pSqlEvaluate(sqlSearchObj);

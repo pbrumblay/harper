@@ -25,21 +25,21 @@ import readLog from '../utility/logging/readLog.ts';
 import * as commonUtils from './common_utils.ts';
 import * as restart from '../bin/restart.ts';
 import * as terms from './hdbTerms.ts';
-const { expandOperationsPerms } = require('./operationPermissions.ts');
+import { expandOperationsPerms } from './operationPermissions.ts';
 import * as permsTranslator from '../security/permissionsTranslator.js';
-const { systemInformation } = require('../utility/environment/systemInformation.ts');
-const tokenAuthentication = require('../security/tokenAuthentication.ts');
-const auth = require('../security/auth.ts');
+import { systemInformation } from '../utility/environment/systemInformation.ts';
+import * as tokenAuthentication from '../security/tokenAuthentication.ts';
+import * as auth from '../security/auth.ts';
 const configUtils = require('../config/configUtils.js');
 const functionsOperations = require('../components/operations.js');
-const transactionLog = require('../utility/logging/transactionLog.ts');
-const npmUtilities = require('./npmUtilities.ts');
-const analytics = require('../resources/analytics/read.ts');
-const status = require('../server/status/index.ts');
-const PermissionResponseObject = require('../security/data_objects/PermissionResponseObject.ts').default;
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.ts');
+import * as transactionLog from '../utility/logging/transactionLog.ts';
+import * as npmUtilities from './npmUtilities.ts';
+import * as analytics from '../resources/analytics/read.ts';
+import * as status from '../server/status/index.ts';
+const PermissionResponseObject = require('../security/data_objects/PermissionResponseObject').default;
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.ts';
 
-const regDeprecated = require('../resources/registrationDeprecated.ts');
+import * as regDeprecated from '../resources/registrationDeprecated.ts';
 
 const requiredPermissions = new Map();
 const DELETE_PERM = 'delete';
@@ -315,8 +315,8 @@ export function verifyPermsAST(ast, userObject, operation) {
 	}
 	try {
 		const bucket =
-			require('../sqlTranslator/sql_statement_bucket.ts').default ||
-			require('../sqlTranslator/sql_statement_bucket.ts');
+			require('../sqlTranslator/sql_statement_bucket').default ||
+			require('../sqlTranslator/sql_statement_bucket');
 		const alasql = require('alasql');
 
 		const permsResponse = new PermissionResponseObject();

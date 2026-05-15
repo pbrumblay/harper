@@ -1,6 +1,6 @@
 import * as validator from './validationWrapper.ts';
 import Joi from 'joi';
-const { hdbTable, hdbDatabase } = require('./common_validators.ts');
+import { hdbTable, hdbDatabase } from './common_validators.ts';
 
 const validationSchema = {
 	schema: hdbDatabase,

@@ -4,7 +4,7 @@
 
 'use strict';
 
-const harperBridge = require('./harperBridge/harperBridge.ts').default || require('./harperBridge/harperBridge.ts');
+const harperBridge = require('./harperBridge/harperBridge').default || require('./harperBridge/harperBridge');
 // eslint-disable-next-line no-unused-vars
 import GetBackupObject from './GetBackupObject.ts';
 import * as hdbUtils from '../utility/common_utils.ts';

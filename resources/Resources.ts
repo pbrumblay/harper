@@ -44,7 +44,7 @@ export class Resources extends Map<string, ResourceEntry> {
 			// don't provide anything more descriptive.
 			const error = new ServerError(`Conflicting paths for ${path}`);
 			logger.error(error);
-			const { ErrorResource } = require('./ErrorResource.ts');
+			const { ErrorResource } = require('./ErrorResource');
 			entry.Resource = new ErrorResource(error);
 		}
 		super.set(path, entry);
