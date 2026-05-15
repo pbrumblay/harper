@@ -9,7 +9,7 @@ import {
 	readTransactionLogValidator,
 	deleteTransactionLogsBeforeValidator,
 } from '../../validation/transactionLogValidator.ts';
-import harperBridge from '../../dataLayer/harperBridge/harperBridge.ts';
+const harperBridge = require('../../dataLayer/harperBridge/harperBridge').default;
 
 export async function readTransactionLog(req: any) {
 	const validation = readTransactionLogValidator(req);

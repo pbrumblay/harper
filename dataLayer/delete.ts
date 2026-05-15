@@ -9,7 +9,7 @@ import { promisify, callbackify } from 'util';
 import * as terms from '../utility/hdbTerms.ts';
 import * as globalSchema from '../utility/globalSchema.ts';
 const pGlobalSchema = promisify(globalSchema.getTableSchema);
-import harperBridge from './harperBridge/harperBridge.ts';
+const harperBridge = require('./harperBridge/harperBridge').default;
 import { DeleteResponseObject } from './DataLayerObjects.ts';
 import { handleHDBError } from '../utility/errors/hdbError.ts';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';

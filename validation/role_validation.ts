@@ -1,5 +1,5 @@
-import validate from 'validate.js';
-import * as validator from './validationWrapper.ts';
+const validate = require('validate.js');
+const validator = require('./validationWrapper');
 import * as terms from '../utility/hdbTerms.ts';
 import { validateOperations } from '../utility/operationPermissions.ts';
 import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.ts';

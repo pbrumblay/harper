@@ -1,6 +1,6 @@
 'use strict';
 
-import harperBridge from './harperBridge/harperBridge.ts';
+const harperBridge = require('./harperBridge/harperBridge').default;
 // eslint-disable-next-line no-unused-vars
 import ReadAuditLogObject from './ReadAuditLogObject.ts';
 import * as hdbUtils from '../utility/common_utils.ts';

@@ -5,7 +5,7 @@ import * as fs from 'fs-extra';
 import { workerData, threadId, isMainThread } from 'worker_threads';
 import * as pathModule from 'path';
 import * as YAML from 'yaml';
-import PropertiesReader from 'properties-reader';
+const PropertiesReader = require('properties-reader');
 import * as hdbTerms from '../hdbTerms.ts';
 import assignCMDENVVariables from '../assignCmdEnvVariables.ts';
 import * as os from 'os';

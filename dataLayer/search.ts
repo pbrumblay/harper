@@ -1,6 +1,6 @@
 'use strict';
 
-import harperBridge from './harperBridge/harperBridge.ts';
+const harperBridge = require('./harperBridge/harperBridge').default;
 import { transformReq } from '../utility/common_utils.ts';
 
 export async function searchByConditions(searchObject: any) {

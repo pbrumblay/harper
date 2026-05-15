@@ -6,7 +6,7 @@
 
 import * as alasql from 'alasql';
 import RecursiveIterator from 'recursive-iterator';
-import harperLogger from '../utility/logging/harper_logger.ts';
+const harperLogger = require('../utility/logging/harper_logger').default;
 import * as hdbUtils from '../utility/common_utils.ts';
 import * as terms from '../utility/hdbTerms.ts';
 
