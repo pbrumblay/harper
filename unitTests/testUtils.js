@@ -8,8 +8,7 @@ const COMMON_TEST_TERMS = require('./commonTestTerms.js');
 const systemSchema = require('../json/systemSchema.json');
 const { table: ensure_table, resetDatabases } = require('#src/resources/databases');
 const terms = require('#src/utility/hdbTerms');
-const harperBridge =
-	require('#src/dataLayer/harperBridge/harperBridge').default;
+const harperBridge = require('#src/dataLayer/harperBridge/harperBridge').default;
 const { isMainThread } = require('node:worker_threads');
 const { getDatabases, databases } = require('#src/resources/databases');
 const { handleHDBError } = require('#src/utility/errors/hdbError');

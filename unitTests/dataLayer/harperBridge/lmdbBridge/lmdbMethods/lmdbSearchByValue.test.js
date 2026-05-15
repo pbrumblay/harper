@@ -16,8 +16,7 @@ const rewire = require('rewire');
 const environment_utility = rewire('#src/utility/lmdb/environmentUtility');
 const write_utility = require('#src/utility/lmdb/writeUtility');
 const SearchObject = require('#src/dataLayer/SearchObject');
-const lmdb_search =
-	require('#src/dataLayer/harperBridge/harperBridge').default.searchByValue;
+const lmdb_search = require('#src/dataLayer/harperBridge/harperBridge').default.searchByValue;
 const hdb_terms = require('#src/utility/hdbTerms');
 const assert = require('assert');
 const fs = require('fs-extra');

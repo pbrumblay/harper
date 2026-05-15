@@ -23,8 +23,7 @@ const terms = require('#src/utility/hdbTerms');
 
 const schema = require('#src/dataLayer/schema');
 const PermissionResponseObject = require('#src/security/data_objects/PermissionResponseObject').default;
-const PermissionTableResponseObject =
-	require('#src/security/data_objects/PermissionTableResponseObject').default;
+const PermissionTableResponseObject = require('#src/security/data_objects/PermissionTableResponseObject').default;
 const PermissionAttributeResponseObject =
 	require('#src/security/data_objects/PermissionAttributeResponseObject').default;
 const { TEST_SCHEMA_OP_ERROR, TEST_OPERATION_AUTH_ERROR } = require('../commonTestErrors');

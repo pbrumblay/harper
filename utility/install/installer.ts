@@ -354,10 +354,7 @@ function checkForPromptOverride() {
 	// The config refactor meant that some config values have multiple key names (old and new). Also some of the
 	// prompts are not config file values. For this reason we search twice for any matching cmd/env vars.
 	const promptCmdenvArgs = assignCMDENVVariables(installPromptsArray);
-	const configCmdenvArgs = assignCMDENVVariables(
-		Object.keys(hdbTerms.CONFIG_PARAM_MAP),
-		true
-	);
+	const configCmdenvArgs = assignCMDENVVariables(Object.keys(hdbTerms.CONFIG_PARAM_MAP), true);
 	const overrideValues = {};
 
 	for (const install_prompt of installPromptsArray) {

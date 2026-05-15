@@ -8,8 +8,7 @@ const sinon_chai = require('sinon-chai').default;
 chai.use(sinon_chai);
 const harper_logger = require('#src/utility/logging/harper_logger');
 const user_schema = require('#src/security/user');
-const harperBridge =
-	require('#src/dataLayer/harperBridge/harperBridge').default;
+const harperBridge = require('#src/dataLayer/harperBridge/harperBridge').default;
 // Note: rewire is used to access private functions (schemaHandler, userHandler, componentStatusRequestHandler)
 // for testing validation logic, not for replacing dependencies with mocks
 const server_itc_handlers = rewire('#js/server/itc/serverHandlers');

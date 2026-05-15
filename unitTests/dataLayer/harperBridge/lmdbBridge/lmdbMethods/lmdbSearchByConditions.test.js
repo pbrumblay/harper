@@ -20,8 +20,7 @@ const environment_utility = rewire('#src/utility/lmdb/environmentUtility');
 const lmdb_terms = require('#src/utility/lmdb/terms');
 const write_utility = require('#src/utility/lmdb/writeUtility');
 const { SearchByConditionsObject, SearchCondition } = require('#src/dataLayer/SearchByConditionsObject');
-const lmdb_search =
-	require('#src/dataLayer/harperBridge/harperBridge').default.searchByConditions;
+const lmdb_search = require('#src/dataLayer/harperBridge/harperBridge').default.searchByConditions;
 const assert = require('assert');
 const fs = require('fs-extra');
 const sinon = require('sinon');

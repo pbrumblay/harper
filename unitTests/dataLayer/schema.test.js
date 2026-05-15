@@ -20,8 +20,7 @@ let insert = require('#src/dataLayer/insert');
 const logger = require('#src/utility/logging/harper_logger');
 const schema_metadata_validator = require('#src/validation/schemaMetadataValidator');
 const { cloneDeep } = require('lodash');
-const harperBridge =
-	require('#src/dataLayer/harperBridge/harperBridge').default;
+const harperBridge = require('#src/dataLayer/harperBridge/harperBridge').default;
 
 // Rewire is used at times as stubbing alone doesn't work when stubbing a function
 // being called inside another function declared within the same file.

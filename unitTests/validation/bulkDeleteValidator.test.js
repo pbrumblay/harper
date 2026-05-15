@@ -2,8 +2,7 @@
 
 const chai = require('chai');
 const { expect } = chai;
-const bulkDeleteValidator =
-	require('#src/validation/bulkDeleteValidator').default;
+const bulkDeleteValidator = require('#src/validation/bulkDeleteValidator').default;
 
 describe('Test bulkDeleteValidator module', () => {
 	it('Test table required returned', () => {

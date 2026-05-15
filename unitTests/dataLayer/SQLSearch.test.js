@@ -13,8 +13,7 @@ const sinon = require('sinon');
 
 const SQLSearch = require('#src/dataLayer/SQLSearch').default;
 console.log('SQLSearch IS', SQLSearch);
-const harperBridge =
-	require('#src/dataLayer/harperBridge/harperBridge').default;
+const harperBridge = require('#src/dataLayer/harperBridge/harperBridge').default;
 const log = require('#src/utility/logging/harper_logger');
 const hdb_utils = require('#src/utility/common_utils');
 

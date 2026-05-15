@@ -4,8 +4,7 @@ const chai = require('chai');
 const { expect } = chai;
 const sinon = require('sinon');
 const fs = require('fs-extra');
-const installValidator =
-	require('#src/validation/installValidator').default;
+const installValidator = require('#src/validation/installValidator').default;
 
 describe('Test installValidator module', () => {
 	const sandbox = sinon.createSandbox();

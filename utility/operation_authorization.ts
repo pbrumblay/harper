@@ -315,8 +315,7 @@ export function verifyPermsAST(ast, userObject, operation) {
 	}
 	try {
 		const bucket =
-			require('../sqlTranslator/sql_statement_bucket').default ||
-			require('../sqlTranslator/sql_statement_bucket');
+			require('../sqlTranslator/sql_statement_bucket').default || require('../sqlTranslator/sql_statement_bucket');
 		const alasql = require('alasql');
 
 		const permsResponse = new PermissionResponseObject();
