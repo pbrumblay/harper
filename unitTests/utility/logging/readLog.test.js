@@ -81,7 +81,7 @@ describe('Test readLog module', () => {
 					}
 				},
 			});
-			validator_rw = read_log.__set__('readLogValidator_js_1', { default: validator_stub });
+			validator_rw = read_log.__set__('readLogValidator_ts_1', { default: validator_stub });
 		});
 
 		after(() => {

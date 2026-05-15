@@ -24,8 +24,8 @@ describe('security/role.js', () => {
 				if (results) yield* results;
 			}
 			searchStub = sandbox.stub().returns(gen());
-			role_rw.__set__('databases', {
-				system: { hdb_role: { search: searchStub } },
+			role_rw.__set__('databases_ts_1', {
+				databases: { system: { hdb_role: { search: searchStub } } },
 			});
 		}
 
