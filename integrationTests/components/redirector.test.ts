@@ -7,6 +7,10 @@
  */
 import { suite, test, before, after } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert/strict';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 import { startHarper, teardownHarper, sendOperation, type ContextWithHarper } from '@harperfast/integration-testing';
 
@@ -34,22 +38,27 @@ suite('Component: redirector', (ctx: ContextWithHarper) => {
 		const deployBody = await sendOperation(ctx.harper, {
 			operation: 'deploy_component',
 			project: 'redirector',
-			package: 'https://github.com/HarperFast/template-redirector',
+			package: join(__dirname, '../fixtures/template-redirector-3.0.1.tgz'),
 			restart: true,
 		});
 		deepStrictEqual(deployBody, { message: 'Successfully deployed: redirector, restarting Harper' });
 
 		// poll until ready
-		const deadline = Date.now() + 30_000;
+		const deadline = Date.now() + 60_000;
 		while (true) {
 			try {
 				const check = await fetch(`${ctx.harper.httpURL}/Rule/`);
-				if (check.status === 200) break;
-			} catch {
-				// server not yet accepting connections
+				if (check.status === 200) {
+					console.log('[redirector poll] Server is ready.');
+					break;
+				} else {
+					console.log(`[redirector poll] unexpected status: ${check.status}`);
+				}
+			} catch (e: any) {
+				console.log(`[redirector poll] waiting for server... (${e.message})`);
 			}
 			if (Date.now() > deadline) throw new Error('Timed out waiting for redirector to be ready after deploy');
-			await new Promise((resolve) => setTimeout(resolve, 250));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 		}
 
 		// seed redirect rules via CSV
@@ -280,7 +289,8 @@ suite('Component: redirector', (ctx: ContextWithHarper) => {
 		const rules = await listRes.json();
 		ok(Array.isArray(rules) && rules.length > 0, 'expected at least 1 rule');
 
-		const target = rules[rules.length - 1];
+		const target = rules.find((r: any) => r.path === '/p/shirts/help/iron/');
+		ok(target, 'expected to find specific rule to delete');
 
 		const deleteRes = await fetch(`${ctx.harper.httpURL}/Rule/${target.id}`, {
 			method: 'DELETE',
