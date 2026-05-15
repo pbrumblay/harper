@@ -257,9 +257,9 @@ function listenOnPorts() {
 				listen_on = {
 					host: port.slice(0, lastColon).replace(/[[\]]/g, ''),
 					port: +port.slice(lastColon + 1),
-					reusePort: !isWindows,
+					reusePort: !isWindows && !server.noReusePort,
 				};
-			else listen_on = { port: +port, host: '::', reusePort: !isWindows };
+			else listen_on = { port: +port, host: '::', reusePort: !isWindows && !server.noReusePort };
 			if (isNaN(listen_on.port)) continue;
 		} catch (error) {
 			harperLogger.error(`Unable to bind to port ${port}`, error);
@@ -272,7 +272,14 @@ function listenOnPorts() {
 						resolve({ port, name: server.name, protocol_name: server.protocol_name });
 						harperLogger.trace('Listening on port ' + port, threadId);
 					})
-					.on('error', reject);
+					.on('error', (err) => {
+						// Node.js before v20.11.1 does not properly support reusePort for net.Server —
+						// workers receive EADDRINUSE even though the main thread bound with reusePort: true.
+						// Resolve rather than reject so the worker can proceed, matching the same graceful
+						// handling already present in listenOnPortsBun().
+						if (err.code === 'EADDRINUSE') resolve({ port, name: server.name, protocol_name: server.protocol_name });
+						else reject(err);
+					});
 			})
 		);
 	}
@@ -280,6 +287,7 @@ function listenOnPorts() {
 }
 
 async function listenOnPortsBun() {
+	const isMac = process.platform === 'darwin';
 	const bunServeConfigs = httpComponent.bunServeConfigs;
 	for (let port in bunServeConfigs) {
 		const config = bunServeConfigs[port];
@@ -304,7 +312,7 @@ async function listenOnPortsBun() {
 			}
 			const serveOptions = {
 				port: portNumber,
-				reusePort: !isWindows,
+				reusePort: !isWindows && !isMac,
 				fetch: config.fetch,
 			};
 			if (portHostname) serveOptions.hostname = portHostname;
@@ -416,7 +424,7 @@ async function listenOnPortsBun() {
 				listening.push(
 					new Promise((resolve, reject) => {
 						server
-							.listen({ port: portNum, host: rawHostname || '::' }, () => {
+							.listen({ port: portNum, host: rawHostname || (isMac ? '0.0.0.0' : '::') }, () => {
 								resolve({ port });
 								harperLogger.trace('Listening on port ' + port, threadId);
 							})
@@ -463,6 +471,7 @@ function onSocket(listener, options) {
 			listener
 		);
 		SNICallback.initialize(socketServer);
+		socketServer.noReusePort = true;
 		SERVERS[options.securePort] = socketServer;
 
 		// Create a corresponding Unix Domain Socket mirror for the secure socket
@@ -495,6 +504,7 @@ function onSocket(listener, options) {
 			keepAlive: true,
 			keepAliveInitialDelay: 600,
 		});
+		socketServer.noReusePort = true;
 		SERVERS[options.port] = socketServer;
 	}
 	return socketServer;
