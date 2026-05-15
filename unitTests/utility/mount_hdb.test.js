@@ -6,13 +6,11 @@ const rewire = require('rewire');
 const sinon = require('sinon');
 const init_paths = require('#js/dataLayer/harperBridge/lmdbBridge/lmdbUtility/initializePaths');
 const bridge =
-	require('#js/dataLayer/harperBridge/harperBridge').default ||
-	require('#js/dataLayer/harperBridge/harperBridge').default ||
-	require('#js/dataLayer/harperBridge/harperBridge').default ||
-	require('#js/dataLayer/harperBridge/harperBridge');
-const mount_hdb = rewire('#js/utility/mount_hdb');
+	require('#src/dataLayer/harperBridge/harperBridge').default.default ||
+	require('#src/dataLayer/harperBridge/harperBridge').default;
+const mount_hdb = rewire('#src/utility/mount_hdb');
 const path = require('path');
-const { get: envGet } = require('#js/utility/environment/environmentManager');
+const { get: envGet } = require('#src/utility/environment/environmentManager');
 const { CONFIG_PARAMS } = require('#src/utility/hdbTerms');
 const SEP = path.sep;
 

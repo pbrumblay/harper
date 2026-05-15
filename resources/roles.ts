@@ -1,5 +1,5 @@
 import { getDatabases } from './databases.ts';
-import { alterRole, addRole } from '../security/role.js';
+import { alterRole, addRole } from '../security/role.ts';
 import { parseDocument } from 'yaml';
 import { isEqual } from 'lodash';
 

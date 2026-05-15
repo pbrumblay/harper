@@ -1,5 +1,5 @@
 import { Readable } from 'stream';
-import * as harperLogger from '../../utility/logging/harper_logger.js';
+import * as harperLogger from '../../utility/logging/harper_logger.ts';
 import { when } from '../../utility/when.ts';
 import JSONbig from 'json-bigint-fixes';
 const JSONbigint = JSONbig({ useNativeBigInt: true });

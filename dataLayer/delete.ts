@@ -1,18 +1,18 @@
 'use strict';
 
-import bulkDeleteValidator from '../validation/bulkDeleteValidator.js';
-import deleteValidator from '../validation/deleteValidator.js';
-import * as commonUtils from '../utility/common_utils.js';
+import bulkDeleteValidator from '../validation/bulkDeleteValidator.ts';
+import deleteValidator from '../validation/deleteValidator.ts';
+import * as commonUtils from '../utility/common_utils.ts';
 import moment from 'moment';
-import harperLogger from '../utility/logging/harper_logger.js';
+import harperLogger from '../utility/logging/harper_logger.ts';
 import { promisify, callbackify } from 'util';
-const terms = require('../utility/hdbTerms.js');
-import * as globalSchema from '../utility/globalSchema.js';
+const terms = require('../utility/hdbTerms.ts');
+import * as globalSchema from '../utility/globalSchema.ts';
 const pGlobalSchema = promisify(globalSchema.getTableSchema);
-const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
-import { DeleteResponseObject } from './DataLayerObjects.js';
-import { handleHDBError } from '../utility/errors/hdbError.js';
-import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+const harperBridge = require('./harperBridge/harperBridge.ts').default || require('./harperBridge/harperBridge.ts');
+import { DeleteResponseObject } from './DataLayerObjects.ts';
+import { handleHDBError } from '../utility/errors/hdbError.ts';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
 const DeleteAuditLogsBeforeResults = require('./harperBridge/lmdbBridge/lmdbMethods/DeleteAuditLogsBeforeResults.js');
 

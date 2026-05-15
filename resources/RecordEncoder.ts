@@ -15,7 +15,7 @@ import {
 	ACTION_32_BIT,
 	HAS_ADDITIONAL_AUDIT_REFS as HAS_ADDITIONAL_AUDIT_REFS_AUDIT,
 } from './auditStore.ts';
-import * as harperLogger from '../utility/logging/harper_logger.js';
+import * as harperLogger from '../utility/logging/harper_logger.ts';
 import './blob.ts';
 import { blobsWereEncoded, decodeFromDatabase, deleteBlobsInObject, encodeBlobsWithFilePath } from './blob.ts';
 import { getThisNodeId } from './nodeIdMapping.ts';

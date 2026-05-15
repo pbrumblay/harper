@@ -1,7 +1,7 @@
 import { isMainThread } from 'node:worker_threads';
 import fg from 'fast-glob';
 import { Resources } from '../resources/Resources.ts';
-import harperLogger from '../utility/logging/harper_logger.js';
+import harperLogger from '../utility/logging/harper_logger.ts';
 import { resolveBaseURLPath } from './resolveBaseURLPath.ts';
 import { deriveGlobOptions, FastGlobOptions, FilesOption } from './deriveGlobOptions.ts';
 import { basename, join } from 'node:path';

@@ -1,14 +1,14 @@
 'use strict';
 
-import * as hdbTerms from '../hdbTerms.js';
-import hdbLogger from './harper_logger.js';
-import validator from '../../validation/readLogValidator.js';
+import * as hdbTerms from '../hdbTerms.ts';
+import hdbLogger from './harper_logger.ts';
+import validator from '../../validation/readLogValidator.ts';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { once } from 'events';
 import { getConfigPath } from '../../config/configUtils.js';
-import { handleHDBError, hdbErrors } from '../errors/hdbError.js';
-import { server } from '../../server/Server.js';
+import { handleHDBError, hdbErrors } from '../errors/hdbError.ts';
+import { server } from '../../server/Server.ts';
 
 const DEFAULT_READ_LOG_LIMIT = 1000;
 const ESTIMATED_AVERAGE_ENTRY_SIZE = 200;

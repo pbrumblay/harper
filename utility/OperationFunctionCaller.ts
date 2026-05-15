@@ -1,7 +1,7 @@
 'use strict';
 
-import log from './logging/harper_logger.js';
-import * as terms from './hdbTerms.js';
+import log from './logging/harper_logger.ts';
+import * as terms from './hdbTerms.ts';
 
 /**
  * Calls the operation function specified in the parameter with the input specified in the parameter.  Once complete,

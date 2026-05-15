@@ -10,36 +10,36 @@
  * The requiredPermissions member contains the permissions needed for each operation.  Any new operations added to
  * Harper need to have operations specified in here or they will never pass the permissions checks.
  * */
-import * as write from '../dataLayer/insert.js';
-import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from './errors/commonErrors.js';
-import * as search from '../dataLayer/search.js';
-import * as schema from '../dataLayer/schema.js';
-import * as schemaDescribe from '../dataLayer/schemaDescribe.js';
-import * as delete_ from '../dataLayer/delete.js';
-import readAuditLog from '../dataLayer/readAuditLog.js';
-import getBackup from '../dataLayer/getBackup.js';
-import * as user from '../security/user.js';
-import * as role from '../security/role.js';
-import harperLogger from '../utility/logging/harper_logger.js';
-import readLog from '../utility/logging/readLog.js';
-import * as commonUtils from './common_utils.js';
-import * as restart from '../bin/restart.js';
-import * as terms from './hdbTerms.js';
-const { expandOperationsPerms } = require('./operationPermissions.js');
+import * as write from '../dataLayer/insert.ts';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from './errors/commonErrors.ts';
+import * as search from '../dataLayer/search.ts';
+import * as schema from '../dataLayer/schema.ts';
+import * as schemaDescribe from '../dataLayer/schemaDescribe.ts';
+import * as delete_ from '../dataLayer/delete.ts';
+import readAuditLog from '../dataLayer/readAuditLog.ts';
+import getBackup from '../dataLayer/getBackup.ts';
+import * as user from '../security/user.ts';
+import * as role from '../security/role.ts';
+import harperLogger from '../utility/logging/harper_logger.ts';
+import readLog from '../utility/logging/readLog.ts';
+import * as commonUtils from './common_utils.ts';
+import * as restart from '../bin/restart.ts';
+import * as terms from './hdbTerms.ts';
+const { expandOperationsPerms } = require('./operationPermissions.ts');
 import * as permsTranslator from '../security/permissionsTranslator.js';
-const { systemInformation } = require('../utility/environment/systemInformation.js');
-const tokenAuthentication = require('../security/tokenAuthentication.js');
-const auth = require('../security/auth.js');
+const { systemInformation } = require('../utility/environment/systemInformation.ts');
+const tokenAuthentication = require('../security/tokenAuthentication.ts');
+const auth = require('../security/auth.ts');
 const configUtils = require('../config/configUtils.js');
 const functionsOperations = require('../components/operations.js');
-const transactionLog = require('../utility/logging/transactionLog.js');
-const npmUtilities = require('./npmUtilities.js');
-const analytics = require('../resources/analytics/read.js');
-const status = require('../server/status/index.js');
-const PermissionResponseObject = require('../security/data_objects/PermissionResponseObject.js').default;
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
+const transactionLog = require('../utility/logging/transactionLog.ts');
+const npmUtilities = require('./npmUtilities.ts');
+const analytics = require('../resources/analytics/read.ts');
+const status = require('../server/status/index.ts');
+const PermissionResponseObject = require('../security/data_objects/PermissionResponseObject.ts').default;
+const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.ts');
 
-const regDeprecated = require('../resources/registrationDeprecated.js');
+const regDeprecated = require('../resources/registrationDeprecated.ts');
 
 const requiredPermissions = new Map();
 const DELETE_PERM = 'delete';
@@ -315,8 +315,8 @@ export function verifyPermsAST(ast, userObject, operation) {
 	}
 	try {
 		const bucket =
-			require('../sqlTranslator/sql_statement_bucket.js').default ||
-			require('../sqlTranslator/sql_statement_bucket.js');
+			require('../sqlTranslator/sql_statement_bucket.ts').default ||
+			require('../sqlTranslator/sql_statement_bucket.ts');
 		const alasql = require('alasql');
 
 		const permsResponse = new PermissionResponseObject();

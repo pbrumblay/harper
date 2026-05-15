@@ -1,13 +1,13 @@
 'use strict';
 
 import Joi from 'joi';
-import * as validator from './validationWrapper.js';
+import * as validator from './validationWrapper.ts';
 const moment = require('moment');
 const fs = require('fs-extra');
 const path = require('path');
 const { getConfigPath } = require('../config/configUtils.js');
-import * as hdbTerms from '../utility/hdbTerms.js';
-const { LOG_LEVELS } = require('../utility/hdbTerms.js');
+import * as hdbTerms from '../utility/hdbTerms.ts';
+const { LOG_LEVELS } = require('../utility/hdbTerms.ts');
 
 const LOG_DATE_FORMAT = 'YYYY-MM-DD hh:mm:ss';
 

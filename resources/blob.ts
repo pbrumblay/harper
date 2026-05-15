@@ -34,7 +34,7 @@ import type { StatsFs } from 'node:fs';
 import { createDeflate, deflate } from 'node:zlib';
 import { Readable, pipeline } from 'node:stream';
 import { ensureDirSync } from 'fs-extra';
-import { get as envGet, getHdbBasePath } from '../utility/environment/environmentManager.js';
+import { get as envGet, getHdbBasePath } from '../utility/environment/environmentManager.ts';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
 import { join, dirname } from 'path';
 import { logger } from '../utility/logging/logger.ts';

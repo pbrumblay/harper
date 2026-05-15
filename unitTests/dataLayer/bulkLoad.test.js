@@ -10,16 +10,15 @@ const sinon = require('sinon');
 const sinon_chai = require('sinon-chai').default;
 chai.use(sinon_chai);
 const rewire = require('rewire');
-let bulkLoad_rewire = rewire('#js/dataLayer/bulkLoad');
+let bulkLoad_rewire = rewire('#src/dataLayer/bulkLoad');
 const PermissionResponseObject =
-	require('#js/security/data_objects/PermissionResponseObject').default ||
-	require('#js/security/data_objects/PermissionResponseObject');
+	require('#src/security/data_objects/PermissionResponseObject').default;
 const hdb_terms = require('#src/utility/hdbTerms');
-const hdb_utils = require('#js/utility/common_utils');
-const validator = require('#js/validation/fileLoadValidator');
-const insert = require('#js/dataLayer/insert');
-const logger = require('#js/utility/logging/harper_logger');
-const env = require('#js/utility/environment/environmentManager');
+const hdb_utils = require('#src/utility/common_utils');
+const validator = require('#src/validation/fileLoadValidator');
+const insert = require('#src/dataLayer/insert');
+const logger = require('#src/utility/logging/harper_logger');
+const env = require('#src/utility/environment/environmentManager');
 const path = require('path');
 const { EventEmitter } = require('events');
 const papa_parse = require('papaparse');
@@ -584,7 +583,7 @@ describe.skip('Test bulkLoad.js', () => {
 
 		after(() => {
 			sandbox.restore();
-			bulkLoad_rewire = rewire('#js/dataLayer/bulkLoad');
+			bulkLoad_rewire = rewire('#src/dataLayer/bulkLoad');
 			global.hdb_schema = undefined;
 		});
 
@@ -679,7 +678,7 @@ describe.skip('Test bulkLoad.js', () => {
 
 		after(() => {
 			sandbox.restore();
-			bulkLoad_rewire = rewire('#js/dataLayer/bulkLoad');
+			bulkLoad_rewire = rewire('#src/dataLayer/bulkLoad');
 		});
 
 		it('Should call papaParse if file is CSV', async () => {
@@ -949,7 +948,7 @@ describe.skip('Test bulkLoad.js', () => {
 
 		after(() => {
 			sandbox.restore();
-			bulkLoad_rewire = rewire('#js/dataLayer/bulkLoad');
+			bulkLoad_rewire = rewire('#src/dataLayer/bulkLoad');
 		});
 
 		it('NOMINAL - Should call through and return results', async () => {

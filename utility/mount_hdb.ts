@@ -2,12 +2,12 @@
 
 const { mkdirpSync, copySync } = require('fs-extra');
 import * as path from 'path';
-import * as terms from '../utility/hdbTerms.js';
-import hdbLogger from '../utility/logging/harper_logger.js';
-import bridge from '../dataLayer/harperBridge/harperBridge.js';
+import * as terms from '../utility/hdbTerms.ts';
+import hdbLogger from '../utility/logging/harper_logger.ts';
+import bridge from '../dataLayer/harperBridge/harperBridge.ts';
 import systemSchema from '../json/systemSchema.json';
 import * as initPaths from '../dataLayer/harperBridge/lmdbBridge/lmdbUtility/initializePaths.js';
-import { PACKAGE_ROOT } from '../utility/packageUtils.js';
+import { PACKAGE_ROOT } from '../utility/packageUtils.ts';
 
 export default async function mountHdb(hdbPath: string) {
 	hdbLogger.trace('Mounting Harper');
@@ -29,7 +29,7 @@ export default async function mountHdb(hdbPath: string) {
  */
 async function createTables() {
 	const CreateTableObject =
-		require('../dataLayer/CreateTableObject.js').default || require('../dataLayer/CreateTableObject.js');
+		require('../dataLayer/CreateTableObject.ts').default || require('../dataLayer/CreateTableObject.ts');
 
 	let tables = Object.keys(systemSchema);
 

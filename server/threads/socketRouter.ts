@@ -1,6 +1,6 @@
 import { startWorker, setMonitorListener, setMainIsWorker, threadsHaveStarted } from './manageThreads.js';
 import * as hdbTerms from '../../utility/hdbTerms.ts';
-import * as harperLogger from '../../utility/logging/harper_logger.js';
+import * as harperLogger from '../../utility/logging/harper_logger.ts';
 import { recordHostname } from '../../resources/analytics/write.ts';
 import { isMainThread } from 'worker_threads';
 import { join } from 'path';

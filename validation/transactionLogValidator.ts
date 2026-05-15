@@ -1,7 +1,7 @@
 'use strict';
 
 import Joi from 'joi';
-import * as validator from './validationWrapper.js';
+import * as validator from './validationWrapper.ts';
 
 export function readTransactionLogValidator(req) {
 	const schema = Joi.object({

@@ -1,6 +1,6 @@
 'use strict';
 
-import * as hdbTerms from '../hdbTerms.js';
+import * as hdbTerms from '../hdbTerms.ts';
 
 export function parseRow(this: any, originalObject, attributes) {
 	let returnObject = Object.create(null);

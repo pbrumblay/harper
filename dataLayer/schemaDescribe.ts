@@ -1,16 +1,16 @@
 import { RocksDatabase } from '@harperfast/rocksdb-js';
 ('use strict');
 
-import logger from '../utility/logging/harper_logger.js';
-import { validateBySchema } from '../validation/validationWrapper.js';
+import logger from '../utility/logging/harper_logger.ts';
+import { validateBySchema } from '../validation/validationWrapper.ts';
 import Joi from 'joi';
-import * as hdbUtils from '../utility/common_utils.js';
-import { handleHDBError, ClientError } from '../utility/errors/hdbError.js';
-import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+import * as hdbUtils from '../utility/common_utils.ts';
+import { handleHDBError, ClientError } from '../utility/errors/hdbError.ts';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
-import * as envMngr from '../utility/environment/environmentManager.js';
+import * as envMngr from '../utility/environment/environmentManager.ts';
 envMngr.initSync();
-const { getDatabases } = require('../resources/databases.js');
+const { getDatabases } = require('../resources/databases.ts');
 import * as fs from 'fs-extra';
 
 /**

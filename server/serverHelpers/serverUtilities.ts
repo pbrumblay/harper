@@ -1,37 +1,37 @@
-import * as search from '../../dataLayer/search.js';
-const bulkLoad = require('../../dataLayer/bulkLoad.js');
-import * as schema from '../../dataLayer/schema.js';
-import * as schemaDescribe from '../../dataLayer/schemaDescribe.js';
-import * as delete_ from '../../dataLayer/delete.js';
-import readAuditLog from '../../dataLayer/readAuditLog.js';
+import * as search from '../../dataLayer/search.ts';
+const bulkLoad = require('../../dataLayer/bulkLoad.ts');
+import * as schema from '../../dataLayer/schema.ts';
+import * as schemaDescribe from '../../dataLayer/schemaDescribe.ts';
+import * as delete_ from '../../dataLayer/delete.ts';
+import readAuditLog from '../../dataLayer/readAuditLog.ts';
 import * as user from '../../security/user.ts';
-import * as role from '../../security/role.js';
+import * as role from '../../security/role.ts';
 import customFunctionOperations from '../../components/operations.js';
-import harperLogger from '../../utility/logging/harper_logger.js';
-import readLog from '../../utility/logging/readLog.js';
-import * as export_ from '../../dataLayer/export.js';
-import * as opAuth from '../../utility/operation_authorization.js';
-import * as jobs from '../jobs/jobs.js';
+import harperLogger from '../../utility/logging/harper_logger.ts';
+import readLog from '../../utility/logging/readLog.ts';
+import * as export_ from '../../dataLayer/export.ts';
+import * as opAuth from '../../utility/operation_authorization.ts';
+import * as jobs from '../jobs/jobs.ts';
 import * as terms from '../../utility/hdbTerms.ts';
-import { hdbErrors, handleHDBError } from '../../utility/errors/hdbError.js';
+import { hdbErrors, handleHDBError } from '../../utility/errors/hdbError.ts';
 const { HTTP_STATUS_CODES } = hdbErrors;
-import * as restart from '../../bin/restart.js';
+import * as restart from '../../bin/restart.ts';
 import * as util from 'util';
-import * as insert from '../../dataLayer/insert.js';
-import * as globalSchema from '../../utility/globalSchema.js';
+import * as insert from '../../dataLayer/insert.ts';
+import * as globalSchema from '../../utility/globalSchema.ts';
 import { systemInformation } from '../../utility/environment/systemInformation.ts';
-import * as jobRunner from '../jobs/jobRunner.js';
+import * as jobRunner from '../jobs/jobRunner.ts';
 import * as tokenAuthentication from '../../security/tokenAuthentication.ts';
 import * as auth from '../../security/auth.ts';
 import configUtils from '../../config/configUtils.js';
-import * as transactionLog from '../../utility/logging/transactionLog.js';
-import * as npmUtilities from '../../utility/npmUtilities.js';
+import * as transactionLog from '../../utility/logging/transactionLog.ts';
+import * as npmUtilities from '../../utility/npmUtilities.ts';
 import { _assignPackageExport } from '../../globals.js';
-import { transformReq } from '../../utility/common_utils.js';
+import { transformReq } from '../../utility/common_utils.ts';
 import { server } from '../Server.ts';
 const operationLog = harperLogger.loggerWithTag('operation');
 import * as analytics from '../../resources/analytics/read.ts';
-import * as operationFunctionCaller from '../../utility/OperationFunctionCaller.js';
+import * as operationFunctionCaller from '../../utility/OperationFunctionCaller.ts';
 import type { OperationRequest, OperationRequestBody } from '../operationsServer.ts';
 import type { Context } from '../../resources/ResourceInterface.ts';
 import * as status from '../status/index.ts';
@@ -41,7 +41,7 @@ const pSearchSearch = util.promisify(search.search);
 let pEvaluateSql: (sql: string) => Promise<any>;
 function evaluateSQL(command) {
 	if (!pEvaluateSql) {
-		const sql = require('../../sqlTranslator/index.js');
+		const sql = require('../../sqlTranslator/index.ts');
 		pEvaluateSql = util.promisify(sql.evaluateSQL);
 	}
 	return pEvaluateSql(command);
@@ -136,7 +136,7 @@ export function chooseOperation(json: OperationRequestBody) {
 	// on all affected tables/attributes.
 	try {
 		if (json.operation === 'sql' || (json.search_operation && json.search_operation.operation === 'sql')) {
-			const sql = require('../../sqlTranslator/index.js');
+			const sql = require('../../sqlTranslator/index.ts');
 			const sqlStatement = json.operation === 'sql' ? json.sql : json.search_operation.sql;
 			const parsedSqlObject = sql.convertSQLToAST(sqlStatement);
 			json.parsed_sql_object = parsedSqlObject;

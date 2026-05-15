@@ -2,17 +2,17 @@
 
 import { join } from 'node:path';
 
-import * as hdbUtil from '../../utility/common_utils.js';
-import * as hdbTerms from '../../utility/hdbTerms.js';
+import * as hdbUtil from '../../utility/common_utils.ts';
+import * as hdbTerms from '../../utility/hdbTerms.ts';
 import moment from 'moment';
-import * as bulkLoad from '../../dataLayer/bulkLoad.js';
-import log from '../../utility/logging/harper_logger.js';
-import * as jobs from './jobs.js';
-import * as hdbExport from '../../dataLayer/export.js';
-import * as hdbDelete from '../../dataLayer/delete.js';
+import * as bulkLoad from '../../dataLayer/bulkLoad.ts';
+import log from '../../utility/logging/harper_logger.ts';
+import * as jobs from './jobs.ts';
+import * as hdbExport from '../../dataLayer/export.ts';
+import * as hdbDelete from '../../dataLayer/delete.ts';
 import * as threadsStart from '../threads/manageThreads.js';
-import * as transactionLog from '../../utility/logging/transactionLog.js';
-import * as restart from '../../bin/restart.js';
+import * as transactionLog from '../../utility/logging/transactionLog.ts';
+import * as restart from '../../bin/restart.ts';
 import { parentPort, isMainThread } from 'worker_threads';
 import { onMessageByType } from '../threads/manageThreads.js';
 

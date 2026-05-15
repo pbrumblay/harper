@@ -3,11 +3,11 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import logger from '../utility/logging/harper_logger.js';
-import * as cliOperations from './cliOperations.js';
-import { packageJson } from '../utility/packageUtils.js';
+import logger from '../utility/logging/harper_logger.ts';
+import * as cliOperations from './cliOperations.ts';
+import { packageJson } from '../utility/packageUtils.ts';
 const checkNode = require('../launchServiceScripts/utility/checkNodeVersion.js');
-import * as hdbTerms from '../utility/hdbTerms.js';
+import * as hdbTerms from '../utility/hdbTerms.ts';
 const { SERVICE_ACTIONS_ENUM } = hdbTerms as any;
 if (typeof process.setSourceMapsEnabled === 'function') {
 	process.setSourceMapsEnabled(true); // this is necessary for source maps to work, at least on the main thread.
@@ -62,15 +62,15 @@ async function harper() {
 		case SERVICE_ACTIONS_ENUM.HELP:
 			return HELP;
 		case SERVICE_ACTIONS_ENUM.START:
-			return require('./run.js').launch();
+			return require('./run.ts').launch();
 		case SERVICE_ACTIONS_ENUM.INSTALL:
-			return (require('./install.js').default || require('./install.js'))();
+			return (require('./install.ts').default || require('./install.ts'))();
 		case SERVICE_ACTIONS_ENUM.STOP:
-			return (require('./stop.js').default || require('./stop.js'))().then(() => {
+			return (require('./stop.ts').default || require('./stop.ts'))().then(() => {
 				process.exit(0);
 			});
 		case SERVICE_ACTIONS_ENUM.RESTART:
-			return require('./restart.js').restart({});
+			return require('./restart.ts').restart({});
 		case SERVICE_ACTIONS_ENUM.VERSION:
 			return packageJson.version;
 		case SERVICE_ACTIONS_ENUM.UPGRADE:
@@ -80,15 +80,15 @@ async function harper() {
 				.upgrade(null)
 				.then(() => 'Your instance of Harper is up to date!');
 		case SERVICE_ACTIONS_ENUM.STATUS:
-			return (require('./status.js').default || require('./status.js'))();
+			return (require('./status.ts').default || require('./status.ts'))();
 		case SERVICE_ACTIONS_ENUM.RENEWCERTS:
-			return require('../security/keys.js')
+			return require('../security/keys.ts')
 				.renewSelfSigned()
 				.then(() => 'Successfully renewed self-signed certificates');
 		case SERVICE_ACTIONS_ENUM.COPYDB: {
 			let sourceDb = process.argv[3];
 			let targetDbPath = process.argv[4];
-			return require('./copyDb.js').copyDb(sourceDb, targetDbPath);
+			return require('./copyDb.ts').copyDb(sourceDb, targetDbPath);
 		}
 		case SERVICE_ACTIONS_ENUM.DEV:
 			process.env.DEV_MODE = 'true';
@@ -128,7 +128,7 @@ async function harper() {
 		}
 		// fall through
 		case undefined: // run harperdb in the foreground in standard mode
-			return require('./run.js').main();
+			return require('./run.ts').main();
 		default:
 			const cliApiOp = cliOperations.buildRequest();
 			logger.trace('calling cli operations with:', cliApiOp);

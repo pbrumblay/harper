@@ -1,17 +1,17 @@
-import searchValidator from '../../validation/searchValidator.js';
-import { handleHDBError, ClientError, hdbErrors } from '../../utility/errors/hdbError.js';
+import searchValidator from '../../validation/searchValidator.ts';
+import { handleHDBError, ClientError, hdbErrors } from '../../utility/errors/hdbError.ts';
 import { table, getDatabases, database, dropDatabase, type Table } from '../../resources/databases.ts';
 import insertUpdateValidate from './bridgeUtility/insertUpdateValidate.js';
-import SearchObject from '../SearchObject.js';
+import SearchObject from '../SearchObject.ts';
 import {
 	OPERATIONS_ENUM,
 	VALUE_SEARCH_COMPARATORS,
 	VALUE_SEARCH_COMPARATORS_REVERSE_LOOKUP,
 	READ_AUDIT_LOG_SEARCH_TYPES_ENUM,
 } from '../../utility/hdbTerms.ts';
-import * as signalling from '../../utility/signalling.js';
+import * as signalling from '../../utility/signalling.ts';
 import { SchemaEventMsg } from '../../server/threads/itc.js';
-import { asyncSetTimeout } from '../../utility/common_utils.js';
+import { asyncSetTimeout } from '../../utility/common_utils.ts';
 import { transaction } from '../../resources/transaction.ts';
 import type {
 	Condition,
@@ -23,9 +23,9 @@ import type {
 	Operator,
 } from '../../resources/ResourceInterface.ts';
 import { collapseData } from '../../resources/tracked.ts';
-import { errorToString } from '../../utility/logging/harper_logger.js';
+import { errorToString } from '../../utility/logging/harper_logger.ts';
 import { RocksDatabase } from '@harperfast/rocksdb-js';
-import { BridgeMethods } from './BridgeMethods.js';
+import { BridgeMethods } from './BridgeMethods.ts';
 import lmdbGetBackup from './lmdbBridge/lmdbMethods/lmdbGetBackup.js';
 import { DeleteTransactionLogsBeforeResults } from './DeleteTransactionLogsBeforeResults.ts';
 import type { Readable } from 'node:stream';

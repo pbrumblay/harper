@@ -1,5 +1,5 @@
 'use strict';
-import { OPERATIONS_ENUM } from '../utility/hdbTerms.js';
+import { OPERATIONS_ENUM } from '../utility/hdbTerms.ts';
 /**
  * This class represents the data that is passed into the Insert functions.
  */

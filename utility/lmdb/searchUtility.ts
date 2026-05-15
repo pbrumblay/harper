@@ -1,12 +1,12 @@
 'use strict';
 
-import * as environmentUtility from './environmentUtility.js';
+import * as environmentUtility from './environmentUtility.ts';
 
-import * as common from './commonUtility.js';
-import * as lmdbTerms from './terms.js';
-import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
-import * as hdbTerms from '../hdbTerms.js';
-import * as cursorFunctions from './searchCursorFunctions.js';
+import * as common from './commonUtility.ts';
+import * as lmdbTerms from './terms.ts';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.ts';
+import * as hdbTerms from '../hdbTerms.ts';
+import * as cursorFunctions from './searchCursorFunctions.ts';
 
 // eslint-disable-next-line no-unused-vars
 import * as lmdb from 'lmdb';

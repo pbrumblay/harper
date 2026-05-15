@@ -1,4 +1,4 @@
-import { ClientError } from '../utility/errors/hdbError.js';
+import { ClientError } from '../utility/errors/hdbError.ts';
 import * as crdtOperations from './crdt.ts';
 import { Blob } from './blob.ts';
 

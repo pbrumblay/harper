@@ -1,5 +1,5 @@
-const { hdbTable, hdbDatabase } = require('./common_validators.js');
-import * as validator from './validationWrapper.js';
+const { hdbTable, hdbDatabase } = require('./common_validators.ts');
+import * as validator from './validationWrapper.ts';
 import Joi from 'joi';
 const INVALID_ATTRIBUTE_NAMES = {
 	undefined: 'undefined',

@@ -1,8 +1,8 @@
 'use strict';
 
-import * as environmentUtility from './environmentUtility.js';
-import harperLogger from '../logging/harper_logger.js';
-import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
+import * as environmentUtility from './environmentUtility.ts';
+import harperLogger from '../logging/harper_logger.ts';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.ts';
 
 export default cleanLMDBMap;
 

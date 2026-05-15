@@ -1,19 +1,19 @@
 'use strict';
 
-import * as hdbTerms from '../../utility/hdbTerms.js';
-import * as hdbUtils from '../../utility/common_utils.js';
-import harperLogger from '../../utility/logging/harper_logger.js';
-import * as globalSchema from '../../utility/globalSchema.js';
-import * as user from '../../security/user.js';
-import * as serverUtils from '../serverHelpers/serverUtilities.js';
+import * as hdbTerms from '../../utility/hdbTerms.ts';
+import * as hdbUtils from '../../utility/common_utils.ts';
+import harperLogger from '../../utility/logging/harper_logger.ts';
+import * as globalSchema from '../../utility/globalSchema.ts';
+import * as user from '../../security/user.ts';
+import * as serverUtils from '../serverHelpers/serverUtilities.ts';
 import moment from 'moment';
-import * as jobs from './jobs.js';
+import * as jobs from './jobs.ts';
 import { cloneDeep } from 'lodash';
 
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
-import { getEnvBuiltInComponents } from './../../components/Application.js';
-import { PACKAGE_ROOT } from '../../utility/packageUtils.js';
+import { getEnvBuiltInComponents } from './../../components/Application.ts';
+import { PACKAGE_ROOT } from '../../utility/packageUtils.ts';
 const JOB_NAME = process.env[(hdbTerms as any).PROCESS_NAME_ENV_PROP] as string;
 const JOB_ID = JOB_NAME.substring(4);
 

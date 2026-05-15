@@ -1,35 +1,35 @@
 'use strict';
 
-const env = require('../utility/environment/environmentManager.js');
+const env = require('../utility/environment/environmentManager.ts');
 env.initSync();
 
 // This unused restart require is here so that main thread loads ITC event listener defined in restart file. Do not remove.
-require('./restart.js');
-import * as terms from '../utility/hdbTerms.js';
+require('./restart.ts');
+import * as terms from '../utility/hdbTerms.ts';
 const { CONFIG_PARAMS } = terms;
-import hdbLogger from '../utility/logging/harper_logger.js';
+import hdbLogger from '../utility/logging/harper_logger.ts';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import checkJwtTokens from '../utility/install/checkJWTTokensExist.js';
-import { install } from '../utility/install/installer.js';
+import { install } from '../utility/install/installer.ts';
 import chalk from 'chalk';
-import { packageJson } from '../utility/packageUtils.js';
-import * as hdbUtils from '../utility/common_utils.js';
-import * as installation from '../utility/installation.js';
+import { packageJson } from '../utility/packageUtils.ts';
+import * as hdbUtils from '../utility/common_utils.ts';
+import * as installation from '../utility/installation.ts';
 import * as configUtils from '../config/configUtils.js';
 const assignCMDENVVariables =
-	require('../utility/assignCmdEnvVariables.js').default || require('../utility/assignCmdEnvVariables.js');
+	require('../utility/assignCmdEnvVariables.ts').default || require('../utility/assignCmdEnvVariables.ts');
 import * as upgrade from './upgrade.js';
-import { compactOnStart, migrateOnStart } from './copyDb.js';
+import { compactOnStart, migrateOnStart } from './copyDb.ts';
 import minimist from 'minimist';
-import * as keys from '../security/keys.js';
-import { startHTTPThreads } from '../server/threads/socketRouter.js';
-import * as hdbInfoController from '../dataLayer/hdbInfoController.js';
-import { isReadOnlyMode } from '../resources/databases.js';
-import { getThisNodeName } from '../server/nodeName.js';
-import * as hdbTerms from '../utility/hdbTerms.js';
+import * as keys from '../security/keys.ts';
+import { startHTTPThreads } from '../server/threads/socketRouter.ts';
+import * as hdbInfoController from '../dataLayer/hdbInfoController.ts';
+import { isReadOnlyMode } from '../resources/databases.ts';
+import { getThisNodeName } from '../server/nodeName.ts';
+import * as hdbTerms from '../utility/hdbTerms.ts';
 import { getHdbPid, isProcessRunning } from '../utility/processManagement/processManagement.js';
-import { PACKAGE_ROOT } from '../utility/packageUtils.js';
+import { PACKAGE_ROOT } from '../utility/packageUtils.ts';
 
 let pmUtils;
 let cmdArgs;
@@ -109,7 +109,7 @@ async function initialize(calledByInstall = false, calledByMain = false) {
 
 		// If HARPER_SET_CONFIG is present, filter out any config keys that are set in it
 		// to prevent individual env vars from overriding explicit runtime configuration
-		const { filterArgsAgainstRuntimeConfig } = require('../config/harperConfigEnvVars.js');
+		const { filterArgsAgainstRuntimeConfig } = require('../config/harperConfigEnvVars.ts');
 		parsedArgs = filterArgsAgainstRuntimeConfig(parsedArgs);
 
 		if (!hdbUtils.isEmpty(parsedArgs) && !hdbUtils.isEmptyOrZeroLength(Object.keys(parsedArgs))) {

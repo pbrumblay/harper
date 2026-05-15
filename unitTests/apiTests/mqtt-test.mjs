@@ -7,7 +7,7 @@ import { once } from 'node:events';
 import { decode } from 'cbor-x';
 import { callOperation } from './utility.js';
 import { setupTestApp } from './setupTestApp.mjs';
-import environmentManager from '#js/utility/environment/environmentManager';
+import environmentManager from '#src/utility/environment/environmentManager';
 const { get: env_get, setProperty } = environmentManager;
 import { connect, connectAsync } from 'mqtt';
 import { readFileSync } from 'fs';

@@ -2,17 +2,17 @@
 
 import minimist from 'minimist';
 import { isMainThread, parentPort } from 'worker_threads';
-import * as hdbTerms from '../utility/hdbTerms.js';
-import hdbLogger from '../utility/logging/harper_logger.js';
+import * as hdbTerms from '../utility/hdbTerms.ts';
+import hdbLogger from '../utility/logging/harper_logger.ts';
 import * as processMan from '../utility/processManagement/processManagement.js';
-import { compactOnStart } from './copyDb.js';
+import { compactOnStart } from './copyDb.ts';
 import { restartWorkers, onMessageByType, shutdownWorkersNow } from '../server/threads/manageThreads.js';
-import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.ts';
 const { HTTP_STATUS_CODES } = hdbErrors;
-import * as envMgr from '../utility/environment/environmentManager.js';
+import * as envMgr from '../utility/environment/environmentManager.ts';
 import * as path from 'node:path';
 import { unlinkSync } from 'node:fs';
-import { getThisNodeName } from '../server/nodeName.js';
+import { getThisNodeName } from '../server/nodeName.ts';
 envMgr.initSync();
 
 const RESTART_RESPONSE = `Restarting Harper. This may take up to ${hdbTerms.RESTART_TIMEOUT_MS / 1000} seconds.`;
@@ -49,7 +49,7 @@ async function restart(req: any) {
 	if (calledFromCli) {
 		const hdbPid = processMan.getHdbPid();
 		console.error(hdbPid ? 'Restarting Harper...' : 'Starting Harper...');
-		require('./run.js').launch(true);
+		require('./run.ts').launch(true);
 		return RESTART_RESPONSE;
 	}
 
@@ -79,7 +79,7 @@ async function restart(req: any) {
 				process.exit(0);
 			}
 			// now launch the new process and exit this process
-			require('./run.js').launch(true);
+			require('./run.ts').launch(true);
 		}, 50); // can't await this because it is going to do an exit(), but wait for 50ms so we give the HTTP thread a
 		// chance to return a response
 	} else {

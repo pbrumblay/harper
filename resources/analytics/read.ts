@@ -1,11 +1,11 @@
 import type { Metric } from './write.ts';
-import harperLogger from '../../utility/logging/harper_logger.js';
+import harperLogger from '../../utility/logging/harper_logger.ts';
 const { forComponent } = harperLogger;
 import { getAnalyticsHostnameTable, stableNodeId } from './hostnames.ts';
 import type { Condition, Conditions } from '../ResourceInterface.ts';
 import { METRIC, type BuiltInMetricName } from './metadata.ts';
 import { CONFIG_PARAMS } from '../../utility/hdbTerms.ts';
-import { get as envGet } from '../../utility/environment/environmentManager.js';
+import { get as envGet } from '../../utility/environment/environmentManager.ts';
 
 // default to one week time window for finding custom metrics
 const defaultCustomMetricWindow = 1000 * 60 * 60 * 24 * 7;

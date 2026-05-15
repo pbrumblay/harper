@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto';
 import { parseDocument } from 'yaml';
 import { Databases, databases, table, Tables, tables } from './databases.ts';
 import { getWorkerIndex } from '../server/threads/manageThreads';
-import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
-import { ClientError } from '../utility/errors/hdbError.js';
-import harperLogger from '../utility/logging/harper_logger.js';
+import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
+import { ClientError } from '../utility/errors/hdbError.ts';
+import harperLogger from '../utility/logging/harper_logger.ts';
 import { Attribute } from './Table.ts';
 import { FileEntry } from '../components/EntryHandler.ts';
 

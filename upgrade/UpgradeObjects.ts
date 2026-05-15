@@ -1,5 +1,5 @@
 'use strict';
-import * as terms from '../utility/hdbTerms.js';
+import * as terms from '../utility/hdbTerms.ts';
 
 export class UpgradeObject {
 	[key: string]: any;

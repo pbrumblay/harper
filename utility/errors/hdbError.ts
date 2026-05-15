@@ -1,7 +1,7 @@
 'use strict';
-import logger from '../logging/harper_logger.js';
-import * as hdbErrors from './commonErrors.js';
-import * as hdbTerms from '../hdbTerms.js';
+import logger from '../logging/harper_logger.ts';
+import * as hdbErrors from './commonErrors.ts';
+import * as hdbTerms from '../hdbTerms.ts';
 
 /**
  * Custom error class used for better error and log handling.  Caught errors that evaluate to an instanceof HdbError can

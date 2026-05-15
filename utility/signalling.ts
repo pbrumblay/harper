@@ -1,7 +1,7 @@
 'use strict';
 
-import * as hdbTerms from './hdbTerms.js';
-import hdbLogger from '../utility/logging/harper_logger.js';
+import * as hdbTerms from './hdbTerms.ts';
+import hdbLogger from '../utility/logging/harper_logger.ts';
 import ITCEventObject from '../server/itc/utility/ITCEventObject.js';
 let serverItcHandlers;
 import { sendItcEvent } from '../server/threads/itc.js';

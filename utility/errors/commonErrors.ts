@@ -1,7 +1,7 @@
 'use strict';
 
-import * as hdb_terms from '../hdbTerms.js';
-import * as lmdb_terms from '../lmdb/terms.js';
+import * as hdb_terms from '../hdbTerms.ts';
+import * as lmdb_terms from '../lmdb/terms.ts';
 
 // A subset of HTTP error codes that we may use in code.
 export const HTTP_STATUS_CODES = {

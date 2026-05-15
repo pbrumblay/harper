@@ -6,10 +6,10 @@ import { workerData, threadId, isMainThread } from 'worker_threads';
 import * as pathModule from 'path';
 import * as YAML from 'yaml';
 const PropertiesReader = require('properties-reader');
-import * as hdbTerms from '../hdbTerms.js';
-import assignCMDENVVariables from '../assignCmdEnvVariables.js';
+import * as hdbTerms from '../hdbTerms.ts';
+import assignCMDENVVariables from '../assignCmdEnvVariables.ts';
 import * as os from 'os';
-import { PACKAGE_ROOT } from '../../utility/packageUtils.js';
+import { PACKAGE_ROOT } from '../../utility/packageUtils.ts';
 import { _assignPackageExport } from '../../globals.js';
 import { Console } from 'console';
 // store the native write function so we can call it after we write to the log file (and store it on process.stdout
@@ -630,7 +630,7 @@ function getFileLogger(path, rotation, isExternalInstance) {
 		setTimeout(() => {
 			logger.rotator?.end();
 			if (!rotation) return;
-			const logRotator = require('./logRotator.js');
+			const logRotator = require('./logRotator.ts');
 			try {
 				logger.rotator = logRotator({
 					logger,
@@ -922,7 +922,7 @@ export function AuthAuditLog(
 	this.path = path;
 }
 // we have to load this at the end to avoid circular dependencies problems
-import { RootConfigWatcher } from '../../config/RootConfigWatcher.js';
+import { RootConfigWatcher } from '../../config/RootConfigWatcher.ts';
 
 export const getLogFilePath = () => logFilePath;
 export const forComponent = (name: string, isExternal?: boolean) => mainLogger.forComponent(name, isExternal);

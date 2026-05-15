@@ -7,7 +7,7 @@
 import { CONFIG_PARAMS, OPERATIONS_ENUM, SYSTEM_TABLE_NAMES, SYSTEM_SCHEMA_NAME } from '../utility/hdbTerms.ts';
 import { type Database } from 'lmdb';
 import { Script } from 'node:vm';
-import { getIndexedValues } from '../utility/lmdb/commonUtility.js';
+import { getIndexedValues } from '../utility/lmdb/commonUtility.ts';
 import { getThisNodeId, exportIdMapping } from './nodeIdMapping.ts';
 import lodash from 'lodash';
 import { ExtendedIterable, SKIP } from '@harperfast/extended-iterable';
@@ -26,10 +26,10 @@ import lmdbProcessRows from '../dataLayer/harperBridge/lmdbBridge/lmdbUtility/lm
 import { Resource, transformForSelect } from './Resource.ts';
 import { when, promiseNormalize } from '../utility/when.ts';
 import { DatabaseTransaction, ImmediateTransaction, TRANSACTION_STATE } from './DatabaseTransaction.ts';
-import * as envMngr from '../utility/environment/environmentManager.js';
+import * as envMngr from '../utility/environment/environmentManager.ts';
 import { addSubscription } from './transactionBroadcast.ts';
-import { handleHDBError, ClientError, ServerError, AccessViolation } from '../utility/errors/hdbError.js';
-import * as signalling from '../utility/signalling.js';
+import { handleHDBError, ClientError, ServerError, AccessViolation } from '../utility/errors/hdbError.ts';
+import * as signalling from '../utility/signalling.ts';
 import { SchemaEventMsg, UserEventMsg } from '../server/threads/itc.js';
 import { databases, table } from './databases.ts';
 import {
@@ -46,7 +46,7 @@ import { transaction, contextStorage } from './transaction.ts';
 import { MAXIMUM_KEY, writeKey, compareKeys } from 'ordered-binary';
 import { getWorkerIndex, getWorkerCount } from '../server/threads/manageThreads.js';
 import { HAS_BLOBS, auditRetention, removeAuditEntry } from './auditStore.ts';
-import { autoCast, autoCastBooleanStrict } from '../utility/common_utils.js';
+import { autoCast, autoCastBooleanStrict } from '../utility/common_utils.ts';
 import {
 	recordUpdater,
 	removeEntry,
@@ -62,7 +62,7 @@ import fs from 'node:fs';
 import { Blob, deleteBlobsInObject, findBlobsInObject, startPreCommitBlobsForRecord } from './blob.ts';
 import { onStorageReclamation } from '../server/storageReclamation.ts';
 import { RequestTarget } from './RequestTarget.ts';
-import harperLogger from '../utility/logging/harper_logger.js';
+import harperLogger from '../utility/logging/harper_logger.ts';
 import { throttle } from '../server/throttle.ts';
 import { RocksDatabase } from '@harperfast/rocksdb-js';
 import { LMDBTransaction, ImmediateTransaction as ImmediateLMDBTransaction } from './LMDBTransaction';

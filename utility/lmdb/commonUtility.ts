@@ -1,9 +1,9 @@
 'use strict';
 
-import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.ts';
 // eslint-disable-next-line no-unused-vars
 import * as lmdb from 'lmdb';
-import * as lmdbTerms from './terms.js';
+import * as lmdbTerms from './terms.ts';
 
 const PRIMITIVES = ['number', 'string', 'symbol', 'boolean', 'bigint'];
 /**

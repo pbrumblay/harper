@@ -1,5 +1,5 @@
 import type { User } from '../security/user.ts';
-import type { RecordObject } from './RecordEncoder.js';
+import type { RecordObject } from './RecordEncoder.ts';
 import {
 	ResourceInterface,
 	SubscriptionRequest,
@@ -13,7 +13,7 @@ import { randomUUID } from 'crypto';
 import { DatabaseTransaction, type Transaction } from './DatabaseTransaction.ts';
 import { IterableEventQueue } from './IterableEventQueue.ts';
 import { _assignPackageExport } from '../globals.js';
-import { ClientError, AccessViolation } from '../utility/errors/hdbError.js';
+import { ClientError, AccessViolation } from '../utility/errors/hdbError.ts';
 import { transaction, contextStorage } from './transaction.ts';
 import { parseQuery } from './search.ts';
 import { RequestTarget } from './RequestTarget.ts';

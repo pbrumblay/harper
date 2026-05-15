@@ -6,9 +6,9 @@
  *
  * Any time a directive file is added to the project, it must be required in this manager.
  */
-import * as hdbUtils from '../../utility/common_utils.js';
-import * as hdbTerms from '../../utility/hdbTerms.js';
-import hdbLog from '../../utility/logging/harper_logger.js';
+import * as hdbUtils from '../../utility/common_utils.ts';
+import * as hdbTerms from '../../utility/hdbTerms.ts';
+import hdbLog from '../../utility/logging/harper_logger.ts';
 const { DATA_VERSION, UPGRADE_VERSION } = hdbTerms.UPGRADE_JSON_FIELD_NAMES_ENUM as any;
 
 let versions: any = new Map();

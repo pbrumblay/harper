@@ -5,7 +5,7 @@ const { setupTestDBPath } = require('../testUtils');
 const { table } = require('#src/resources/databases');
 const { setMainIsWorker } = require('#js/server/threads/manageThreads');
 const { transaction } = require('#src/resources/transaction');
-const { IterableEventQueue } = require('#js/resources/IterableEventQueue');
+const { IterableEventQueue } = require('#src/resources/IterableEventQueue');
 const { RocksDatabase } = require('@harperfast/rocksdb-js');
 const isLMDB = process.env.HARPER_STORAGE_ENGINE === 'lmdb';
 

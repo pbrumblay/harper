@@ -1,23 +1,23 @@
 'use strict';
 
-import * as schemaMetadataValidator from '../validation/schemaMetadataValidator.js';
-import { validateBySchema } from '../validation/validationWrapper.js';
-import { commonValidators, schemaRegex } from '../validation/common_validators.js';
+import * as schemaMetadataValidator from '../validation/schemaMetadataValidator.ts';
+import { validateBySchema } from '../validation/validationWrapper.ts';
+import { commonValidators, schemaRegex } from '../validation/common_validators.ts';
 import Joi from 'joi';
-import logger from '../utility/logging/harper_logger.js';
+import logger from '../utility/logging/harper_logger.ts';
 import { v4 as uuidV4 } from 'uuid';
-import * as signalling from '../utility/signalling.js';
-const hdbTerms = require('../utility/hdbTerms.js');
+import * as signalling from '../utility/signalling.ts';
+const hdbTerms = require('../utility/hdbTerms.ts');
 import * as util from 'util';
-const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
-import { handleHDBError, ClientError } from '../utility/errors/hdbError.js';
-import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+const harperBridge = require('./harperBridge/harperBridge.ts').default || require('./harperBridge/harperBridge.ts');
+import { handleHDBError, ClientError } from '../utility/errors/hdbError.ts';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
 import { SchemaEventMsg } from '../server/threads/itc.js';
-const { getDatabases, dropTableMeta } = require('../resources/databases.js');
-import { transformReq } from '../utility/common_utils.js';
-import { server } from '../server/Server.js';
-import { cleanupOrphans } from '../resources/blob.js';
+const { getDatabases, dropTableMeta } = require('../resources/databases.ts');
+import { transformReq } from '../utility/common_utils.ts';
+import { server } from '../server/Server.ts';
+import { cleanupOrphans } from '../resources/blob.ts';
 
 const DB_NAME_CONSTRAINTS = Joi.string()
 	.min(1)

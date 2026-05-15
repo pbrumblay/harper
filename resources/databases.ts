@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { initSync, getHdbBasePath, get as envGet } from '../utility/environment/environmentManager.js';
-import { INTERNAL_DBIS_NAME } from '../utility/lmdb/terms.js';
+import { initSync, getHdbBasePath, get as envGet } from '../utility/environment/environmentManager.ts';
+import { INTERNAL_DBIS_NAME } from '../utility/lmdb/terms.ts';
 import { open, compareKeys, type Database, type RootDatabase } from 'lmdb';
 import { join, extname, basename } from 'path';
 import { existsSync, readdirSync, readFileSync, mkdirSync } from 'node:fs';
@@ -10,22 +10,22 @@ import {
 	getTransactionAuditStoreBasePath,
 } from '../dataLayer/harperBridge/lmdbBridge/lmdbUtility/initializePaths.js';
 import { makeTable } from './Table.ts';
-import OpenEnvironmentObject from '../utility/lmdb/OpenEnvironmentObject.js';
+import OpenEnvironmentObject from '../utility/lmdb/OpenEnvironmentObject.ts';
 import { CONFIG_PARAMS, LEGACY_DATABASES_DIR_NAME, DATABASES_DIR_NAME } from '../utility/hdbTerms.ts';
 import { getConfigPath } from '../config/configUtils.js';
 import { _assignPackageExport } from '../globals.js';
-import { getIndexedValues } from '../utility/lmdb/commonUtility.js';
-import * as signalling from '../utility/signalling.js';
+import { getIndexedValues } from '../utility/lmdb/commonUtility.ts';
+import * as signalling from '../utility/signalling.ts';
 import { SchemaEventMsg } from '../server/threads/itc.js';
 import { workerData } from 'worker_threads';
-import harperLogger from '../utility/logging/harper_logger.js';
+import harperLogger from '../utility/logging/harper_logger.ts';
 const { forComponent } = harperLogger;
 import * as manageThreads from '../server/threads/manageThreads.js';
 import { openAuditStore, readAuditEntry, createAuditEntry, type AuditRecord } from './auditStore.ts';
 import { handleLocalTimeForGets } from './RecordEncoder.ts';
 import { deleteRootBlobPathsForDB } from './blob.ts';
 import { CUSTOM_INDEXES } from './indexes/customIndexes.ts';
-import { OpenDBIObject } from '../utility/lmdb/OpenDBIObject.js';
+import { OpenDBIObject } from '../utility/lmdb/OpenDBIObject.ts';
 import { RocksDatabase, type RocksDatabaseOptions } from '@harperfast/rocksdb-js';
 import { replayLogs } from './replayLogs.ts';
 import { totalmem } from 'node:os';

@@ -5,8 +5,8 @@ import {
 	type CommitResolution,
 } from './DatabaseTransaction';
 import { cleanupUnusedBlobs } from './blob.ts';
-import { getNextMonotonicTime } from '../utility/lmdb/commonUtility.js';
-import * as harperLogger from '../utility/logging/harper_logger.js';
+import { getNextMonotonicTime } from '../utility/lmdb/commonUtility.ts';
+import * as harperLogger from '../utility/logging/harper_logger.ts';
 import type { Context } from './ResourceInterface.ts';
 import { Transaction as RocksTransaction } from '@harperfast/rocksdb-js';
 import type { RootDatabaseKind } from './databases.ts';

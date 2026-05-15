@@ -1,8 +1,8 @@
 'use strict';
 
-import PermissionTableResponseObject from './PermissionTableResponseObject.js';
-import PermissionAttributeResponseObject from './PermissionAttributeResponseObject.js';
-import { HDB_ERROR_MSGS } from '../../utility/errors/commonErrors.js';
+import PermissionTableResponseObject from './PermissionTableResponseObject.ts';
+import PermissionAttributeResponseObject from './PermissionAttributeResponseObject.ts';
+import { HDB_ERROR_MSGS } from '../../utility/errors/commonErrors.ts';
 
 /**
  * This object organizes permission checks into a cohesive response object that will be returned to

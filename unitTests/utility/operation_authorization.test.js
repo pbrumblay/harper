@@ -9,32 +9,30 @@ testUtils.preTestPrep();
 const assert = require('assert');
 const _ = require('lodash');
 const rewire = require('rewire');
-const op_auth = require('#js/utility/operation_authorization');
-const op_auth_rewire = rewire('#js/utility/operation_authorization');
+const op_auth = require('#src/utility/operation_authorization');
+const op_auth_rewire = rewire('#src/utility/operation_authorization');
 const Permission_rw = op_auth_rewire.__get__('permission');
-const write = require('#js/dataLayer/insert');
+const write = require('#src/dataLayer/insert');
 const user = require('#src/security/user');
 const alasql = require('alasql');
-const search = require('#js/dataLayer/search');
-const restart = require('#js/bin/restart');
+const search = require('#src/dataLayer/search');
+const restart = require('#src/bin/restart');
 const configUtils = require('#js/config/configUtils');
-const jobs = require('#js/server/jobs/jobs');
+const jobs = require('#src/server/jobs/jobs');
 const terms = require('#src/utility/hdbTerms');
 
-const schema = require('#js/dataLayer/schema');
-const PermissionResponseObject = require('#js/security/data_objects/PermissionResponseObject').default;
+const schema = require('#src/dataLayer/schema');
+const PermissionResponseObject = require('#src/security/data_objects/PermissionResponseObject').default;
 const PermissionTableResponseObject =
-	require('#js/security/data_objects/PermissionTableResponseObject').default ||
-	require('#js/security/data_objects/PermissionTableResponseObject');
+	require('#src/security/data_objects/PermissionTableResponseObject').default;
 const PermissionAttributeResponseObject =
-	require('#js/security/data_objects/PermissionAttributeResponseObject').default ||
-	require('#js/security/data_objects/PermissionAttributeResponseObject');
+	require('#src/security/data_objects/PermissionAttributeResponseObject').default;
 const { TEST_SCHEMA_OP_ERROR, TEST_OPERATION_AUTH_ERROR } = require('../commonTestErrors');
 
-const serverUtilities_rw = rewire('#js/server/serverHelpers/serverUtilities');
+const serverUtilities_rw = rewire('#src/server/serverHelpers/serverUtilities');
 const initializeOperationFunctionMap_rw = serverUtilities_rw.__get__('initializeOperationFunctionMap');
 const OPERATION_MAP = initializeOperationFunctionMap_rw();
-rewire('#js/server/serverHelpers/serverUtilities');
+rewire('#src/server/serverHelpers/serverUtilities');
 
 const test_terms = testUtils.COMMON_TEST_TERMS;
 const crud_keys = test_terms.TEST_CRUD_PERM_KEYS;

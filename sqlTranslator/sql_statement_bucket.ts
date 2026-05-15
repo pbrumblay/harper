@@ -7,9 +7,9 @@
 import * as alasql from 'alasql';
 import RecursiveIterator from 'recursive-iterator';
 const harperLogger =
-	require('../utility/logging/harper_logger.js').default || require('../utility/logging/harper_logger.js');
-import * as hdbUtils from '../utility/common_utils.js';
-import * as terms from '../utility/hdbTerms.js';
+	require('../utility/logging/harper_logger.ts').default || require('../utility/logging/harper_logger.ts');
+import * as hdbUtils from '../utility/common_utils.ts';
+import * as terms from '../utility/hdbTerms.ts';
 
 class sqlStatementBucket {
 	ast: any;

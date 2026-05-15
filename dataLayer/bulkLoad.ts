@@ -1,12 +1,12 @@
-import * as insert from './insert.js';
-import * as validator from '../validation/fileLoadValidator.js';
+import * as insert from './insert.ts';
+import * as validator from '../validation/fileLoadValidator.ts';
 import needle from 'needle';
-import * as hdbTerms from '../utility/hdbTerms.js';
-import * as hdbUtils from '../utility/common_utils.js';
-import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.js';
-import { HTTP_STATUS_CODES, HDB_ERROR_MSGS, CHECK_LOGS_WRAPPER } from '../utility/errors/commonErrors.js';
+import * as hdbTerms from '../utility/hdbTerms.ts';
+import * as hdbUtils from '../utility/common_utils.ts';
+import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.ts';
+import { HTTP_STATUS_CODES, HDB_ERROR_MSGS, CHECK_LOGS_WRAPPER } from '../utility/errors/commonErrors.ts';
 
-import logger from '../utility/logging/harper_logger.js';
+import logger from '../utility/logging/harper_logger.ts';
 import * as papaParse from 'papaparse';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -15,18 +15,18 @@ import StreamArray from 'stream-json/streamers/StreamArray';
 import Batch from 'stream-json/utils/Batch';
 import comp from 'stream-chain/utils/comp';
 import { finished } from 'stream';
-import * as env from '../utility/environment/environmentManager.js';
-import * as opFuncCaller from '../utility/OperationFunctionCaller.js';
+import * as env from '../utility/environment/environmentManager.ts';
+import * as opFuncCaller from '../utility/OperationFunctionCaller.ts';
 import * as AWSConnector from '../utility/AWS/AWSConnector.js';
 import { BulkLoadFileObject, BulkLoadDataObject } from './dataObjects/BulkLoadObjects.js';
-import PermissionResponseObject from '../security/data_objects/PermissionResponseObject.js';
-import { verifyBulkLoadAttributePerms } from '../utility/operation_authorization.js';
-const { databases } = require('../resources/databases.js');
-import { coerceType } from '../resources/Table.js';
+import PermissionResponseObject from '../security/data_objects/PermissionResponseObject.ts';
+import { verifyBulkLoadAttributePerms } from '../utility/operation_authorization.ts';
+const { databases } = require('../resources/databases.ts');
+import { coerceType } from '../resources/Table.ts';
 
 const CSV_NO_RECORDS_MSG = 'No records parsed from csv file.';
 const TEMP_DOWNLOAD_DIR = `${env.get('HDB_ROOT')}/tmp`;
-import { schemaRegex } from '../validation/common_validators.js';
+import { schemaRegex } from '../validation/common_validators.ts';
 const HIGHWATERMARK = 1024 * 1024 * 2;
 const MAX_JSON_ARRAY_SIZE = 5000;
 

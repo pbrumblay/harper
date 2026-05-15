@@ -10,7 +10,7 @@ const moment = require('moment');
 
 const alasql = require('alasql');
 const alasql_function_importer =
-	require('#js/sqlTranslator/alasqlFunctionImporter').default || require('#js/sqlTranslator/alasqlFunctionImporter');
+	require('#src/sqlTranslator/alasqlFunctionImporter').default;
 alasql_function_importer(alasql);
 
 const expected_formats = {

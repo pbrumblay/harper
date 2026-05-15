@@ -10,7 +10,7 @@ const chai = require('chai');
 const chaiAsPromised = require('chai-as-promised').default;
 chai.use(chaiAsPromised);
 const { expect } = chai;
-const env_mgr = require('#js/utility/environment/environmentManager');
+const env_mgr = require('#src/utility/environment/environmentManager');
 const { CONFIG_PARAMS } = require('#src/utility/hdbTerms');
 const { databases } = require('#src/resources/databases');
 const password = require('#src/utility/password');
@@ -49,7 +49,7 @@ describe('user.ts Unit Tests', () => {
 		const testUtils = require('../testUtils.js');
 		testUtils.preTestPrep();
 		testUtils.setupTestDBPath();
-		const mountHdb = require('#js/utility/mount_hdb').default;
+		const mountHdb = require('#src/utility/mount_hdb').default;
 		const { addRole } = require('#src/security/role');
 		await mountHdb(env_mgr.getHdbBasePath());
 		try {

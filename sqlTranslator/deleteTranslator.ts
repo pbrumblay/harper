@@ -1,11 +1,11 @@
 import * as alasql from 'alasql';
-import * as search from '../dataLayer/search.js';
-import log from '../utility/logging/harper_logger.js';
-import harperBridge from '../dataLayer/harperBridge/harperBridge.js';
+import * as search from '../dataLayer/search.ts';
+import log from '../utility/logging/harper_logger.ts';
+import harperBridge from '../dataLayer/harperBridge/harperBridge.ts';
 import * as util from 'util';
-import * as hdbUtils from '../utility/common_utils.js';
-import * as terms from '../utility/hdbTerms.js';
-import * as globalSchema from '../utility/globalSchema.js';
+import * as hdbUtils from '../utility/common_utils.ts';
+import * as terms from '../utility/hdbTerms.ts';
+import * as globalSchema from '../utility/globalSchema.ts';
 
 const RECORD = 'record';
 const SUCCESS = 'successfully deleted';

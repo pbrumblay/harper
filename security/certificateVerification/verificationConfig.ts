@@ -3,7 +3,7 @@
  */
 
 import { loggerWithTag } from '../../utility/logging/logger.ts';
-import { packageJson } from '../../utility/packageUtils.js';
+import { packageJson } from '../../utility/packageUtils.ts';
 import type { CertificateVerificationConfig } from './types.ts';
 import { validateAndParseCertificateVerificationConfig } from './configValidation.ts';
 

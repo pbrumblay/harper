@@ -12,21 +12,21 @@ const generateKeyPair = util.promisify(generateKeyPairOrig);
 
 const pki = forge.pki;
 import { v4 as uuidv4 } from 'uuid';
-import { forComponent } from '../utility/logging/harper_logger.js';
-import * as envManager from '../utility/environment/environmentManager.js';
-import * as hdbTerms from '../utility/hdbTerms.js';
+import { forComponent } from '../utility/logging/harper_logger.ts';
+import * as envManager from '../utility/environment/environmentManager.ts';
+import * as hdbTerms from '../utility/hdbTerms.ts';
 
 import * as certificatesTerms from '../utility/terms/certificates.js';
 const tls = require('node:tls');
 import { relative, join } from 'node:path';
 
-import assignCmdenvVars from '../utility/assignCmdEnvVariables.js';
+import assignCmdenvVars from '../utility/assignCmdEnvVariables.ts';
 import * as configUtils from '../config/configUtils.js';
-import { table, getDatabases, databases } from '../resources/databases.js';
+import { table, getDatabases, databases } from '../resources/databases.ts';
 const logger = forComponent('tls').conditional;
 const { CONFIG_PARAMS } = hdbTerms;
 const { CERTIFICATE_VALUES } = certificatesTerms;
-import { getThisNodeName, getThisNodeUrl, urlToNodeName, clearThisNodeName } from '../server/nodeName.js';
+import { getThisNodeName, getThisNodeUrl, urlToNodeName, clearThisNodeName } from '../server/nodeName.ts';
 
 export const getPrivateKeys = () => privateKeys;
 
@@ -652,7 +652,7 @@ export function updateConfigCert() {
 	// Filter out any cert config keys already set by HARPER_SET_CONFIG so we don't overwrite them
 	// with defaults. On first boot, HARPER_SET_CONFIG values are written to the config file during
 	// createConfigFile(), but updateConfigCert() runs afterward without re-applying HARPER_SET_CONFIG.
-	const { filterArgsAgainstRuntimeConfig } = require('../config/harperConfigEnvVars.js');
+	const { filterArgsAgainstRuntimeConfig } = require('../config/harperConfigEnvVars.ts');
 	const filteredCerts = filterArgsAgainstRuntimeConfig(newCerts);
 
 	configUtils.updateConfigValue(undefined, undefined, filteredCerts, false, true);

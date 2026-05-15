@@ -4,13 +4,13 @@
 
 'use strict';
 
-const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
+const harperBridge = require('./harperBridge/harperBridge.ts').default || require('./harperBridge/harperBridge.ts');
 // eslint-disable-next-line no-unused-vars
-import GetBackupObject from './GetBackupObject.js';
-import * as hdbUtils from '../utility/common_utils.js';
-import * as hdbTerms from '../utility/hdbTerms.js';
-import { handleHDBError } from '../utility/errors/hdbError.js';
-import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+import GetBackupObject from './GetBackupObject.ts';
+import * as hdbUtils from '../utility/common_utils.ts';
+import * as hdbTerms from '../utility/hdbTerms.ts';
+import { handleHDBError } from '../utility/errors/hdbError.ts';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
 /**
  *

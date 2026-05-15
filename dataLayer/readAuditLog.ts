@@ -1,13 +1,13 @@
 'use strict';
 
-const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
+const harperBridge = require('./harperBridge/harperBridge.ts').default || require('./harperBridge/harperBridge.ts');
 // eslint-disable-next-line no-unused-vars
-import ReadAuditLogObject from './ReadAuditLogObject.js';
-import * as hdbUtils from '../utility/common_utils.js';
-import * as hdbTerms from '../utility/hdbTerms.js';
-import * as envMgr from '../utility/environment/environmentManager.js';
-import { handleHDBError } from '../utility/errors/hdbError.js';
-import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+import ReadAuditLogObject from './ReadAuditLogObject.ts';
+import * as hdbUtils from '../utility/common_utils.ts';
+import * as hdbTerms from '../utility/hdbTerms.ts';
+import * as envMgr from '../utility/environment/environmentManager.ts';
+import { handleHDBError } from '../utility/errors/hdbError.ts';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
 const SEARCH_TYPES = Object.values(hdbTerms.READ_AUDIT_LOG_SEARCH_TYPES_ENUM);
 const LOG_NOT_ENABLED_ERR = 'To use this operation audit log must be enabled in harperdb-config.yaml';

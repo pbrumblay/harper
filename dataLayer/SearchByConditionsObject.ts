@@ -1,7 +1,7 @@
 'use strict';
 
 // eslint-disable-next-line no-unused-vars
-import * as lmdbTerms from '../utility/lmdb/terms.js';
+import * as lmdbTerms from '../utility/lmdb/terms.ts';
 
 /**
  * This class represents the data that is passed into NoSQL searches.

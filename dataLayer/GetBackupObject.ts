@@ -1,6 +1,6 @@
 'use strict';
 
-import { OPERATIONS_ENUM } from '../utility/hdbTerms.js';
+import { OPERATIONS_ENUM } from '../utility/hdbTerms.ts';
 
 /**
  * class that represents the readAuditLog operation

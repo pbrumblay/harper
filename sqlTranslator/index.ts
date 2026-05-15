@@ -1,21 +1,21 @@
 'use strict';
 
-import * as insert from '../dataLayer/insert.js';
+import * as insert from '../dataLayer/insert.ts';
 import * as util from 'util';
 const cbInsertInsert = util.callbackify(insert.insert);
-import { search } from '../dataLayer/search.js';
-import { update } from '../dataLayer/update.js';
+import { search } from '../dataLayer/search.ts';
+import { update } from '../dataLayer/update.ts';
 const cbUpdateUpdate = util.callbackify(update);
-import { convertDelete as deleteTranslator } from './deleteTranslator.js';
+import { convertDelete as deleteTranslator } from './deleteTranslator.ts';
 const cbDeleteTranslator = util.callbackify(deleteTranslator);
 import * as alasql from 'alasql';
-import * as opAuth from '../utility/operation_authorization.js';
-const logger = require('../utility/logging/harper_logger.js').default || require('../utility/logging/harper_logger.js');
-import alasqlFunctionImporter from './alasqlFunctionImporter.js';
-import * as hdbUtils from '../utility/common_utils.js';
-import * as terms from '../utility/hdbTerms.js';
-import { handleHDBError } from '../utility/errors/hdbError.js';
-import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+import * as opAuth from '../utility/operation_authorization.ts';
+const logger = require('../utility/logging/harper_logger.ts').default || require('../utility/logging/harper_logger.ts');
+import alasqlFunctionImporter from './alasqlFunctionImporter.ts';
+import * as hdbUtils from '../utility/common_utils.ts';
+import * as terms from '../utility/hdbTerms.ts';
+import { handleHDBError } from '../utility/errors/hdbError.ts';
+import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
 //here we call to define and import custom functions to alasql
 alasqlFunctionImporter(alasql);

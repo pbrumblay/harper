@@ -1,5 +1,5 @@
 import { table } from '../../resources/databases.ts';
-import { handleHDBError, hdbErrors } from '../../utility/errors/hdbError.js';
+import { handleHDBError, hdbErrors } from '../../utility/errors/hdbError.ts';
 import { loggerWithTag } from '../../utility/logging/logger.ts';
 import { validateStatus } from '../../validation/statusValidator.ts';
 import { type StatusId, type StatusValueMap, type StatusRecord, DEFAULT_STATUS_ID } from './definitions.ts';

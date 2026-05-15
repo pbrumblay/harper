@@ -1,4 +1,4 @@
-import * as validator from './validationWrapper.js';
+import * as validator from './validationWrapper.ts';
 
 const constraints = {
 	user: {

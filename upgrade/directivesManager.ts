@@ -1,8 +1,8 @@
 'use strict';
 
-import * as hdbUtil from '../utility/common_utils.js';
-import log from '../utility/logging/harper_logger.js';
-import * as directivesController from './directives/directivesController.js';
+import * as hdbUtil from '../utility/common_utils.ts';
+import log from '../utility/logging/harper_logger.ts';
+import * as directivesController from './directives/directivesController.ts';
 
 /**
  * Iterates through the directives files to find uninstalled updates and runs the files.

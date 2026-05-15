@@ -1,7 +1,7 @@
 'use strict';
-import * as envMngr from '../environment/environmentManager.js';
-import * as terms from '../../utility/hdbTerms.js';
-import { RecordEncoder } from '../../resources/RecordEncoder.js';
+import * as envMngr from '../environment/environmentManager.ts';
+import * as terms from '../../utility/hdbTerms.ts';
+import { RecordEncoder } from '../../resources/RecordEncoder.ts';
 envMngr.initSync();
 
 const LMDB_CACHING = envMngr.get(terms.CONFIG_PARAMS.STORAGE_CACHING) !== false;

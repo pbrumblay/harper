@@ -6,9 +6,9 @@ const { expect } = chai;
 const fs = require('fs-extra');
 const rewire = require('rewire');
 const path = require('path');
-const env_mgr = require('#js/utility/environment/environmentManager');
-const keys = rewire('#js/security/keys');
-const { generateSerialNumber } = require('#js/security/keys');
+const env_mgr = require('#src/utility/environment/environmentManager');
+const keys = rewire('#src/security/keys');
+const { generateSerialNumber } = require('#src/security/keys');
 const config_utils = require('#js/config/configUtils');
 const mkcert = require('mkcert');
 const forge = require('node-forge');
@@ -77,10 +77,10 @@ describe('Test keys module', () => {
 		testUtils.preTestPrep();
 		testUtils.setupTestDBPath();
 
-		const { resetDatabases, databases } = require('#js/resources/databases');
+		const { resetDatabases, databases } = require('#src/resources/databases');
 		resetDatabases();
 
-		const mountHdb = require('#js/utility/mount_hdb').default;
+		const mountHdb = require('#src/utility/mount_hdb').default;
 		await mountHdb(test_dir);
 
 		if (databases.system?.hdb_certificate) {
@@ -126,7 +126,7 @@ describe('Test keys module', () => {
 		sandbox.restore();
 		await fs.remove(test_dir);
 		if (savedCerts !== null) {
-			const { databases: dbs } = require('#js/resources/databases');
+			const { databases: dbs } = require('#src/resources/databases');
 			if (dbs.system?.hdb_certificate) {
 				await dbs.system.hdb_certificate.clear();
 				for (const cert of savedCerts) {
@@ -249,7 +249,7 @@ describe('Test keys module', () => {
 	});
 
 	it('Test setCertTable with malformed certificate - illegal ASN.1 padding', async () => {
-		const { databases } = require('#js/resources/databases');
+		const { databases } = require('#src/resources/databases');
 		keys.__set__('certificateTable', databases.system.hdb_certificate);
 
 		const malformedCerts = [
@@ -280,7 +280,7 @@ describe('Test keys module', () => {
 	});
 
 	it('Test setCertTable with valid certificate should work', async () => {
-		const { databases } = require('#js/resources/databases');
+		const { databases } = require('#src/resources/databases');
 		keys.__set__('certificateTable', databases.system.hdb_certificate);
 
 		const validCert = {

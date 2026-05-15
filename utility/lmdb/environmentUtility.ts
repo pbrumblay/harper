@@ -3,16 +3,16 @@
 import * as lmdb from 'lmdb';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as common from './commonUtility.js';
-import log from '../logging/harper_logger.js';
-import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
-import DBIDefinition from './DBIDefinition.js';
-import { OpenDBIObject } from './OpenDBIObject.js';
-const OpenEnvironmentObject = require('./OpenEnvironmentObject.js').default || require('./OpenEnvironmentObject.js');
-import * as lmdbTerms from './terms.js';
-import * as hdbTerms from '../hdbTerms.js';
-import { resetDatabases } from '../../resources/databases.js';
-import * as envMngr from '../environment/environmentManager.js';
+import * as common from './commonUtility.ts';
+import log from '../logging/harper_logger.ts';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.ts';
+import DBIDefinition from './DBIDefinition.ts';
+import { OpenDBIObject } from './OpenDBIObject.ts';
+const OpenEnvironmentObject = require('./OpenEnvironmentObject.ts').default || require('./OpenEnvironmentObject.ts');
+import * as lmdbTerms from './terms.ts';
+import * as hdbTerms from '../hdbTerms.ts';
+import { resetDatabases } from '../../resources/databases.ts';
+import * as envMngr from '../environment/environmentManager.ts';
 
 const INTERNAL_DBIS_NAME = lmdbTerms.INTERNAL_DBIS_NAME;
 const DBI_DEFINITION_NAME = lmdbTerms.DBI_DEFINITION_NAME;

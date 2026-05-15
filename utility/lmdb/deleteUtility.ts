@@ -1,13 +1,13 @@
 'use strict';
 
-import * as environmentUtil from './environmentUtility.js';
-import * as common from './commonUtility.js';
-import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
-import log from '../logging/harper_logger.js';
+import * as environmentUtil from './environmentUtility.ts';
+import * as common from './commonUtility.ts';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.ts';
+import log from '../logging/harper_logger.ts';
 // eslint-disable-next-line no-unused-vars
 import * as lmdb from 'lmdb';
-import DeleteRecordsResponseObject from './DeleteRecordsResponseObject.js';
-import * as hdbTerms from '../hdbTerms.js';
+import DeleteRecordsResponseObject from './DeleteRecordsResponseObject.ts';
+import * as hdbTerms from '../hdbTerms.ts';
 const UPDATED_TIME_ATTRIBUTE_NAME = hdbTerms.TIME_STAMP_NAMES_ENUM.UPDATED_TIME;
 
 /**

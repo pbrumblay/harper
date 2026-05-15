@@ -1,5 +1,5 @@
-import { ClientError, ServerError, Violation } from '../utility/errors/hdbError.js';
-import { OVERFLOW_MARKER, MAX_SEARCH_KEY_LENGTH, SEARCH_TYPES } from '../utility/lmdb/terms.js';
+import { ClientError, ServerError, Violation } from '../utility/errors/hdbError.ts';
+import { OVERFLOW_MARKER, MAX_SEARCH_KEY_LENGTH, SEARCH_TYPES } from '../utility/lmdb/terms.ts';
 import { compareKeys, MAXIMUM_KEY } from 'ordered-binary';
 import { SKIP } from '@harperfast/extended-iterable';
 import { INVALIDATED, EVICTED } from './Table.ts';

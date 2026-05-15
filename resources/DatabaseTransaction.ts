@@ -1,12 +1,12 @@
 import { cleanupUnusedBlobs } from './blob.ts';
 import { Transaction as LMDBTransaction } from 'lmdb';
-import { getNextMonotonicTime } from '../utility/lmdb/commonUtility.js';
-import { ServerError } from '../utility/errors/hdbError.js';
-import * as harperLogger from '../utility/logging/harper_logger.js';
+import { getNextMonotonicTime } from '../utility/lmdb/commonUtility.ts';
+import { ServerError } from '../utility/errors/hdbError.ts';
+import * as harperLogger from '../utility/logging/harper_logger.ts';
 import type { Context, Id } from './ResourceInterface.ts';
-import * as envMngr from '../utility/environment/environmentManager.js';
+import * as envMngr from '../utility/environment/environmentManager.ts';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
-import { convertToMS } from '../utility/common_utils.js';
+import { convertToMS } from '../utility/common_utils.ts';
 import { when } from '../utility/when.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Transaction as RocksTransaction, type Store as RocksStore } from '@harperfast/rocksdb-js';

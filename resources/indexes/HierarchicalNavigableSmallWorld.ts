@@ -1,7 +1,7 @@
 import { cosineDistance, euclideanDistance, dotProductDistance } from './vector.ts';
 import { FLOAT32_OPTIONS } from 'msgpackr';
 import { loggerWithTag } from '../../utility/logging/logger.ts';
-import { ClientError } from '../../utility/errors/hdbError.js';
+import { ClientError } from '../../utility/errors/hdbError.ts';
 import type { Id } from '../../resources/ResourceInterface.ts';
 import { RocksDatabase } from '@harperfast/rocksdb-js';
 

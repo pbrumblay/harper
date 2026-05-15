@@ -1,6 +1,6 @@
 'use strict';
 
-import * as hdbTerm from '../../utility/hdbTerms.js';
+import * as hdbTerm from '../../utility/hdbTerms.ts';
 import moment from 'moment';
 import { v4 as uuidV4 } from 'uuid';
 

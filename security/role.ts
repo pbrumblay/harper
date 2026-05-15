@@ -1,21 +1,21 @@
 'use strict';
 
-import * as insert from '../dataLayer/insert.js';
-import * as search from '../dataLayer/search.js';
-import * as delete_ from '../dataLayer/delete.js';
-import * as validation from '../validation/role_validation.js';
-import * as signalling from '../utility/signalling.js';
+import * as insert from '../dataLayer/insert.ts';
+import * as search from '../dataLayer/search.ts';
+import * as delete_ from '../dataLayer/delete.ts';
+import * as validation from '../validation/role_validation.ts';
+import * as signalling from '../utility/signalling.ts';
 import * as util from 'util';
-const terms = require('../utility/hdbTerms.js');
-import * as hdbUtils from '../utility/common_utils.js';
-const { databases } = require('../resources/databases.js');
+const terms = require('../utility/hdbTerms.ts');
+import * as hdbUtils from '../utility/common_utils.ts';
+const { databases } = require('../resources/databases.ts');
 const pSearchSearchByValue = search.searchByValue;
 const pSearchSearchByHash = search.searchByHash;
 const pDeleteDelete = util.promisify(delete_.delete_);
-import SearchObject from '../dataLayer/SearchObject.js';
-import SearchByHashObject from '../dataLayer/SearchByHashObject.js';
-import { handleHDBError } from '../utility/errors/hdbError.js';
-import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+import SearchObject from '../dataLayer/SearchObject.ts';
+import SearchByHashObject from '../dataLayer/SearchByHashObject.ts';
+import { handleHDBError } from '../utility/errors/hdbError.ts';
+import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
 import { UserEventMsg } from '../server/threads/itc.js';
 

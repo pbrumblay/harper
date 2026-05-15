@@ -1,10 +1,10 @@
 const _ = require('lodash'),
-	validator = require('./validationWrapper.js');
+	validator = require('./validationWrapper.ts');
 import Joi from 'joi';
-import * as hdbUtils from '../utility/common_utils.js';
-const { hdbSchemaTable, checkValidTable, hdbTable, hdbDatabase } = require('./common_validators.js');
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
-const { getDatabases } = require('../resources/databases.js');
+import * as hdbUtils from '../utility/common_utils.ts';
+const { hdbSchemaTable, checkValidTable, hdbTable, hdbDatabase } = require('./common_validators.ts');
+const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.ts');
+const { getDatabases } = require('../resources/databases.ts');
 const { HTTP_STATUS_CODES } = hdbErrors;
 
 const searchByValueSchema = Joi.object({

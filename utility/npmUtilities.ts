@@ -3,16 +3,16 @@
 import Joi from 'joi';
 import * as path from 'path';
 
-import { handleHDBError, hdbErrors } from './errors/hdbError.js';
+import { handleHDBError, hdbErrors } from './errors/hdbError.ts';
 
 const { HTTP_STATUS_CODES } = hdbErrors;
 
-import * as validator from '../validation/validationWrapper.js';
-import harperLogger from './logging/harper_logger.js';
+import * as validator from '../validation/validationWrapper.ts';
+import harperLogger from './logging/harper_logger.ts';
 
-import { CONFIG_PARAMS } from './hdbTerms.js';
+import { CONFIG_PARAMS } from './hdbTerms.ts';
 import { getConfigPath } from '../config/configUtils.js';
-import { nonInteractiveSpawn } from '../components/Application.js';
+import { nonInteractiveSpawn } from '../components/Application.ts';
 
 /**
  * Executes npm install against specified custom function projects

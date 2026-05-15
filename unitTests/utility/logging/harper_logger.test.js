@@ -9,10 +9,10 @@ const rewire = require('rewire');
 const hook_std = require('intercept-stdout');
 const os = require('os');
 const YAML = require('yaml');
-const harperLoggerModule = require('#js/utility/logging/harper_logger');
+const harperLoggerModule = require('#src/utility/logging/harper_logger');
 const { createLogger } = harperLoggerModule;
 const { getHttpOptions, handleApplication, logRequest } = require('#src/server/http');
-const { ApplicationScope } = require('#js/components/ApplicationScope');
+const { ApplicationScope } = require('#src/components/ApplicationScope');
 
 const HARPER_LOGGER_MODULE = '#js/utility/logging/harper_logger';
 const LOG_DIR_TEST = 'testLogger';

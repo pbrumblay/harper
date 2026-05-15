@@ -1,18 +1,18 @@
 'use strict';
 
-import * as environmentUtil from './environmentUtility.js';
-import InsertRecordsResponseObject from './InsertRecordsResponseObject.js';
-import UpdateRecordsResponseObject from './UpdateRecordsResponseObject.js';
-import UpsertRecordsResponseObject from './UpsertRecordsResponseObject.js';
-import * as common from './commonUtility.js';
-import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.js';
-import * as hdbTerms from '../hdbTerms.js';
-import * as hdbUtils from '../common_utils.js';
+import * as environmentUtil from './environmentUtility.ts';
+import InsertRecordsResponseObject from './InsertRecordsResponseObject.ts';
+import UpdateRecordsResponseObject from './UpdateRecordsResponseObject.ts';
+import UpsertRecordsResponseObject from './UpsertRecordsResponseObject.ts';
+import * as common from './commonUtility.ts';
+import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.ts';
+import * as hdbTerms from '../hdbTerms.ts';
+import * as hdbUtils from '../common_utils.ts';
 import { v4 as uuidv4 } from 'uuid';
 // eslint-disable-next-line no-unused-vars
 import * as lmdb from 'lmdb';
-import { handleHDBError, hdbErrors } from '../errors/hdbError.js';
-import * as envMngr from '../environment/environmentManager.js';
+import { handleHDBError, hdbErrors } from '../errors/hdbError.ts';
+import * as envMngr from '../environment/environmentManager.ts';
 envMngr.initSync();
 
 const LMDB_PREFETCH_WRITES = envMngr.get(hdbTerms.CONFIG_PARAMS.STORAGE_PREFETCHWRITES);

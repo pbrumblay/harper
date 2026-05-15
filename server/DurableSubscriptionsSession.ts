@@ -1,7 +1,7 @@
 import { table } from '../resources/databases.ts';
 import { keyArrayToString, resources } from '../resources/Resources.ts';
-import { getNextMonotonicTime } from '../utility/lmdb/commonUtility.js';
-import { warn, trace } from '../utility/logging/harper_logger.js';
+import { getNextMonotonicTime } from '../utility/lmdb/commonUtility.ts';
+import { warn, trace } from '../utility/logging/harper_logger.ts';
 import { transaction } from '../resources/transaction.ts';
 import { getWorkerIndex } from '../server/threads/manageThreads.js';
 import { whenComponentsLoaded } from '../server/threads/threadServer.js';

@@ -1,16 +1,16 @@
 'use strict';
 
-import * as validation from '../validation/check_permissions.js';
+import * as validation from '../validation/check_permissions.ts';
 const passport = require('passport');
 import { Strategy as LocalStrategy } from 'passport-local';
 import { BasicStrategy } from 'passport-http';
 import * as util from 'util';
-import * as userFunctions from './user.js';
+import * as userFunctions from './user.ts';
 const cbFindValidateUsers = util.callbackify(userFunctions.findAndValidateUser);
-import * as hdbTerms from '../utility/hdbTerms.js';
-import * as tokenAuthentication from './tokenAuthentication.js';
-import { AccessViolation } from '../utility/errors/hdbError.js';
-import { authentication } from './auth.js';
+import * as hdbTerms from '../utility/hdbTerms.ts';
+import * as tokenAuthentication from './tokenAuthentication.ts';
+import { AccessViolation } from '../utility/errors/hdbError.ts';
+import { authentication } from './auth.ts';
 
 passport.use(
 	new LocalStrategy(function (username, password, done) {

@@ -6,15 +6,15 @@
  * This module is used to validate and insert or update data.  Note insert.update should be used over the update module,
  * as the update module is meant to be used in more specific circumstances.
  */
-import insertValidator from '../validation/insertValidator.js';
-import * as hdbUtils from '../utility/common_utils.js';
+import insertValidator from '../validation/insertValidator.ts';
+import * as hdbUtils from '../utility/common_utils.ts';
 import * as util from 'util';
 // Leave this unused signalling import here. Due to circular dependencies we bring it in early to load it before the bridge
-const harperBridge = require('./harperBridge/harperBridge.js').default || require('./harperBridge/harperBridge.js');
-import * as globalSchema from '../utility/globalSchema.js';
-import log from '../utility/logging/harper_logger.js';
-import { handleHDBError } from '../utility/errors/hdbError.js';
-import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.js';
+const harperBridge = require('./harperBridge/harperBridge.ts').default || require('./harperBridge/harperBridge.ts');
+import * as globalSchema from '../utility/globalSchema.ts';
+import log from '../utility/logging/harper_logger.ts';
+import { handleHDBError } from '../utility/errors/hdbError.ts';
+import { HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
 const pGlobalSchema = util.promisify(globalSchema.getTableSchema);
 

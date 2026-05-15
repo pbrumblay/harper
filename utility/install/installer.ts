@@ -9,25 +9,25 @@ const path = require('path');
 let ora; // Will be loaded dynamically as it's an ES module
 const YAML = require('yaml');
 
-const hdbLogger = require('../logging/harper_logger.js');
-const envManager = require('../environment/environmentManager.js');
-const hdbUtils = require('../common_utils.js');
+const hdbLogger = require('../logging/harper_logger.ts');
+const envManager = require('../environment/environmentManager.ts');
+const hdbUtils = require('../common_utils.ts');
 
-const hdbInfoController = require('../../dataLayer/hdbInfoController.js');
-const { packageJson } = require('../packageUtils.js');
-const hdbTerms = require('../hdbTerms.js');
+const hdbInfoController = require('../../dataLayer/hdbInfoController.ts');
+const { packageJson } = require('../packageUtils.ts');
+const hdbTerms = require('../hdbTerms.ts');
 const { CONFIG_PARAMS } = hdbTerms;
 const installValidator =
-	require('../../validation/installValidator.js').default || require('../../validation/installValidator.js');
-import mountHdb from '../mount_hdb.js';
+	require('../../validation/installValidator.ts').default || require('../../validation/installValidator.ts');
+import mountHdb from '../mount_hdb.ts';
 const configUtils = require('../../config/configUtils.js');
-const userOps = require('../../security/user.js');
-const roleOps = require('../../security/role.js');
+const userOps = require('../../security/user.ts');
+const roleOps = require('../../security/role.ts');
 const checkJwtTokens = require('./checkJWTTokensExist.js');
-const globalSchema = require('../globalSchema.js');
+const globalSchema = require('../globalSchema.ts');
 const promisify = require('util').promisify;
 const pSchemaToGlobal = promisify(globalSchema.setSchemaDataToGlobal);
-const keys = require('../../security/keys.js');
+const keys = require('../../security/keys.ts');
 
 // Removes the color formatting that was being applied to the prompt answer.
 const PROMPT_ANSWER_TRANSFORMER = (answer) => answer;
@@ -69,7 +69,7 @@ const INSTALL_PROMPTS = {
 	DEFAULTS_MODE: 'Default Config - dev (easy access/debugging) or prod (security/performance): (dev/prod)',
 };
 
-const assignCMDENVVariables = require('../assignCmdEnvVariables.js').default || require('../assignCmdEnvVariables.js');
+const assignCMDENVVariables = require('../assignCmdEnvVariables.ts').default || require('../assignCmdEnvVariables.ts');
 const cfgEnv = assignCMDENVVariables([hdbTerms.INSTALL_PROMPTS.HDB_CONFIG]);
 let hdbRoot = undefined;
 let conditionalRollback = false;

@@ -1,7 +1,7 @@
 'use strict';
 
-import * as hdbUtils from '../utility/common_utils.js';
-import * as hdbTerms from '../utility/hdbTerms.js';
+import * as hdbUtils from '../utility/common_utils.ts';
+import * as hdbTerms from '../utility/hdbTerms.ts';
 export const schemaRegex = /^[\x20-\x2E|\x30-\x5F|\x61-\x7E]*$/;
 import Joi from 'joi';
 

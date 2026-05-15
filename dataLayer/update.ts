@@ -1,19 +1,19 @@
 'use strict';
 
-import * as search from './search.js';
-import * as globalSchema from '../utility/globalSchema.js';
-import logger from '../utility/logging/harper_logger.js';
-import * as write from './insert.js';
+import * as search from './search.ts';
+import * as globalSchema from '../utility/globalSchema.ts';
+import logger from '../utility/logging/harper_logger.ts';
+import * as write from './insert.ts';
 import clone from 'clone';
 import * as alasql from 'alasql';
-import alasqlFunctionImporter from '../sqlTranslator/alasqlFunctionImporter.js';
+import alasqlFunctionImporter from '../sqlTranslator/alasqlFunctionImporter.ts';
 import * as util from 'util';
 
 const pGetTableSchema = util.promisify(globalSchema.getTableSchema);
 const pSearch = util.promisify(search.search);
 
-const terms = require('../utility/hdbTerms.js');
-import * as hdbUtils from '../utility/common_utils.js';
+const terms = require('../utility/hdbTerms.ts');
+import * as hdbUtils from '../utility/common_utils.ts';
 
 //here we call to define and import custom functions to alasql
 alasqlFunctionImporter(alasql);

@@ -1,2 +1,2 @@
-import { startHTTPThreads } from '../server/threads/socketRouter.js';
+import { startHTTPThreads } from '../server/threads/socketRouter.ts';
 startHTTPThreads(1);

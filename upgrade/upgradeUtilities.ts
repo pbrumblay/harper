@@ -1,6 +1,6 @@
 'use strict';
 
-import * as hdbUtil from '../utility/common_utils.js';
+import * as hdbUtil from '../utility/common_utils.ts';
 import * as configUtils from '../config/configUtils.js';
 
 /**

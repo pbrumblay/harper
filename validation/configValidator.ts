@@ -6,10 +6,10 @@ const os = require('os');
 const { boolean, string, number, array } = Joi.types();
 const { totalmem } = require('os');
 const path = require('path');
-const hdbLogger = require('../utility/logging/harper_logger.js');
-import * as hdbUtils from '../utility/common_utils.js';
-import * as hdbTerms from '../utility/hdbTerms.js';
-import * as validator from './validationWrapper.js';
+const hdbLogger = require('../utility/logging/harper_logger.ts');
+import * as hdbUtils from '../utility/common_utils.ts';
+import * as hdbTerms from '../utility/hdbTerms.ts';
+import * as validator from './validationWrapper.ts';
 
 const DEFAULT_LOG_FOLDER = 'log';
 const DEFAULT_COMPONENTS_FOLDER = 'components';

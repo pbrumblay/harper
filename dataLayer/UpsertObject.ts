@@ -1,5 +1,5 @@
 'use strict';
-import { OPERATIONS_ENUM } from '../utility/hdbTerms.js';
+import { OPERATIONS_ENUM } from '../utility/hdbTerms.ts';
 
 /**
  * object representing an upsert operation

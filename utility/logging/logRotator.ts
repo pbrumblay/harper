@@ -6,12 +6,12 @@ import { promisify } from 'util';
 import { pipeline } from 'stream';
 const pipe = promisify(pipeline);
 import * as path from 'path';
-import * as envMgr from '../environment/environmentManager.js';
+import * as envMgr from '../environment/environmentManager.ts';
 envMgr.initSync();
-import hdbLogger from './harper_logger.js';
-import { CONFIG_PARAMS } from '../hdbTerms.js';
-import { convertToMS } from '../common_utils.js';
-import { onStorageReclamation } from '../../server/storageReclamation.js';
+import hdbLogger from './harper_logger.ts';
+import { CONFIG_PARAMS } from '../hdbTerms.ts';
+import { convertToMS } from '../common_utils.ts';
+import { onStorageReclamation } from '../../server/storageReclamation.ts';
 
 // Interval in ms to check log file and decide if it should be rotated.
 const LOG_AUDIT_INTERVAL = 60000;

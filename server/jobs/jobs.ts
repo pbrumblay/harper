@@ -6,24 +6,24 @@
  */
 
 import { v4 as uuidV4 } from 'uuid';
-import * as insert from '../../dataLayer/insert.js';
-import * as search from '../../dataLayer/search.js';
-import Search_Object from '../../dataLayer/SearchObject.js';
-import searchByHashObj from '../../dataLayer/SearchByHashObject.js';
-import SQL_Search_Object from '../../dataLayer/SqlSearchObject.js';
-import * as hdbTerms from '../../utility/hdbTerms.js';
-import JobObject from './JobObject.js';
-import UpdateObject from '../../dataLayer/UpdateObject.js';
-import log from '../../utility/logging/harper_logger.js';
-import Insert_Object from '../../dataLayer/InsertObject.js';
-import * as hdbUtil from '../../utility/common_utils.js';
+import * as insert from '../../dataLayer/insert.ts';
+import * as search from '../../dataLayer/search.ts';
+import Search_Object from '../../dataLayer/SearchObject.ts';
+import searchByHashObj from '../../dataLayer/SearchByHashObject.ts';
+import SQL_Search_Object from '../../dataLayer/SqlSearchObject.ts';
+import * as hdbTerms from '../../utility/hdbTerms.ts';
+import JobObject from './JobObject.ts';
+import UpdateObject from '../../dataLayer/UpdateObject.ts';
+import log from '../../utility/logging/harper_logger.ts';
+import Insert_Object from '../../dataLayer/InsertObject.ts';
+import * as hdbUtil from '../../utility/common_utils.ts';
 import { promisify } from 'util';
 import moment from 'moment';
-import * as fileLoadValidator from '../../validation/fileLoadValidator.js';
-import bulkDeleteValidator from '../../validation/bulkDeleteValidator.js';
-import { deleteTransactionLogsBeforeValidator } from '../../validation/transactionLogValidator.js';
-import { handleHDBError, ClientError } from '../../utility/errors/hdbError.js';
-import { HTTP_STATUS_CODES } from '../../utility/errors/commonErrors.js';
+import * as fileLoadValidator from '../../validation/fileLoadValidator.ts';
+import bulkDeleteValidator from '../../validation/bulkDeleteValidator.ts';
+import { deleteTransactionLogsBeforeValidator } from '../../validation/transactionLogValidator.ts';
+import { handleHDBError, ClientError } from '../../utility/errors/hdbError.ts';
+import { HTTP_STATUS_CODES } from '../../utility/errors/commonErrors.ts';
 
 //Promisified functions
 const pSearchByValue = search.searchByValue;
@@ -235,7 +235,7 @@ export async function getJobsInDateRange(jsonBody: any) {
 
 	try {
 		if (!pSqlEvaluate) {
-			const hdbSql = require('../../sqlTranslator/index.js');
+			const hdbSql = require('../../sqlTranslator/index.ts');
 			pSqlEvaluate = promisify(hdbSql.evaluateSQL);
 		}
 		return await pSqlEvaluate(sqlSearchObj);

@@ -1,5 +1,5 @@
-import * as installer from '../utility/install/installer.js';
-import hdbLogger from '../utility/logging/harper_logger.js';
+import * as installer from '../utility/install/installer.ts';
+import hdbLogger from '../utility/logging/harper_logger.ts';
 
 export default install;
 
