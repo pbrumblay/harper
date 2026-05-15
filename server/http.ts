@@ -590,7 +590,6 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 	return httpServers[port];
 }
 
-
 /**
  * Bun-specific HTTP server setup. Instead of creating a Node http.Server, we store a fetch handler config
  * that will be passed to Bun.serve() when listenOnPorts() is called in threadServer.js.
