@@ -1,6 +1,6 @@
 'use strict';
 const LMDBTransactionObject = require('./LMDBTransactionObject.js');
-const OPERATIONS_ENUM = require('../../../../utility/hdbTerms.js').OPERATIONS_ENUM;
+const OPERATIONS_ENUM = require('../../../../utility/hdbTerms.ts').OPERATIONS_ENUM;
 
 /**
  * class to define an insert transaction

@@ -1,13 +1,13 @@
 'use strict';
 
 const { Readable } = require('stream');
-const { getDatabases } = require('../../../../resources/databases.js');
+const { getDatabases } = require('../../../../resources/databases.ts');
 const { readSync, openSync, createReadStream } = require('fs');
 const { open } = require('lmdb');
-const { OpenDBIObject } = require('../../../../utility/lmdb/OpenDBIObject.js');
-const OpenEnvironmentObject = require('../../../../utility/lmdb/OpenEnvironmentObject.js');
-const { AUDIT_STORE_OPTIONS } = require('../../../../resources/auditStore.js');
-const { INTERNAL_DBIS_NAME, AUDIT_STORE_NAME } = require('../../../../utility/lmdb/terms.js');
+const { OpenDBIObject } = require('../../../../utility/lmdb/OpenDBIObject.ts');
+const OpenEnvironmentObject = require('../../../../utility/lmdb/OpenEnvironmentObject.ts');
+const { AUDIT_STORE_OPTIONS } = require('../../../../resources/auditStore.ts');
+const { INTERNAL_DBIS_NAME, AUDIT_STORE_NAME } = require('../../../../utility/lmdb/terms.ts');
 
 module.exports = getBackup;
 const META_SIZE = 32768;

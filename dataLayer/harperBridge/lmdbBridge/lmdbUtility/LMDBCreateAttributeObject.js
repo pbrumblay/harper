@@ -1,7 +1,7 @@
 'use strict';
 
 const CreateAttributeObject =
-	require('../../../CreateAttributeObject.js').default || require('../../../CreateAttributeObject.js');
+	require('../../../CreateAttributeObject.ts').default || require('../../../CreateAttributeObject.ts');
 
 class LMDBCreateAttributeObject extends CreateAttributeObject {
 	/**

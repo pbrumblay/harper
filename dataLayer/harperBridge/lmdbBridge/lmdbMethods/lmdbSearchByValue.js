@@ -1,11 +1,11 @@
 'use strict';
 
 // eslint-disable-next-line no-unused-vars
-const SearchObject = require('../../../SearchObject.js').default || require('../../../SearchObject.js');
+const SearchObject = require('../../../SearchObject.ts').default || require('../../../SearchObject.ts');
 const searchValidator =
-	require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
-const commonUtils = require('../../../../utility/common_utils.js');
-const hdbTerms = require('../../../../utility/hdbTerms.js');
+	require('../../../../validation/searchValidator.ts').default || require('../../../../validation/searchValidator.ts');
+const commonUtils = require('../../../../utility/common_utils.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.ts');
 const lmdb_search = require('../lmdbUtility/lmdbSearch.js');
 
 module.exports = lmdbSearchByValue;

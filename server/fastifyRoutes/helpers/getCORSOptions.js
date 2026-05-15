@@ -1,8 +1,8 @@
 'use strict';
 
-const env = require('../../../utility/environment/environmentManager.js');
+const env = require('../../../utility/environment/environmentManager.ts');
 env.initSync();
-const { CONFIG_PARAMS } = require('../../../utility/hdbTerms.js');
+const { CONFIG_PARAMS } = require('../../../utility/hdbTerms.ts');
 
 /**
  * Builds CORS options object to pass to cors plugin when/if it needs to be registered with Fastify

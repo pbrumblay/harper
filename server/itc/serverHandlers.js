@@ -1,17 +1,17 @@
 'use strict';
 
 /* global threads */
-const hdbLogger = require('../../utility/logging/harper_logger.js');
-const hdbTerms = require('../../utility/hdbTerms.js');
+const hdbLogger = require('../../utility/logging/harper_logger.ts');
+const hdbTerms = require('../../utility/hdbTerms.ts');
 const cleanLmdbMap =
-	require('../../utility/lmdb/cleanLMDBMap.js').default || require('../../utility/lmdb/cleanLMDBMap.js');
-const userSchema = require('../../security/user.js');
+	require('../../utility/lmdb/cleanLMDBMap.ts').default || require('../../utility/lmdb/cleanLMDBMap.ts');
+const userSchema = require('../../security/user.ts');
 const { validateEvent } = require('../threads/itc.js');
 const harperBridge =
-	require('../../dataLayer/harperBridge/harperBridge.js').default ||
-	require('../../dataLayer/harperBridge/harperBridge.js');
+	require('../../dataLayer/harperBridge/harperBridge.ts').default ||
+	require('../../dataLayer/harperBridge/harperBridge.ts');
 const process = require('process');
-const { resetDatabases } = require('../../resources/databases.js');
+const { resetDatabases } = require('../../resources/databases.ts');
 
 /**
  * This object/functions are passed to the ITC client instance and dynamically added as event handlers.
@@ -116,7 +116,7 @@ async function componentStatusRequestHandler(event) {
 		hdbLogger.trace(`ITC componentStatusRequestHandler received request:`, event);
 
 		// Get current thread's component status
-		const { internal } = require('../../components/status/index.js');
+		const { internal } = require('../../components/status/index.ts');
 		const { getWorkerIndex } = require('../threads/manageThreads.js');
 		const { sendItcEvent } = require('../threads/itc.js');
 		const componentStatuses = internal.componentStatusRegistry.getAllStatuses();

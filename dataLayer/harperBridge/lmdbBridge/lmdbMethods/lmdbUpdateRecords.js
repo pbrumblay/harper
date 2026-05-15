@@ -3,12 +3,12 @@
 const insertUpdateValidate = require('../../bridgeUtility/insertUpdateValidate.js');
 const lmdbProcessRows = require('../lmdbUtility/lmdbProcessRows.js');
 const lmdbCheckNewAttributes = require('../lmdbUtility/lmdbCheckForNewAttributes.js');
-const hdbTerms = require('../../../../utility/hdbTerms.js');
-const lmdb_update_records = require('../../../../utility/lmdb/writeUtility.js').updateRecords;
-const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');
+const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const lmdb_update_records = require('../../../../utility/lmdb/writeUtility.ts').updateRecords;
+const environmentUtility = require('../../../../utility/lmdb/environmentUtility.ts');
 const { getSchemaPath } = require('../lmdbUtility/initializePaths.js');
 const writeTransaction = require('../lmdbUtility/lmdbWriteTransaction.js');
-const logger = require('../../../../utility/logging/harper_logger.js');
+const logger = require('../../../../utility/logging/harper_logger.ts');
 
 module.exports = lmdbUpdateRecords;
 

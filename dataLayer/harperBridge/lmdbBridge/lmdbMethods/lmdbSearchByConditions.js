@@ -2,18 +2,18 @@
 
 // eslint-disable-next-line no-unused-vars
 const { SearchByConditionsObject, SearchCondition } =
-	require('../../../SearchByConditionsObject.js').default || require('../../../SearchByConditionsObject.js');
-const SearchObject = require('../../../SearchObject.js').default || require('../../../SearchObject.js');
+	require('../../../SearchByConditionsObject.ts').default || require('../../../SearchByConditionsObject.ts');
+const SearchObject = require('../../../SearchObject.ts').default || require('../../../SearchObject.ts');
 const searchValidator =
-	require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
-const searchUtility = require('../../../../utility/lmdb/searchUtility.js');
-const lmdbTerms = require('../../../../utility/lmdb/terms.js');
+	require('../../../../validation/searchValidator.ts').default || require('../../../../validation/searchValidator.ts');
+const searchUtility = require('../../../../utility/lmdb/searchUtility.ts');
+const lmdbTerms = require('../../../../utility/lmdb/terms.ts');
 const lmdb_search = require('../lmdbUtility/lmdbSearch.js');
-const cursorFunctions = require('../../../../utility/lmdb/searchCursorFunctions.js');
+const cursorFunctions = require('../../../../utility/lmdb/searchCursorFunctions.ts');
 const _ = require('lodash');
 const { getSchemaPath } = require('../lmdbUtility/initializePaths.js');
-const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');
-const { handleHDBError, hdbErrors } = require('../../../../utility/errors/hdbError.js');
+const environmentUtility = require('../../../../utility/lmdb/environmentUtility.ts');
+const { handleHDBError, hdbErrors } = require('../../../../utility/errors/hdbError.ts');
 const { HTTP_STATUS_CODES } = hdbErrors;
 const RANGE_ESTIMATE = 100000000;
 

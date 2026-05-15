@@ -1,8 +1,8 @@
 'use strict';
 
-const env = require('../../../utility/environment/environmentManager.js');
+const env = require('../../../utility/environment/environmentManager.ts');
 env.initSync();
-const { CONFIG_PARAMS } = require('../../../utility/hdbTerms.js');
+const { CONFIG_PARAMS } = require('../../../utility/hdbTerms.ts');
 
 // eslint-disable-next-line no-magic-numbers
 const REQ_MAX_BODY_SIZE = 1024 * 1024 * 1024; //this is 1GB in bytes

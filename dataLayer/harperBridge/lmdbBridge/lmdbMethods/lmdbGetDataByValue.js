@@ -1,9 +1,9 @@
 'use strict';
 
 const searchValidator =
-	require('../../../../validation/searchValidator.js').default || require('../../../../validation/searchValidator.js');
-const commonUtils = require('../../../../utility/common_utils.js');
-const hdbTerms = require('../../../../utility/hdbTerms.js');
+	require('../../../../validation/searchValidator.ts').default || require('../../../../validation/searchValidator.ts');
+const commonUtils = require('../../../../utility/common_utils.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.ts');
 const lmdbSearch = require('../lmdbUtility/lmdbSearch.js');
 
 module.exports = lmdbGetDataByValue;

@@ -1,13 +1,13 @@
 'use strict';
 
-const SearchObject = require('../../../SearchObject.js').default || require('../../../SearchObject.js');
-const DeleteObject = require('../../../DeleteObject.js').default || require('../../../DeleteObject.js');
+const SearchObject = require('../../../SearchObject.ts').default || require('../../../SearchObject.ts');
+const DeleteObject = require('../../../DeleteObject.ts').default || require('../../../DeleteObject.ts');
 // eslint-disable-next-line no-unused-vars
 const DropAttributeObject =
-	require('../../../DropAttributeObject.js').default || require('../../../DropAttributeObject.js');
-const hdbTerms = require('../../../../utility/hdbTerms.js');
-const commonUtils = require('../../../../utility/common_utils.js');
-const environmentUtility = require('../../../../utility/lmdb/environmentUtility.js');
+	require('../../../DropAttributeObject.ts').default || require('../../../DropAttributeObject.ts');
+const hdbTerms = require('../../../../utility/hdbTerms.ts');
+const commonUtils = require('../../../../utility/common_utils.ts');
+const environmentUtility = require('../../../../utility/lmdb/environmentUtility.ts');
 const systemSchema = require('../../../../json/systemSchema.json');
 const searchByValue = require('./lmdbSearchByValue.js');
 const deleteRecords = require('./lmdbDeleteRecords.js');

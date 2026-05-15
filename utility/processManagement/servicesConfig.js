@@ -1,9 +1,9 @@
 'use strict';
 
-const hdbTerms = require('../hdbTerms.js');
+const hdbTerms = require('../hdbTerms.ts');
 const path = require('path');
 const { PACKAGE_ROOT } = require('../../utility/packageUtils.js');
-const hdbUtils = require('../common_utils.js');
+const hdbUtils = require('../common_utils.ts');
 const SCRIPTS_DIR = path.join(PACKAGE_ROOT, 'utility/scripts');
 const RESTART_SCRIPT = path.join(SCRIPTS_DIR, hdbTerms.HDB_RESTART_SCRIPT);
 

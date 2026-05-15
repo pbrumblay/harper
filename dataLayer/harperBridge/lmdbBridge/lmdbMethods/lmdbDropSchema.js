@@ -1,17 +1,17 @@
 'use strict';
 
 const fs = require('fs-extra');
-const SearchObject = require('../../../SearchObject.js').default || require('../../../SearchObject.js');
+const SearchObject = require('../../../SearchObject.ts').default || require('../../../SearchObject.ts');
 const SearchByHashObject =
-	require('../../../SearchByHashObject.js').default || require('../../../SearchByHashObject.js');
-const DeleteObject = require('../../../DeleteObject.js').default || require('../../../DeleteObject.js');
+	require('../../../SearchByHashObject.ts').default || require('../../../SearchByHashObject.ts');
+const DeleteObject = require('../../../DeleteObject.ts').default || require('../../../DeleteObject.ts');
 const dropTable = require('./lmdbDropTable.js');
 const deleteRecords = require('./lmdbDeleteRecords.js');
 const getDataByHash = require('./lmdbGetDataByHash.js');
 const searchDataByValue = require('./lmdbSearchByValue.js');
-const hdbTerms = require('../../../../utility/hdbTerms.js');
+const hdbTerms = require('../../../../utility/hdbTerms.ts');
 const { getSchemaPath } = require('../lmdbUtility/initializePaths.js');
-const { handleHDBError, hdbErrors } = require('../../../../utility/errors/hdbError.js');
+const { handleHDBError, hdbErrors } = require('../../../../utility/errors/hdbError.ts');
 const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
 
 module.exports = lmdbDropSchema;

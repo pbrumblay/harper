@@ -1,11 +1,11 @@
 const { isMainThread } = require('worker_threads');
-const { getTables } = require('../resources/databases.js');
-const { loadComponentDirectories, loadComponent } = require('../components/componentLoader.js');
-const { resetResources } = require('../resources/Resources.js');
+const { getTables } = require('../resources/databases.ts');
+const { loadComponentDirectories, loadComponent } = require('../components/componentLoader.ts');
+const { resetResources } = require('../resources/Resources.ts');
 const configUtils = require('../config/configUtils.js');
 const { dirname } = require('path');
-const { loadCertificates } = require('../security/keys.js');
-const { installApplications } = require('../components/Application.js');
+const { loadCertificates } = require('../security/keys.ts');
+const { installApplications } = require('../components/Application.ts');
 
 let loadedComponents = new Map();
 /**

@@ -1,9 +1,9 @@
 'use strict';
 
-const hdbUtils = require('../../../utility/common_utils.js');
-const log = require('../../../utility/logging/harper_logger.js');
-const { getDatabases } = require('../../../resources/databases.js');
-const { ClientError } = require('../../../utility/errors/hdbError.js');
+const hdbUtils = require('../../../utility/common_utils.ts');
+const log = require('../../../utility/logging/harper_logger.ts');
+const { getDatabases } = require('../../../resources/databases.ts');
+const { ClientError } = require('../../../utility/errors/hdbError.ts');
 
 module.exports = insertUpdateValidate;
 

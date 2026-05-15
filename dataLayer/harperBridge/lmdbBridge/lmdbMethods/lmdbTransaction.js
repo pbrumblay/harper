@@ -1,6 +1,6 @@
 'use strict';
 
-const { database } = require('../../../../resources/databases.js');
+const { database } = require('../../../../resources/databases.ts');
 
 module.exports = {
 	writeTransaction,
