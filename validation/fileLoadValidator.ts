@@ -1,9 +1,9 @@
-const clone = require('clone');
+import clone from 'clone';
 import * as validator from './validationWrapper.ts';
 import * as commonUtils from '../utility/common_utils.ts';
 import * as hdbTerms from '../utility/hdbTerms.ts';
-const fs = require('fs');
-const joi = require('joi');
+import * as fs from 'fs';
+import joi from 'joi';
 const { string } = joi.types();
 import { hdbErrors, handleHDBError } from '../utility/errors/hdbError.ts';
 const { HTTP_STATUS_CODES } = hdbErrors;

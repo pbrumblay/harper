@@ -88,15 +88,15 @@ import * as validation from '../validation/user_validation.ts';
 import * as search from '../dataLayer/search.ts';
 import * as signalling from '../utility/signalling.ts';
 import * as hdbUtility from '../utility/common_utils.ts';
-const validate = require('validate.js');
+import * as validate from 'validate.js';
 import * as logger from '../utility/logging/harper_logger.ts';
-const { promisify } = require('util');
+import { promisify } from 'util';
 import * as env from '../utility/environment/environmentManager.ts';
-const systemSchema = require('../json/systemSchema.json');
+import systemSchema from '../json/systemSchema.json';
 import { hdbErrors, ClientError } from '../utility/errors/hdbError.ts';
 const { HTTP_STATUS_CODES, AUTHENTICATION_ERROR_MSGS, HDB_ERROR_MSGS } = hdbErrors;
 const { UserEventMsg } = require('../server/threads/itc.js');
-const _ = require('lodash');
+import * as _ from 'lodash';
 import * as harperLogger from '../utility/logging/harper_logger.ts';
 
 // Need to use `.js` even for other TS files since TS compiler won't replace requires.

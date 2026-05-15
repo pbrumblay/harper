@@ -3,8 +3,8 @@
 import * as env from '../utility/environment/environmentManager.ts';
 env.initSync();
 
-// This unused restart require is here so that main thread loads ITC event listener defined in restart file. Do not remove.
-require('./restart');
+// This unused restart import is here so that main thread loads ITC event listener defined in restart file. Do not remove.
+import './restart.ts';
 import * as terms from '../utility/hdbTerms.ts';
 const { CONFIG_PARAMS } = terms;
 import hdbLogger from '../utility/logging/harper_logger.ts';
@@ -17,8 +17,7 @@ import { packageJson } from '../utility/packageUtils.ts';
 import * as hdbUtils from '../utility/common_utils.ts';
 import * as installation from '../utility/installation.ts';
 import * as configUtils from '../config/configUtils.js';
-const assignCMDENVVariables =
-	require('../utility/assignCmdEnvVariables').default || require('../utility/assignCmdEnvVariables');
+import assignCMDENVVariables from '../utility/assignCmdEnvVariables.ts';
 import * as upgrade from './upgrade.js';
 import { compactOnStart, migrateOnStart } from './copyDb.ts';
 import minimist from 'minimist';

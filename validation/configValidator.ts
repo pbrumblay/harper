@@ -1,11 +1,11 @@
 'use strict';
 
-const fs = require('fs-extra');
+import * as fs from 'fs-extra';
 import Joi from 'joi';
-const os = require('os');
+import * as os from 'os';
 const { boolean, string, number, array } = Joi.types();
-const { totalmem } = require('os');
-const path = require('path');
+import { totalmem } from 'os';
+import * as path from 'path';
 import * as hdbLogger from '../utility/logging/harper_logger.ts';
 import * as hdbUtils from '../utility/common_utils.ts';
 import * as hdbTerms from '../utility/hdbTerms.ts';

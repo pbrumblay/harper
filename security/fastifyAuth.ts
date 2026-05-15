@@ -1,7 +1,7 @@
 'use strict';
 
 import * as validation from '../validation/check_permissions.ts';
-const passport = require('passport');
+import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 import { BasicStrategy } from 'passport-http';
 import * as util from 'util';

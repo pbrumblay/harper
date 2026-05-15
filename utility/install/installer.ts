@@ -1,13 +1,13 @@
 'use strict';
 
-const os = require('os');
-const inquirer = require('inquirer');
-const fs = require('fs-extra');
-const PropertiesReader = require('properties-reader');
-const chalk = require('chalk');
-const path = require('path');
+import * as os from 'os';
+import inquirer from 'inquirer';
+import * as fs from 'fs-extra';
+import PropertiesReader from 'properties-reader';
+import chalk from 'chalk';
+import * as path from 'path';
 let ora; // Will be loaded dynamically as it's an ES module
-const YAML = require('yaml');
+import * as YAML from 'yaml';
 
 import * as hdbLogger from '../logging/harper_logger.ts';
 import * as envManager from '../environment/environmentManager.ts';
@@ -17,15 +17,14 @@ import * as hdbInfoController from '../../dataLayer/hdbInfoController.ts';
 import { packageJson } from '../packageUtils.ts';
 import * as hdbTerms from '../hdbTerms.ts';
 const { CONFIG_PARAMS } = hdbTerms;
-const installValidator =
-	require('../../validation/installValidator').default || require('../../validation/installValidator');
+import installValidator from '../../validation/installValidator.ts';
 import mountHdb from '../mount_hdb.ts';
-const configUtils = require('../../config/configUtils.js');
+import * as configUtils from '../../config/configUtils.js';
 import * as userOps from '../../security/user.ts';
 import * as roleOps from '../../security/role.ts';
-const checkJwtTokens = require('./checkJWTTokensExist.js');
+import checkJwtTokens from './checkJWTTokensExist.js';
 import * as globalSchema from '../globalSchema.ts';
-const promisify = require('util').promisify;
+import { promisify } from 'util';
 const pSchemaToGlobal = promisify(globalSchema.setSchemaDataToGlobal);
 import * as keys from '../../security/keys.ts';
 
@@ -69,7 +68,7 @@ const INSTALL_PROMPTS = {
 	DEFAULTS_MODE: 'Default Config - dev (easy access/debugging) or prod (security/performance): (dev/prod)',
 };
 
-const assignCMDENVVariables = require('../assignCmdEnvVariables').default || require('../assignCmdEnvVariables');
+import assignCMDENVVariables from '../assignCmdEnvVariables.ts';
 const cfgEnv = assignCMDENVVariables([hdbTerms.INSTALL_PROMPTS.HDB_CONFIG]);
 let hdbRoot = undefined;
 let conditionalRollback = false;

@@ -9,12 +9,12 @@ import { promisify, callbackify } from 'util';
 import * as terms from '../utility/hdbTerms.ts';
 import * as globalSchema from '../utility/globalSchema.ts';
 const pGlobalSchema = promisify(globalSchema.getTableSchema);
-const harperBridge = require('./harperBridge/harperBridge').default || require('./harperBridge/harperBridge');
+import harperBridge from './harperBridge/harperBridge.ts';
 import { DeleteResponseObject } from './DataLayerObjects.ts';
 import { handleHDBError } from '../utility/errors/hdbError.ts';
 import { HDB_ERROR_MSGS, HTTP_STATUS_CODES } from '../utility/errors/commonErrors.ts';
 
-const DeleteAuditLogsBeforeResults = require('./harperBridge/lmdbBridge/lmdbMethods/DeleteAuditLogsBeforeResults.js');
+import DeleteAuditLogsBeforeResults from './harperBridge/lmdbBridge/lmdbMethods/DeleteAuditLogsBeforeResults.js';
 
 const SUCCESS_MESSAGE = 'records successfully deleted';
 

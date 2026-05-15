@@ -8,7 +8,7 @@ import log from '../logging/harper_logger.ts';
 import { LMDB_ERRORS_ENUM as LMDB_ERRORS } from '../errors/commonErrors.ts';
 import DBIDefinition from './DBIDefinition.ts';
 import { OpenDBIObject } from './OpenDBIObject.ts';
-const OpenEnvironmentObject = require('./OpenEnvironmentObject').default || require('./OpenEnvironmentObject');
+import OpenEnvironmentObject from './OpenEnvironmentObject.ts';
 import * as lmdbTerms from './terms.ts';
 import * as hdbTerms from '../hdbTerms.ts';
 import { resetDatabases } from '../../resources/databases.ts';

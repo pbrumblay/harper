@@ -2,9 +2,9 @@
 
 import Joi from 'joi';
 const { string, number } = Joi.types();
-const fs = require('fs-extra');
+import * as fs from 'fs-extra';
 import * as hdbTerms from '../utility/hdbTerms.ts';
-const path = require('path');
+import * as path from 'path';
 import * as validator from './validationWrapper.ts';
 
 export default installValidator;

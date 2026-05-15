@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import logger from '../utility/logging/harper_logger.ts';
 import * as cliOperations from './cliOperations.ts';
 import { packageJson } from '../utility/packageUtils.ts';
-const checkNode = require('../launchServiceScripts/utility/checkNodeVersion.js');
+import checkNode from '../launchServiceScripts/utility/checkNodeVersion.js';
 import * as hdbTerms from '../utility/hdbTerms.ts';
 const { SERVICE_ACTIONS_ENUM } = hdbTerms as any;
 if (typeof process.setSourceMapsEnabled === 'function') {

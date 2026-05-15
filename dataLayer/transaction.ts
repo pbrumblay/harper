@@ -1,6 +1,6 @@
 'use strict';
 
-const harperBridge = require('./harperBridge/harperBridge').default || require('./harperBridge/harperBridge');
+import harperBridge from './harperBridge/harperBridge.ts';
 
 /**
  * This is wrapper for write transactions, ensuring that all reads and writes within the callback occur atomically

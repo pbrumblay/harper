@@ -1,5 +1,5 @@
-const _ = require('lodash'),
-	validator = require('./validationWrapper');
+import * as _ from 'lodash';
+import * as validator from './validationWrapper.ts';
 import Joi from 'joi';
 import * as hdbUtils from '../utility/common_utils.ts';
 import { hdbSchemaTable, checkValidTable, hdbTable, hdbDatabase } from './common_validators.ts';

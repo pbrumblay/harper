@@ -30,13 +30,13 @@ import * as permsTranslator from '../security/permissionsTranslator.js';
 import { systemInformation } from '../utility/environment/systemInformation.ts';
 import * as tokenAuthentication from '../security/tokenAuthentication.ts';
 import * as auth from '../security/auth.ts';
-const configUtils = require('../config/configUtils.js');
-const functionsOperations = require('../components/operations.js');
+import * as configUtils from '../config/configUtils.js';
+import * as functionsOperations from '../components/operations.js';
 import * as transactionLog from '../utility/logging/transactionLog.ts';
 import * as npmUtilities from './npmUtilities.ts';
 import * as analytics from '../resources/analytics/read.ts';
 import * as status from '../server/status/index.ts';
-const PermissionResponseObject = require('../security/data_objects/PermissionResponseObject').default;
+import PermissionResponseObject from '../security/data_objects/PermissionResponseObject.ts';
 import { handleHDBError, hdbErrors } from '../utility/errors/hdbError.ts';
 
 import * as regDeprecated from '../resources/registrationDeprecated.ts';
