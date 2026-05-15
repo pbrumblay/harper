@@ -264,6 +264,9 @@ describe('Audit log', () => {
 		const DB_COUNT = 3;
 		let tables = [];
 		let events = [];
+		// Collect a promise per table that resolves when the first data event fires,
+		// replacing the fixed delay(40) that was too short on Node 22.
+		let eventPromises = [];
 		for (let i = 0; i < DB_COUNT; i++) {
 			tables[i] = table({
 				table: 'AuditedTable',
@@ -272,14 +275,17 @@ describe('Audit log', () => {
 			});
 			let subscription = await tables[i].subscribe({});
 			const eventsForTable = (events[i] = []);
-			subscription.on('data', (event) => {
-				eventsForTable.push(event);
+			eventPromises[i] = new Promise((resolve) => {
+				subscription.on('data', (event) => {
+					eventsForTable.push(event);
+					resolve();
+				});
 			});
 		}
 		for (let i = 0; i < DB_COUNT; i++) {
 			await tables[i].put(50, { name: 'test' });
 		}
-		await delay(40); // let the events fire
+		await Promise.all(eventPromises);
 		for (let i = 0; i < DB_COUNT; i++) {
 			assert.equal(events[i].length, 1);
 		}
