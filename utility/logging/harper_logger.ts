@@ -9,7 +9,7 @@ const PropertiesReader = require('properties-reader');
 import * as hdbTerms from '../hdbTerms.ts';
 import assignCMDENVVariables from '../assignCmdEnvVariables.ts';
 import * as os from 'os';
-import { PACKAGE_ROOT } from '../../utility/packageUtils.ts';
+import { PACKAGE_ROOT } from '../../utility/packageUtils.js';
 import { _assignPackageExport } from '../../globals.js';
 import { Console } from 'console';
 // store the native write function so we can call it after we write to the log file (and store it on process.stdout

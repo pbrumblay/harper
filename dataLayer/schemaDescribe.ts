@@ -201,10 +201,10 @@ async function descTable(describeTableObject: any, attrPerms?: any) {
 	if (tableObj.replicate !== undefined) tableResult.replicate = tableObj.replicate;
 	if (tableObj.expirationMS !== undefined) tableResult.expiration = tableObj.expirationMS / 1000 + 's';
 	if (tableObj.sealed !== undefined) tableResult.sealed = tableObj.sealed;
-	if (tableObj.sources?.length > 0)
-		tableResult.sources = tableObj.sources
-			.map((source) => source.name)
-			.filter((source) => source && source !== 'Replicator');
+	if ((tableObj as any).sources?.length > 0)
+		tableResult.sources = (tableObj as any).sources
+			.map((source: any) => source.name)
+			.filter((source: any) => source && source !== 'Replicator');
 
 	try {
 		const recordCount = await tableObj.getRecordCount({ exactCount: !!describeTableObject.exact_count });

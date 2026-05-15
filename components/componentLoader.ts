@@ -13,7 +13,7 @@ import { join, basename, dirname } from 'node:path';
 import { isMainThread } from 'node:worker_threads';
 import { parseDocument } from 'yaml';
 import * as env from '../utility/environment/environmentManager.ts';
-import { PACKAGE_ROOT } from '../utility/packageUtils.ts';
+import { PACKAGE_ROOT } from '../utility/packageUtils.js';
 import { CONFIG_PARAMS, HDB_ROOT_DIR_NAME, ITC_EVENT_TYPES } from '../utility/hdbTerms.ts';
 import * as graphqlHandler from '../resources/graphql.ts';
 import * as graphqlQueryHandler from '../server/graphqlQuerying.ts';

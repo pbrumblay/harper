@@ -416,9 +416,13 @@ async function findAndValidateUser(username: string, pw?: string | null, validat
 		if (passwordHashCache.get(pw) === userTmp.password) return user;
 		// if validates, cache the password
 		else {
-			let validated = password.validate(userTmp.password, pw, userTmp.hash_function || password.HASH_FUNCTION.MD5); // if no hashFunction default to legacy MD5
+			let validated: boolean | Promise<boolean> = password.validate(
+				userTmp.password,
+				pw,
+				userTmp.hash_function || password.HASH_FUNCTION.MD5
+			); // if no hashFunction default to legacy MD5
 			// argon2id hash validation is async so await it if it is a promise
-			if (validated?.then) validated = await validated;
+			if (typeof validated === 'object' && (validated as Promise<boolean>)?.then) validated = await validated;
 			if (validated === true) passwordHashCache.set(pw, userTmp.password);
 			else throw new ClientError(AUTHENTICATION_ERROR_MSGS.GENERIC_AUTH_FAIL, HTTP_STATUS_CODES.UNAUTHORIZED);
 		}
@@ -436,7 +440,7 @@ async function getSuperUser(): Promise<User | undefined> {
 }
 
 let invalidateCallbacks = [];
-server.invalidateUser = function (user: User | any) {
+(server as any).invalidateUser = function (user: User | any) {
 	for (let callback of invalidateCallbacks) {
 		try {
 			callback(user);

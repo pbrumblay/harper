@@ -7,7 +7,7 @@ import * as os from 'os';
 import * as net from 'net';
 import RecursiveIterator from 'recursive-iterator';
 import * as terms from './hdbTerms.ts';
-import { PACKAGE_ROOT } from './packageUtils.ts';
+import { PACKAGE_ROOT } from './packageUtils.js';
 export { PACKAGE_ROOT };
 import * as papaParse from 'papaparse';
 import moment from 'moment';

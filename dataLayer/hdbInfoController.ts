@@ -16,7 +16,7 @@ import * as BinObjects from '../bin/BinObjects.ts';
 import * as DataLayerObjects from './DataLayerObjects.ts';
 import { UpgradeObject } from '../upgrade/UpgradeObjects.ts';
 import { forceDowngradePrompt } from '../upgrade/upgradePrompt.ts';
-import { packageJson } from '../utility/packageUtils.ts';
+import { packageJson } from '../utility/packageUtils.js';
 import log from '../utility/logging/harper_logger.ts';
 import * as hdbUtils from '../utility/common_utils.ts';
 import * as globalSchema from '../utility/globalSchema.ts';

@@ -13,7 +13,7 @@ import * as path from 'path';
 import checkJwtTokens from '../utility/install/checkJWTTokensExist.js';
 import { install } from '../utility/install/installer.ts';
 import chalk from 'chalk';
-import { packageJson } from '../utility/packageUtils.ts';
+import { packageJson } from '../utility/packageUtils.js';
 import * as hdbUtils from '../utility/common_utils.ts';
 import * as installation from '../utility/installation.ts';
 import * as configUtils from '../config/configUtils.js';
@@ -28,7 +28,7 @@ import { isReadOnlyMode } from '../resources/databases.ts';
 import { getThisNodeName } from '../server/nodeName.ts';
 import * as hdbTerms from '../utility/hdbTerms.ts';
 import { getHdbPid, isProcessRunning } from '../utility/processManagement/processManagement.js';
-import { PACKAGE_ROOT } from '../utility/packageUtils.ts';
+import { PACKAGE_ROOT } from '../utility/packageUtils.js';
 
 let pmUtils;
 let cmdArgs;

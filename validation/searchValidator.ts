@@ -144,11 +144,11 @@ export default function (searchObject: any, type: any) {
 				!_.some(
 					allTableAttributes,
 					(
-						tableAttribute // attribute should match one of the attribute in global
+						tableAttribute: any // attribute should match one of the attribute in global
 					) =>
 						tableAttribute === attribute ||
 						tableAttribute.attribute === attribute ||
-						tableAttribute.attribute === attribute.attribute
+						tableAttribute.attribute === (attribute as any).attribute
 				)
 		);
 

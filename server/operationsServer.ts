@@ -11,7 +11,7 @@ import fastifyCompress from '@fastify/compress';
 import fastifyStatic from '@fastify/static';
 import requestTimePlugin from './serverHelpers/requestTimePlugin.js';
 import guidePath from 'path';
-import { PACKAGE_ROOT } from '../utility/packageUtils.ts';
+import { PACKAGE_ROOT } from '../utility/packageUtils.js';
 import * as globalSchema from '../utility/globalSchema.ts';
 import * as commonUtils from '../utility/common_utils.ts';
 import * as userSchema from '../security/user.ts';

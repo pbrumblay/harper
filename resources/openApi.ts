@@ -1,4 +1,4 @@
-import { packageJson } from '../utility/packageUtils.ts';
+import { packageJson } from '../utility/packageUtils.js';
 import { Resources } from './Resources.ts';
 import { Resource } from './Resource.ts';
 

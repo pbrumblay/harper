@@ -14,7 +14,7 @@ import * as envManager from '../environment/environmentManager.ts';
 import * as hdbUtils from '../common_utils.ts';
 
 import * as hdbInfoController from '../../dataLayer/hdbInfoController.ts';
-import { packageJson } from '../packageUtils.ts';
+import { packageJson } from '../packageUtils.js';
 import * as hdbTerms from '../hdbTerms.ts';
 const { CONFIG_PARAMS } = hdbTerms;
 import installValidator from '../../validation/installValidator.ts';
@@ -147,10 +147,8 @@ async function install() {
 	if (
 		!ignoreExisting &&
 		!cfgEnv[hdbTerms.INSTALL_PROMPTS.HDB_CONFIG] &&
-		(await fs.pathExists(
-			path.join(hdbRoot, hdbTerms.HARPER_CONFIG_FILE) ||
-				(await fs.pathExists(path.join(hdbRoot, hdbTerms.HDB_CONFIG_FILE)))
-		))
+		((await fs.pathExists(path.join(hdbRoot, hdbTerms.HARPER_CONFIG_FILE))) ||
+			(await fs.pathExists(path.join(hdbRoot, hdbTerms.HDB_CONFIG_FILE))))
 	) {
 		console.error(HDB_EXISTS_MSG);
 		process.exit();
@@ -206,8 +204,8 @@ async function install() {
 function getConfigFromFile() {
 	let doc = YAML.parseDocument(fs.readFileSync(cfgEnv[hdbTerms.INSTALL_PROMPTS.HDB_CONFIG], 'utf8'), {
 		simpleKeys: true,
-	});
-	const flatCfg = configUtils.flattenConfig(doc.toJSON());
+	} as any);
+	const flatCfg: any = configUtils.flattenConfig(doc.toJSON()) ?? {};
 
 	// This ensures that if config file has rootpath, rootpath install prompt uses this value
 	if (flatCfg[hdbTerms.CONFIG_PARAMS.ROOTPATH.toLowerCase()])
@@ -355,8 +353,8 @@ function checkForPromptOverride() {
 	const installPromptsArray = Object.keys(hdbTerms.INSTALL_PROMPTS);
 	// The config refactor meant that some config values have multiple key names (old and new). Also some of the
 	// prompts are not config file values. For this reason we search twice for any matching cmd/env vars.
-	const promptCmdenvArgs = (assignCMDENVVariables.default || assignCMDENVVariables)(installPromptsArray);
-	const configCmdenvArgs = (assignCMDENVVariables.default || assignCMDENVVariables)(
+	const promptCmdenvArgs = assignCMDENVVariables(installPromptsArray);
+	const configCmdenvArgs = assignCMDENVVariables(
 		Object.keys(hdbTerms.CONFIG_PARAM_MAP),
 		true
 	);
@@ -480,7 +478,7 @@ async function createBootPropertiesFile() {
  */
 async function createConfigFile(installParams) {
 	hdbLogger.trace('Creating Harper config file');
-	const args = (assignCMDENVVariables.default || assignCMDENVVariables)(Object.keys(hdbTerms.CONFIG_PARAM_MAP), true);
+	const args = assignCMDENVVariables(Object.keys(hdbTerms.CONFIG_PARAM_MAP), true);
 	Object.assign(args, installParams);
 
 	// If installing in dev mode set dev config defaults
@@ -551,7 +549,7 @@ function rollbackInstall(errMsg) {
 		if (conditionalRollback) {
 			const dir = fs.readdirSync(hdbRoot, { withFileTypes: true });
 			dir.forEach((d) => {
-				const fullPath = path.join(d.path, d.name);
+				const fullPath = path.join((d as any).parentPath ?? (d as any).path, d.name);
 				if (fullPath !== cfgEnv[hdbTerms.INSTALL_PROMPTS.HDB_CONFIG]) {
 					fs.removeSync(fullPath);
 				}

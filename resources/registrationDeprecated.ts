@@ -1,4 +1,4 @@
-import { packageJson } from '../utility/packageUtils.ts';
+import { packageJson } from '../utility/packageUtils.js';
 
 export function getRegistrationInfo() {
 	return {

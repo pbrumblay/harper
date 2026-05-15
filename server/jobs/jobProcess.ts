@@ -13,7 +13,7 @@ import { cloneDeep } from 'lodash';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { getEnvBuiltInComponents } from './../../components/Application.ts';
-import { PACKAGE_ROOT } from '../../utility/packageUtils.ts';
+import { PACKAGE_ROOT } from '../../utility/packageUtils.js';
 const JOB_NAME = process.env[(hdbTerms as any).PROCESS_NAME_ENV_PROP] as string;
 const JOB_ID = JOB_NAME.substring(4);
 

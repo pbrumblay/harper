@@ -102,7 +102,7 @@ function customValidate(object, constraints) {
 	}
 
 	for (let item in object.permission) {
-		if (ROLE_TYPES.indexOf(item) < 0) {
+		if (ROLE_TYPES.indexOf(item as any) < 0) {
 			//validate the user type 'structure_user'.  acceptable data type is boolean or array of strings (this would be array of accepted schemas to interact with)
 			if (item === STRUCTURE_USER_ENUM.STRUCTURE_USER) {
 				let structureUserPerm = object.permission[item];

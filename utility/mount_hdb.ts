@@ -7,7 +7,7 @@ import hdbLogger from '../utility/logging/harper_logger.ts';
 import bridge from '../dataLayer/harperBridge/harperBridge.ts';
 import systemSchema from '../json/systemSchema.json';
 import * as initPaths from '../dataLayer/harperBridge/lmdbBridge/lmdbUtility/initializePaths.js';
-import { PACKAGE_ROOT } from '../utility/packageUtils.ts';
+import { PACKAGE_ROOT } from '../utility/packageUtils.js';
 
 export default async function mountHdb(hdbPath: string) {
 	hdbLogger.trace('Mounting Harper');
