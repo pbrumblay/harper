@@ -1,7 +1,7 @@
 import { type Logger } from '../utility/logging/logger.ts';
 import { getConfigObj, getConfigValue, getConfigPath } from '../config/configUtils.js';
-import { CONFIG_PARAMS } from '../utility/hdbTerms.js';
-import logger from '../utility/logging/harper_logger.js';
+import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
+import logger from '../utility/logging/harper_logger.ts';
 
 import { dirname, extname, join } from 'node:path';
 import {
@@ -136,7 +136,7 @@ export async function extractApplication(application: Application) {
 	if (application.payload) {
 		// Given a payload, create a Readable from the Buffer or string
 		tarball = Readable.from(
-			application.payload instanceof Buffer ? application.payload : Buffer.from(application.payload, 'base64')
+			application.payload instanceof Buffer ? application.payload : Buffer.from((application as any).payload, 'base64')
 		);
 	} else {
 		// Given a package, there are a a couple options

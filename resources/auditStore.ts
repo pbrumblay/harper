@@ -1,11 +1,11 @@
 import { readKey, writeKey } from 'ordered-binary';
-import { initSync, get as envGet } from '../utility/environment/environmentManager.js';
-import { AUDIT_STORE_NAME } from '../utility/lmdb/terms.js';
+import { initSync, get as envGet } from '../utility/environment/environmentManager.ts';
+import { AUDIT_STORE_NAME } from '../utility/lmdb/terms.ts';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
 import { getWorkerIndex, getWorkerCount } from '../server/threads/manageThreads.js';
-import { convertToMS } from '../utility/common_utils.js';
+import { convertToMS } from '../utility/common_utils.ts';
 import { PREVIOUS_TIMESTAMP_PLACEHOLDER, LAST_TIMESTAMP_PLACEHOLDER } from './RecordEncoder.ts';
-import * as harperLogger from '../utility/logging/harper_logger.js';
+import * as harperLogger from '../utility/logging/harper_logger.ts';
 import { getRecordAtTime } from './crdt.ts';
 import { decodeFromDatabase } from './blob.ts';
 import { onStorageReclamation } from '../server/storageReclamation.ts';
@@ -33,24 +33,30 @@ import { isReadOnlyMode } from './databases.ts';
 initSync();
 
 export type AuditRecord = {
-	version?: number;
-	localTime?: number; // only to be used by LMDB (from the key)
+	version: number;
+	localTime: number; // only to be used by LMDB (from the key)
 	type: string;
-	encodedRecord: Buffer;
-	extendedType: number;
-	residencyId: number;
-	previousResidencyId: number;
-	expiresAt: Date | null;
+	encodedRecord?: Buffer;
+	extendedType?: number;
+	residencyId?: number;
+	previousResidencyId?: number;
+	expiresAt: number | null;
 	originatingOperation: string;
-	tableId: number;
-	recordId: number;
-	previousVersion: number;
+	tableId?: number;
+	recordId?: number;
+	previousVersion?: number;
 	user?: string;
 	nodeId?: number;
-	previousNodeId?: number;
-	previousAdditionalAuditRefs?: Array<{ version: number; nodeId: number }>;
-	endTxn?: boolean;
+	previousNodeId: number;
+	previousAdditionalAuditRefs?: Array<{ version?: number; nodeId: number }>;
+	key?: any;
+	encoded?: any;
+	size: number;
+	getValue?: any;
+	getBinaryValue?: any;
 	structureVersion?: number;
+	endTxn?: boolean;
+	getBinaryRecordId?: any;
 };
 
 const ENTRY_HEADER = Buffer.alloc(2816); // this is sized to be large enough for the maximum key size (1976) plus large usernames. We may want to consider some limits on usernames to ensure this all fits
@@ -431,7 +437,8 @@ export function createAuditEntry(auditRecord: AuditRecord, start = 0) {
 export function readAuditEntry(buffer: Uint8Array, start = 0, end = undefined): AuditRecord {
 	try {
 		const decoder =
-			buffer.decoder || (buffer.decoder = new Decoder(buffer.buffer, buffer.byteOffset, buffer.byteLength));
+			(buffer as any).decoder ||
+			((buffer as any).decoder = new Decoder(buffer.buffer, buffer.byteOffset, buffer.byteLength));
 		decoder.position = start;
 		let previousVersion;
 		if (buffer[decoder.position] == 66) {
@@ -523,10 +530,10 @@ export function readAuditEntry(buffer: Uint8Array, start = 0, end = undefined): 
 			expiresAt,
 			originatingOperation,
 			previousAdditionalAuditRefs,
-		};
+		} as any;
 	} catch (error) {
 		harperLogger.error('Reading audit entry error', error, buffer);
-		return {};
+		return {} as any;
 	}
 }
 

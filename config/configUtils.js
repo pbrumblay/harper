@@ -1,9 +1,9 @@
 'use strict';
 
 const hdbTerms = require('../utility/hdbTerms.ts');
-const hdbUtils = require('../utility/common_utils.js');
-const logger = require('../utility/logging/harper_logger.js');
-const { configValidator } = require('../validation/configValidator.js');
+const hdbUtils = require('../utility/common_utils.ts');
+const logger = require('../utility/logging/harper_logger.ts');
+const { configValidator } = require('../validation/configValidator.ts');
 const fs = require('fs-extra');
 const YAML = require('yaml');
 const path = require('path');
@@ -12,8 +12,8 @@ const { randomBytes } = require('node:crypto');
 const isNumber = require('is-number');
 const PropertiesReader = require('properties-reader');
 const _ = require('lodash');
-const { handleHDBError } = require('../utility/errors/hdbError.js');
-const { HTTP_STATUS_CODES, HDB_ERROR_MSGS } = require('../utility/errors/commonErrors.js');
+const { handleHDBError } = require('../utility/errors/hdbError.ts');
+const { HTTP_STATUS_CODES, HDB_ERROR_MSGS } = require('../utility/errors/commonErrors.ts');
 const { server } = require('../server/Server.ts');
 const { getBackupDirPath } = require('./configHelpers.ts');
 const { PACKAGE_ROOT } = require('../utility/packageUtils');
@@ -65,7 +65,7 @@ function resolvePath(relativePath) {
 	if (relativePath?.startsWith('~/')) {
 		return path.join(hdbUtils.getHomeDir(), relativePath.slice(1));
 	}
-	const env = require('../utility/environment/environmentManager.js');
+	const env = require('../utility/environment/environmentManager.ts');
 	try {
 		return path.resolve(env.getHdbBasePath(), relativePath);
 	} catch (error) {
@@ -79,7 +79,7 @@ function resolvePath(relativePath) {
  * @param param
  */
 function getConfigPath(param) {
-	const env = require('../utility/environment/environmentManager.js');
+	const env = require('../utility/environment/environmentManager.ts');
 	const value = env.get(param);
 	if (!value || typeof value !== 'string') return value;
 	if (value.startsWith('~/')) {

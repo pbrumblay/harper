@@ -9,15 +9,15 @@ exports.whenComponentsLoaded = new Promise((resolve) => {
 	componentsLoadedResolve = resolve;
 });
 
-const harperLogger = require('../../utility/logging/harper_logger.js');
-const env = require('../../utility/environment/environmentManager.js');
+const harperLogger = require('../../utility/logging/harper_logger.ts');
+const env = require('../../utility/environment/environmentManager.ts');
 const terms = require('../../utility/hdbTerms.ts');
 const { server } = require('../Server.ts');
 let { createServer: createSecureSocketServer } = require('node:tls');
 const { restartNumber, getWorkerIndex } = require('./manageThreads.js');
 const { isBun } = require('../serverHelpers/Request.ts');
-const { createTLSSelector } = require('../../security/keys.js');
-const { startupLog } = require('../../bin/run.js');
+const { createTLSSelector } = require('../../security/keys.ts');
+const { startupLog } = require('../../bin/run.ts');
 const { SERVERS, setPortServerMap, portServer } = require('../serverRegistry.ts');
 const httpComponent = require('../http.ts');
 const globals = require('../../globals.js');
