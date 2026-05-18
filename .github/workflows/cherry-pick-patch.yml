@@ -200,6 +200,12 @@ jobs:
         run: |
           set -euo pipefail
           BRANCH="${{ steps.pick.outputs.branch }}"
+          WORKFLOW_CHANGES=$(git diff "origin/${RELEASE_BRANCH}".."${BRANCH}" --name-only | grep '^\.github/workflows/' || true)
+          if [ -n "$WORKFLOW_CHANGES" ]; then
+            BODY=$(printf '%s\n## Patch cherry-pick: workflow files modified\n\nThe cherry-pick branch modifies CI workflow files — automated tests were **not** dispatched to prevent running PR-controlled workflows with write permissions.\n\nModified files:\n```\n%s\n```\nPlease review and trigger tests manually if safe.\n' "$STICKY_MARKER" "$WORKFLOW_CHANGES")
+            node .github/scripts/upsert-sticky-comment.js "$PR_NUMBER" "$STICKY_MARKER" "$BODY"
+            exit 0
+          fi
           gh workflow run integration-tests.yml --ref "$BRANCH" --repo "$GITHUB_REPOSITORY"
           gh workflow run unit-test.yml --ref "$BRANCH" --repo "$GITHUB_REPOSITORY"
 
