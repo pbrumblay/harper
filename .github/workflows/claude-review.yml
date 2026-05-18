@@ -16,15 +16,24 @@ name: Claude PR Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # `labeled` admits the `claude-review` label gesture for
+    # bot-authored PRs (renovate, dependabot). See ai-review-prompts#38.
+    types: [opened, synchronize, reopened, labeled]
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# Default-deny at the caller's workflow level. The reusable's per-job
+# `permissions:` blocks declare what each job actually needs and take
+# effect via GH Actions' per-job override semantics. See
+# ai-review-prompts#39 for the symmetric workflow-level deny on the
+# reusable side.
+permissions: {}
+
 jobs:
   review:
-    uses: HarperFast/ai-review-prompts/.github/workflows/_claude-review.yml@3278ce4e63c5af33cd1db68602aad9580e60dce7 # main 2026-05-09 (post #20 — title format + areas-not-traced + dev/prod dep rule)
+    uses: HarperFast/ai-review-prompts/.github/workflows/_claude-review.yml@13cdfabde987db713e68986831d0b78d2e418b2f # main 2026-05-18 (post #37 + #38 + #39 — calibration layer update in harper/common.md (meta-checks + reuse/CI/lockfile rules) + label-gated review for bot-authored PRs via the `claude-review` label + workflow-level `permissions: {}` on all reusables)
     with:
       # Same SHA as the `uses:` ref above. The reusable uses this to
       # check out HarperFast/ai-review-prompts (layer files + bash
@@ -35,7 +44,7 @@ jobs:
       # introspect their own ref (`github.workflow_ref` resolves to the
       # CALLER's ref in `workflow_call` context), and `uses: …@<ref>`
       # is parsed literally so we can't interpolate a variable.
-      ai-review-prompts-ref: 3278ce4e63c5af33cd1db68602aad9580e60dce7
+      ai-review-prompts-ref: 13cdfabde987db713e68986831d0b78d2e418b2f
       review-layers: |
         universal
         harper/common
