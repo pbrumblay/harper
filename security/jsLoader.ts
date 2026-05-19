@@ -7,13 +7,13 @@ import { dirname, isAbsolute } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { SourceTextModule, SyntheticModule, createContext, runInContext, runInThisContext } from 'node:vm';
 import { ApplicationScope } from '../components/ApplicationScope.ts';
-import logger from '../utility/logging/harper_logger.js';
+import logger from '../utility/logging/harper_logger.ts';
 import { createRequire } from 'node:module';
 import * as env from '../utility/environment/environmentManager';
 import * as child_process from 'node:child_process';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
 import { contentTypes } from '../server/serverHelpers/contentTypes.ts';
-import type { CompartmentOptions } from 'ses';
+import type {} from 'ses';
 import {
 	mkdirSync,
 	readFileSync,
@@ -95,6 +95,7 @@ export async function scopedImport(filePath: string | URL, scope?: ApplicationSc
 			// is hidden behind a private symbol (arrowMessagePrivateSymbol)
 			// on the error object and the only way to access it is to use the
 			// internal util.decorateErrorStack() function
+			// @ts-ignore
 			const util = await import('internal/util');
 			util.default.decorateErrorStack(err);
 		} catch {
@@ -246,7 +247,7 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope, useC
 		const runOptions = {
 			filename: url,
 			async importModuleDynamically(specifier: string, script) {
-				const resolvedUrl = resolveModule(specifier, script.sourceURL);
+				const resolvedUrl = resolveModule(specifier, script?.sourceURL ?? url);
 				const useApplicationLoader = shouldUseApplicationLoader(specifier, resolvedUrl);
 				const dynamicModule = await loadModuleWithCache(resolvedUrl, useApplicationLoader);
 				return dynamicModule;
@@ -499,6 +500,11 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope, useC
 				context,
 				initializeImportMeta(meta) {
 					meta.url = url;
+					if (url.startsWith('file:')) {
+						meta.filename = fileURLToPath(url);
+						meta.dirname = dirname(meta.filename);
+					}
+					meta.resolve = (specifier: string) => resolveModule(specifier, url);
 				},
 				importModuleDynamically(specifier: string) {
 					const resolvedUrl = resolveModule(specifier, url);
@@ -544,7 +550,7 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope, useC
 async function getCompartment(scope: ApplicationScope, globals) {
 	const { StaticModuleRecord } = await import('@endo/static-module-record');
 	require('ses');
-	const compartment: CompartmentOptions = new (Compartment as typeof CompartmentOptions)(
+	const compartment: any = new (Compartment as any)(
 		globals,
 		{
 			//harperdb: { Resource, tables, databases }
@@ -717,7 +723,7 @@ const ALLOWED_NODE_BUILTIN_MODULES = env.get(CONFIG_PARAMS.APPLICATIONS_ALLOWEDB
 			},
 		};
 const ALLOWED_COMMANDS = new Set(env.get(CONFIG_PARAMS.APPLICATIONS_ALLOWEDSPAWNCOMMANDS) ?? []);
-const child_processConstrained = {
+const child_processConstrained: any = {
 	exec: createSpawn(child_process.exec),
 	execFile: createSpawn(child_process.execFile),
 	fork: createSpawn(child_process.fork, true), // this is launching node, so deemed safe
@@ -940,14 +946,14 @@ function createSpawn(spawnFunction: (...args: any) => child_process.ChildProcess
  */
 function checkAllowedModulePath(moduleUrl: string, allowedPath?: string): boolean {
 	if (moduleUrl.startsWith('file:')) {
-		let path = moduleUrl.slice(7);
+		let path = fileURLToPath(moduleUrl);
 		try {
 			path = realpathSync(path);
 		} catch {}
 		if (!allowedPath || path.startsWith(allowedPath)) {
 			return;
 		}
-		throw new Error(`Can not load module outside of allowed path`);
+		throw new Error(`Can not load module at ${path} outside of allowed path ${allowedPath}`);
 	}
 	let simpleName = moduleUrl.startsWith('node:') ? moduleUrl.slice(5) : moduleUrl;
 	simpleName = simpleName.split('/')[0];
@@ -962,7 +968,7 @@ export function getUser() {
 	return contextStorage.getStore()?.user;
 }
 export function getResponse() {
-	return contextStorage.getStore()?.response;
+	return (contextStorage.getStore() as any)?.response;
 }
 
 export function preventFunctionConstructor() {
@@ -1003,7 +1009,7 @@ function freezeIntrinsics() {
 		FinalizationRegistry,
 	]) {
 		Object.freeze(Intrinsic);
-		Object.freeze(Intrinsic.prototype);
+		Object.freeze((Intrinsic as any).prototype);
 	}
 	Object.freeze(Function);
 }

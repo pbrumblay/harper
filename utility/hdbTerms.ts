@@ -65,7 +65,6 @@ export const DEFAULT_DATABASE_NAME = 'data';
 /** Log File Names */
 export const LOG_NAMES = {
 	HDB: 'hdb.log',
-	INSTALL: 'install.log',
 } as const;
 
 /** Log Levels */
@@ -338,6 +337,8 @@ export const SERVICE_ACTIONS_ENUM = {
 	UPGRADE: 'upgrade',
 	HELP: 'help',
 	STATUS: 'status',
+	LOGIN: 'login',
+	LOGOUT: 'logout',
 	OPERATION: 'operation',
 	RENEWCERTS: 'renew-certs',
 	COPYDB: 'copy-db',
@@ -578,6 +579,7 @@ export const CONFIG_PARAMS = {
 	STORAGE_RECLAMATION_INTERVAL: 'storage_reclamation_interval',
 	STORAGE_RECLAMATION_EVICTIONFACTOR: 'storage_reclamation_evictionFactor',
 	STORAGE_ENGINE: 'storage_engine',
+	STORAGE_READONLY: 'storage_readOnly',
 	DATABASES: 'databases',
 	IGNORE_SCRIPTS: 'ignoreScripts',
 	MQTT_NETWORK_PORT: 'mqtt_network_port',

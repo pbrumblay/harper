@@ -6,12 +6,12 @@ const fs = require('fs-extra');
 const fg = require('fast-glob');
 const normalize = require('normalize-path');
 const validator = require('./operationsValidation.js');
-const log = require('../utility/logging/harper_logger.js');
+const log = require('../utility/logging/harper_logger.ts');
 const hdbTerms = require('../utility/hdbTerms.ts');
-const env = require('../utility/environment/environmentManager.js');
+const env = require('../utility/environment/environmentManager.ts');
 const configUtils = require('../config/configUtils.js');
-const hdbUtils = require('../utility/common_utils.js');
-const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.js');
+const hdbUtils = require('../utility/common_utils.ts');
+const { handleHDBError, hdbErrors } = require('../utility/errors/hdbError.ts');
 const { HDB_ERROR_MSGS, HTTP_STATUS_CODES } = hdbErrors;
 const manageThreads = require('../server/threads/manageThreads.js');
 const { packageDirectory } = require('../components/packageComponent.ts');
@@ -396,16 +396,13 @@ async function deployComponent(req) {
 
 	await prepareApplication(application);
 
-	// the main thread should never actually load component, just do a deploy
-	if (isMainThread) return;
-
 	// now we attempt to actually load the component in case there is
-	// an error we can immediately detect and report
-	const pseudoResources = new Resources();
-	pseudoResources.isWorker = true;
+	// an error we can immediately detect and report, but app code should not run on the main thread
+	if (!isMainThread && !process.env.HARPER_SAFE_MODE) {
+		const pseudoResources = new Resources();
+		pseudoResources.isWorker = true;
 
-	if (!process.env.HARPER_SAFE_MODE) {
-		const componentLoader = require('./componentLoader.ts');
+		const componentLoader = require('./componentLoader.ts').default || require('./componentLoader.ts');
 		let lastError;
 		componentLoader.setErrorReporter((error) => (lastError = error));
 		await componentLoader.loadComponent(
