@@ -131,8 +131,13 @@ export type Comparator =
 	| 'ends_with'
 	| 'eq'
 	| 'equals'
+	| 'gt'
+	| 'ge'
+	| 'lt'
+	| 'le'
 	| 'greater_than'
 	| 'greater_than_equal'
+	| 'in'
 	| 'less_than'
 	| 'less_than_equal'
 	| 'ne'
@@ -146,8 +151,13 @@ interface TypedDirectCondition<Record extends object, Property extends keyof Rec
 	search_attribute?: keyof Record | Array<keyof Record> | string | string[];
 	comparator?: Comparator;
 	search_type?: Comparator;
-	value?: Record[Property];
-	search_value?: Record[Property];
+	value?: Record[Property] | Record[Property][];
+	search_value?: Record[Property] | Record[Property][];
+	/**
+	 * If true, the condition is negated. Phase 1: filter-only — forces a
+	 * full scan unless paired with another indexed condition.
+	 */
+	negated?: boolean;
 }
 
 interface ConditionGroup<Record extends object = any> {

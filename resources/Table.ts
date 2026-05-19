@@ -39,6 +39,7 @@ import {
 	flattenKey,
 	COERCIBLE_OPERATORS,
 	executeConditions,
+	resolveComparator,
 } from './search.ts';
 import { logger } from '../utility/logging/logger.ts';
 import { Addition, assignTrackedAccessors, updateAndFreeze, hasChanges, GenericTrackedObject } from './tracked.ts';
@@ -2073,15 +2074,37 @@ export function makeTable(options) {
 						condition.conditions = prepareConditions(condition.conditions, condition.operator);
 						continue;
 					}
+					// Normalize `not_X` comparator forms passed in via structured queries.
+					// The REST parser already does this, but programmatic callers may
+					// pass `not_in`, `not_starts_with`, etc. directly.
+					if (condition.comparator) {
+						const resolved = resolveComparator(condition.comparator);
+						if (resolved.negated) {
+							condition.comparator = resolved.comparator;
+							condition.negated = true;
+						}
+					}
 					const attribute_name = condition[0] ?? condition.attribute;
-					const attribute = attribute_name == null ? primaryKeyAttribute : findAttribute(attributes, attribute_name);
+					let attribute = attribute_name == null ? primaryKeyAttribute : findAttribute(attributes, attribute_name);
+					if (!attribute && Array.isArray(attribute_name) && attribute_name.length > 1) {
+						// Plain JSON nested path: the leaf may not be declared in the
+						// schema. Fall back to the root attribute so we can validate
+						// existence without requiring the inner structure to be typed.
+						attribute = findAttribute(attributes, attribute_name[0]);
+					}
 					if (!attribute) {
 						if (attribute_name != null && !target.allowConditionsOnDynamicAttributes)
 							throw handleHDBError(new Error(), `${attribute_name} is not a defined attribute`, 404);
 					} else if (attribute.type || COERCIBLE_OPERATORS[condition.comparator]) {
-						// Do auto-coercion or coercion as required by the attribute type
-						if (condition[1] === undefined) condition.value = coerceTypedValues(condition.value, attribute);
-						else condition[1] = coerceTypedValues(condition[1], attribute);
+						// Do auto-coercion or coercion as required by the attribute type.
+						// Skipped for nested paths into plain JSON — the root attribute's
+						// type is not the leaf type, so coercion would be wrong.
+						const isNestedPathRoot =
+							Array.isArray(attribute_name) && attribute_name.length > 1 && !attribute.relationship;
+						if (!isNestedPathRoot) {
+							if (condition[1] === undefined) condition.value = coerceTypedValues(condition.value, attribute);
+							else condition[1] = coerceTypedValues(condition[1], attribute);
+						}
 					}
 					if (condition.chainedConditions) {
 						if (condition.chainedConditions.length === 1 && (!condition.operator || condition.operator == 'and')) {
@@ -2593,12 +2616,22 @@ export function makeTable(options) {
 						} else {
 							value = record[attribute_name];
 							if (value && typeof value === 'object' && attribute_name !== attribute) {
-								value = TableResource.transformEntryForSelect(
+								const subTransform = TableResource.transformEntryForSelect(
 									attribute.select || attribute,
 									context,
 									readTxn,
 									null
-								)({ value } as any);
+								);
+								// Plain JSON nested values: arrays project per-element so that
+								// `select: [{ name: 'addresses', select: ['city'] }]` returns
+								// `addresses: [{ city }, { city }]` rather than a single object.
+								if (Array.isArray(value)) {
+									value = value.map((item) =>
+										item && typeof item === 'object' ? subTransform({ value: item } as any) : item
+									);
+								} else if (!(value instanceof Date)) {
+									value = subTransform({ value } as any);
+								}
 							}
 						}
 						callback(value, attribute_name);
