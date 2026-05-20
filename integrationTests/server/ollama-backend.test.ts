@@ -148,18 +148,29 @@ suite('OllamaBackend against a real Ollama instance', { skip }, () => {
 		// Get one chunk to confirm the stream started, then abort.
 		await iter.next();
 		ctrl.abort();
-		// Subsequent reads should reject (AbortError) — accept either rejection
-		// or premature done since fetch may swallow either path.
-		let rejected = false;
-		try {
-			while (true) {
-				const next = await iter.next();
-				if (next.done) break;
+		// After abort, the iterator must terminate — either by rejecting
+		// (AbortError / abort-flavored error) or by reaching `done`. The
+		// real failure mode this guards against is the stream hanging,
+		// where neither happens. Race a 5 s deadline so a hang fails the
+		// test instead of timing the suite out.
+		const drain = (async () => {
+			try {
+				while (true) {
+					const next = await iter.next();
+					if (next.done) return 'done' as const;
+				}
+			} catch (err) {
+				const name = (err as Error).name;
+				const isAbort = name === 'AbortError' || /abort/i.test(String(err));
+				return isAbort ? ('aborted' as const) : ('errored' as const);
 			}
-		} catch (err) {
-			rejected = (err as Error).name === 'AbortError' || /abort/i.test(String(err));
-		}
-		// Either an abort error fired, or the iterator terminated quickly post-abort.
-		ok(rejected || true);
+		})();
+		const HANG = Symbol('hang');
+		const deadline = new Promise<typeof HANG>((resolve) => setTimeout(() => resolve(HANG), 5000));
+		const outcome = await Promise.race([drain, deadline]);
+		ok(
+			outcome === 'done' || outcome === 'aborted',
+			`expected abort to terminate stream (done or AbortError); got ${String(outcome)}`
+		);
 	});
 });

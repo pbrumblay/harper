@@ -387,8 +387,11 @@ describe('OllamaBackend', () => {
 		});
 
 		it('throws OllamaBackendError when a stream line exceeds the byte cap', async () => {
-			// Emit > 1 MiB of bytes with no newline.
-			const huge = 'x'.repeat(1 << (20 + 1));
+			// Emit just over 1 MiB of bytes with no newline. The parens matter:
+			// `+` binds tighter than `<<`, so the original `1 << 20 + 1` (and
+			// prettier's autofix `1 << (20 + 1)`) both evaluate to `1 << 21`
+			// (2 MiB). We want `(1 << 20) + 1` — exactly one byte past the cap.
+			const huge = 'x'.repeat((1 << 20) + 1);
 			const body = new ReadableStream({
 				start(controller) {
 					controller.enqueue(new TextEncoder().encode(huge));
