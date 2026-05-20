@@ -81,9 +81,7 @@ describe('OllamaBackend', () => {
 
 	describe('embed', () => {
 		it('POSTs to /api/embed with the configured model and Float32Array output', async () => {
-			const fetch = mockFetch(() =>
-				jsonResponse({ embeddings: [[0.1, 0.2, 0.3]], prompt_eval_count: 3 })
-			);
+			const fetch = mockFetch(() => jsonResponse({ embeddings: [[0.1, 0.2, 0.3]], prompt_eval_count: 3 }));
 			const b = new OllamaBackend({ model: 'nomic-embed-text' }, fetch);
 			const result = await b.embed('hello', { accounting: ACCOUNTING });
 			assert.strictEqual(result.status, 'completed');
@@ -160,10 +158,7 @@ describe('OllamaBackend', () => {
 		it('raises OllamaBackendError when response vector count differs from input count', async () => {
 			const fetch = mockFetch(() => jsonResponse({ embeddings: [[0.1]] }));
 			const b = new OllamaBackend({ model: 'm' }, fetch);
-			await assert.rejects(
-				() => b.embed(['a', 'b'], { accounting: ACCOUNTING }),
-				/returned 1 vectors for 2 inputs/
-			);
+			await assert.rejects(() => b.embed(['a', 'b'], { accounting: ACCOUNTING }), /returned 1 vectors for 2 inputs/);
 		});
 
 		it('raises OllamaBackendError when a vector contains non-finite values', async () => {
@@ -231,10 +226,8 @@ describe('OllamaBackend', () => {
 			assert.strictEqual(result.output.content, 'reply');
 		});
 
-		it("prepends system as the first message when supplied via { messages, system }", async () => {
-			const fetch = mockFetch(() =>
-				jsonResponse({ message: { role: 'assistant', content: '' }, done: true })
-			);
+		it('prepends system as the first message when supplied via { messages, system }', async () => {
+			const fetch = mockFetch(() => jsonResponse({ message: { role: 'assistant', content: '' }, done: true }));
 			const b = new OllamaBackend({ model: 'llama3.2' }, fetch);
 			await b.generate(
 				{ messages: [{ role: 'user', content: 'q' }], system: 'be helpful' },
@@ -271,18 +264,14 @@ describe('OllamaBackend', () => {
 		});
 
 		it("maps done_reason='length' to finishReason='length'", async () => {
-			const fetch = mockFetch(() =>
-				jsonResponse({ response: 'cut', done: true, done_reason: 'length' })
-			);
+			const fetch = mockFetch(() => jsonResponse({ response: 'cut', done: true, done_reason: 'length' }));
 			const b = new OllamaBackend({ model: 'm' }, fetch);
 			const result = await b.generate('x', { accounting: ACCOUNTING });
 			assert.strictEqual(result.output.finishReason, 'length');
 		});
 
 		it('rejects a non-string content from /api/chat', async () => {
-			const fetch = mockFetch(() =>
-				jsonResponse({ message: { role: 'assistant', content: 42 }, done: true })
-			);
+			const fetch = mockFetch(() => jsonResponse({ message: { role: 'assistant', content: 42 }, done: true }));
 			const b = new OllamaBackend({ model: 'm' }, fetch);
 			await assert.rejects(
 				() => b.generate([{ role: 'user', content: 'q' }], { accounting: ACCOUNTING }),
@@ -293,10 +282,7 @@ describe('OllamaBackend', () => {
 		it('rejects a non-string response from /api/generate', async () => {
 			const fetch = mockFetch(() => jsonResponse({ response: { nested: 'obj' }, done: true }));
 			const b = new OllamaBackend({ model: 'm' }, fetch);
-			await assert.rejects(
-				() => b.generate('x', { accounting: ACCOUNTING }),
-				/response content is not a string/
-			);
+			await assert.rejects(() => b.generate('x', { accounting: ACCOUNTING }), /response content is not a string/);
 		});
 
 		it('drops non-integer token counts from usage', async () => {
@@ -402,7 +388,7 @@ describe('OllamaBackend', () => {
 
 		it('throws OllamaBackendError when a stream line exceeds the byte cap', async () => {
 			// Emit > 1 MiB of bytes with no newline.
-			const huge = 'x'.repeat(1 << 20 + 1);
+			const huge = 'x'.repeat(1 << (20 + 1));
 			const body = new ReadableStream({
 				start(controller) {
 					controller.enqueue(new TextEncoder().encode(huge));

@@ -69,17 +69,13 @@ function registerKind(kind: ModelKind, entries: Record<string, ModelEntry> | und
 			// typo guards (`.unknown(false)` on modelEntrySchema) catch field-name
 			// typos before this point; reaching here means `backend:` itself names
 			// a type Harper doesn't ship a factory for in this version.
-			harperLogger.error(
-				`models.${kind}.${logicalName}: unknown backend '${entry.backend ?? '(missing)'}'; skipping`
-			);
+			harperLogger.error(`models.${kind}.${logicalName}: unknown backend '${entry.backend ?? '(missing)'}'; skipping`);
 			continue;
 		}
 		try {
 			factory({ logicalName, kind, config: entry });
 		} catch (err) {
-			harperLogger.error(
-				`models.${kind}.${logicalName}: registration failed (${(err as Error)?.message ?? err})`
-			);
+			harperLogger.error(`models.${kind}.${logicalName}: registration failed (${(err as Error)?.message ?? err})`);
 		}
 	}
 }

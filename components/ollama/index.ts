@@ -227,11 +227,7 @@ function buildOptionsBag(opts: BackendOpts<GenerateOpts>): Record<string, unknow
 	if (Object.keys(options).length > 0) out.options = options;
 	if (opts.responseFormat === 'json') {
 		out.format = 'json';
-	} else if (
-		opts.responseFormat &&
-		typeof opts.responseFormat === 'object' &&
-		'schema' in opts.responseFormat
-	) {
+	} else if (opts.responseFormat && typeof opts.responseFormat === 'object' && 'schema' in opts.responseFormat) {
 		out.format = opts.responseFormat.schema;
 	}
 	return out;
@@ -271,9 +267,7 @@ async function* readNdjson(body: ReadableStream<Uint8Array>): AsyncGenerator<Oll
 	for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
 		buf += decoder.decode(chunk, { stream: true });
 		if (buf.length > MAX_NDJSON_LINE_BYTES) {
-			throw new OllamaBackendError(
-				`Ollama NDJSON line exceeds ${MAX_NDJSON_LINE_BYTES} bytes without a newline`
-			);
+			throw new OllamaBackendError(`Ollama NDJSON line exceeds ${MAX_NDJSON_LINE_BYTES} bytes without a newline`);
 		}
 		let nl: number;
 		while ((nl = buf.indexOf('\n')) >= 0) {
@@ -318,7 +312,11 @@ async function parseJsonResponse<T>(res: Response, endpoint: string): Promise<T>
  * any of which would poison `SUM(prompt_tokens)`-style aggregates over
  * `hdb_model_calls`.
  */
-function assignFiniteTokenCount(usage: TokenUsage, key: 'promptTokens' | 'completionTokens' | 'embeddingTokens', value: unknown): void {
+function assignFiniteTokenCount(
+	usage: TokenUsage,
+	key: 'promptTokens' | 'completionTokens' | 'embeddingTokens',
+	value: unknown
+): void {
 	if (typeof value !== 'number') return;
 	if (!Number.isFinite(value) || value < 0 || !Number.isInteger(value)) return;
 	usage[key] = value;

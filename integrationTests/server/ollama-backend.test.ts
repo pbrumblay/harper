@@ -22,7 +22,26 @@
 import { suite, test, before } from 'node:test';
 import { strictEqual, ok } from 'node:assert/strict';
 
-import { OllamaBackend } from '../../components/ollama/index.ts';
+// NOTE: `OllamaBackend` is imported dynamically inside `before()` rather than
+// at the top of the file. Statically importing it from `components/ollama/`
+// triggers a pre-existing require cycle in Harper's CommonJS graph
+// (`utility/common_utils.ts` ↔ `utility/logging/harper_logger.ts`) when this
+// test file is loaded by `node --test`, which is fatal on Node 22+ (ERR_REQUIRE_CYCLE_MODULE).
+// Other integration tests don't hit it because they only import the
+// `@harperfast/integration-testing` package and spawn Harper as a subprocess.
+// Deferring the import past the static graph build sidesteps the cycle.
+
+type OllamaBackendCtor = new (
+	config: { host?: string; model?: string; requestTimeoutMs?: number },
+	fetchImpl?: typeof fetch
+) => {
+	embed: (input: string | string[], opts: object) => Promise<{ status: string; output: Float32Array[] }>;
+	generate: (
+		input: unknown,
+		opts: object
+	) => Promise<{ status: string; output: { content: string; finishReason: string } }>;
+	generateStream: (input: unknown, opts: object) => AsyncIterable<{ deltaContent?: string; finishReason?: string }>;
+};
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
 const EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text';
@@ -47,10 +66,11 @@ async function reachable(): Promise<boolean> {
 const skip = !(await reachable());
 
 suite('OllamaBackend against a real Ollama instance', { skip }, () => {
-	let backend: OllamaBackend;
+	let backend: InstanceType<OllamaBackendCtor>;
 
-	before(() => {
-		backend = new OllamaBackend({ host: OLLAMA_HOST.replace(/^https?:\/\//, '') });
+	before(async () => {
+		const mod = (await import('../../components/ollama/index.ts')) as { OllamaBackend: OllamaBackendCtor };
+		backend = new mod.OllamaBackend({ host: OLLAMA_HOST.replace(/^https?:\/\//, '') });
 	});
 
 	test('embed returns a non-empty Float32Array vector', async () => {
@@ -87,10 +107,12 @@ suite('OllamaBackend against a real Ollama instance', { skip }, () => {
 	});
 
 	test('generate via chat shape (messages array) produces non-empty content', async () => {
-		const result = await backend.generate(
-			[{ role: 'user', content: 'Reply with the single word OK.' }],
-			{ accounting: ACCOUNTING, model: GENERATE_MODEL, maxTokens: 10, temperature: 0 }
-		);
+		const result = await backend.generate([{ role: 'user', content: 'Reply with the single word OK.' }], {
+			accounting: ACCOUNTING,
+			model: GENERATE_MODEL,
+			maxTokens: 10,
+			temperature: 0,
+		});
 		strictEqual(result.status, 'completed');
 		ok(typeof result.output.content === 'string' && result.output.content.length > 0);
 	});
@@ -114,13 +136,15 @@ suite('OllamaBackend against a real Ollama instance', { skip }, () => {
 
 	test('AbortSignal cancels an in-flight stream', async () => {
 		const ctrl = new AbortController();
-		const iter = backend.generateStream('Write a long paragraph about the ocean.', {
-			accounting: ACCOUNTING,
-			model: GENERATE_MODEL,
-			signal: ctrl.signal,
-			maxTokens: 1000,
-			temperature: 0.5,
-		})[Symbol.asyncIterator]();
+		const iter = backend
+			.generateStream('Write a long paragraph about the ocean.', {
+				accounting: ACCOUNTING,
+				model: GENERATE_MODEL,
+				signal: ctrl.signal,
+				maxTokens: 1000,
+				temperature: 0.5,
+			})
+			[Symbol.asyncIterator]();
 		// Get one chunk to confirm the stream started, then abort.
 		await iter.next();
 		ctrl.abort();
