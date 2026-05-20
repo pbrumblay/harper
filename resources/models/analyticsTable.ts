@@ -81,6 +81,8 @@ export interface ModelCallAnalyticsWriterOpts {
 	cleanupIntervalMs?: number;
 	/** Default 90d. Rows older than this are removed by `cleanup()`. */
 	retentionMs?: number;
+	/** Override the table accessor. Tests inject a mock to avoid touching real LMDB. */
+	getTable?: () => any;
 }
 
 /**
@@ -100,6 +102,7 @@ export class ModelCallAnalyticsWriter {
 	#cleanupTimer?: NodeJS.Timeout;
 	#maxBufferSize: number;
 	#retentionMs: number;
+	#getTable: () => any;
 	#stopped = false;
 
 	constructor(opts: ModelCallAnalyticsWriterOpts = {}) {
@@ -107,6 +110,7 @@ export class ModelCallAnalyticsWriter {
 		const cleanupIntervalMs = opts.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS;
 		this.#maxBufferSize = opts.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
 		this.#retentionMs = opts.retentionMs ?? resolveRetentionMs();
+		this.#getTable = opts.getTable ?? getModelCallsTable;
 		this.#flushTimer = setInterval(() => {
 			this.flush().catch((err) => log.warn?.(`Model-call analytics flush failed: ${err?.message ?? err}`));
 		}, flushIntervalMs);
@@ -130,19 +134,26 @@ export class ModelCallAnalyticsWriter {
 		if (this.#buffer.length === 0) return;
 		const batch = this.#buffer;
 		this.#buffer = [];
-		const tbl = getModelCallsTable();
+		const tbl = this.#getTable();
+		const puts: Promise<unknown>[] = [];
 		for (const record of batch) {
 			try {
-				tbl.primaryStore.put(record.id, record);
+				const result = tbl.primaryStore.put(record.id, record);
+				if (result && typeof (result as { then?: unknown }).then === 'function') {
+					puts.push(result as Promise<unknown>);
+				}
 			} catch (err) {
 				log.warn?.(`Model-call analytics put failed for id=${record.id}: ${(err as Error)?.message ?? err}`);
 			}
+		}
+		if (puts.length > 0) {
+			await Promise.allSettled(puts);
 		}
 	}
 
 	async cleanup(): Promise<void> {
 		const end = Date.now() - this.#retentionMs;
-		const tbl = getModelCallsTable();
+		const tbl = this.#getTable();
 		for (const key of tbl.primaryStore.getKeys({ start: false, end })) {
 			tbl.primaryStore.remove(key);
 		}

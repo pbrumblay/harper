@@ -1,76 +1,66 @@
-import { get as envGet } from '../../utility/environment/environmentManager.ts';
 import { ServerError } from '../../utility/errors/hdbError.ts';
 import type { ModelBackend } from './types.ts';
 
 /**
  * Process-wide model backend registry.
  *
- * Backends register themselves by `backend.name` (e.g. `'test'`, `'ollama'`,
- * `'ollama:fast'`). Per-kind logical-name resolution is config-driven:
- * `resolveEmbedding('default')` reads `models.embedding.default.backend` from
- * config and returns the registered backend with that name.
+ * Stores logical-name → backend-instance mappings for embedding and
+ * generative kinds. App code or boot wiring populates the registry via
+ * `setEmbedding(...)` / `setGenerative(...)`; the `Models` facade reads it
+ * via `resolveEmbedding(...)` / `resolveGenerative(...)`.
  *
  * Module-scope state is intentional — one registry per Harper process,
- * mirroring `contextStorage` at `resources/transaction.ts:6`.
+ * mirroring `contextStorage` at `resources/transaction.ts:6`. Translating
+ * a YAML `models:` config block into registry entries (the bootstrapper
+ * step) lands in Phase 2 alongside the first real backend.
  */
 
 type ModelKind = 'embedding' | 'generative';
 
-const byName: Map<string, ModelBackend> = new Map();
+const embedding: Map<string, ModelBackend> = new Map();
+const generative: Map<string, ModelBackend> = new Map();
 
-/**
- * Register a backend instance. Idempotent on `backend.name` — re-registering
- * with the same name replaces the prior instance (convenient for tests).
- */
-export function registerBackend(backend: ModelBackend): void {
-	byName.set(backend.name, backend);
+/** Map `logicalName` to a backend for embedding calls. Re-set replaces. */
+export function setEmbedding(logicalName: string, backend: ModelBackend): void {
+	embedding.set(logicalName, backend);
+}
+
+/** Map `logicalName` to a backend for generative calls. Re-set replaces. */
+export function setGenerative(logicalName: string, backend: ModelBackend): void {
+	generative.set(logicalName, backend);
 }
 
 /**
- * Resolve the backend configured as the embedding provider for `logicalName`
- * (default: `'default'`). Throws if no config entry exists or the named
- * backend is not registered.
+ * Resolve the embedding backend mapped to `logicalName` (default: `'default'`).
+ * Throws `ModelBackendNotFoundError` if no backend is mapped.
  */
 export function resolveEmbedding(logicalName: string = 'default'): ModelBackend {
-	return resolve('embedding', logicalName);
-}
-
-/**
- * Resolve the backend configured as the generative provider for `logicalName`
- * (default: `'default'`). Throws if no config entry exists or the named
- * backend is not registered.
- */
-export function resolveGenerative(logicalName: string = 'default'): ModelBackend {
-	return resolve('generative', logicalName);
-}
-
-/** Remove all registered backends. Test-only hygiene. */
-export function clearRegistry(): void {
-	byName.clear();
-}
-
-function resolve(kind: ModelKind, logicalName: string): ModelBackend {
-	const backendName = envGet(`models.${kind}.${logicalName}.backend`);
-	if (typeof backendName !== 'string' || !backendName) {
-		throw new ModelBackendNotConfiguredError(kind, logicalName);
-	}
-	const backend = byName.get(backendName);
-	if (!backend) throw new ModelBackendNotRegisteredError(kind, logicalName);
+	const backend = embedding.get(logicalName);
+	if (!backend) throw new ModelBackendNotFoundError('embedding', logicalName);
 	return backend;
 }
 
-export class ModelBackendNotConfiguredError extends ServerError {
-	constructor(kind: ModelKind, logicalName: string) {
-		super(`No '${kind}.${logicalName}.backend' configured`);
-		this.name = 'ModelBackendNotConfiguredError';
-	}
+/**
+ * Resolve the generative backend mapped to `logicalName` (default: `'default'`).
+ * Throws `ModelBackendNotFoundError` if no backend is mapped.
+ */
+export function resolveGenerative(logicalName: string = 'default'): ModelBackend {
+	const backend = generative.get(logicalName);
+	if (!backend) throw new ModelBackendNotFoundError('generative', logicalName);
+	return backend;
 }
 
-export class ModelBackendNotRegisteredError extends ServerError {
-	// Deliberately does not name which backend was configured — avoids leaking
-	// the set of registered backend identifiers in error responses.
+/** Remove all registrations. Test-only hygiene. */
+export function clearRegistry(): void {
+	embedding.clear();
+	generative.clear();
+}
+
+export class ModelBackendNotFoundError extends ServerError {
+	// Message identifies the kind + logical name only; never enumerates other
+	// registered names to avoid leaking the registry shape in error responses.
 	constructor(kind: ModelKind, logicalName: string) {
-		super(`Backend configured for '${kind}.${logicalName}' is not registered`);
-		this.name = 'ModelBackendNotRegisteredError';
+		super(`No backend registered for '${kind}.${logicalName}'`);
+		this.name = 'ModelBackendNotFoundError';
 	}
 }
