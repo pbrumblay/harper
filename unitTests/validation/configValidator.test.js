@@ -385,4 +385,107 @@ describe('Test configValidator module', () => {
 			"Invalid logging.rotation.interval value. Value should be a number followed by unit e.g. '10D'"
 		);
 	});
+
+	// #629 (Phase 2 of #510): models config block.
+	describe('models config', () => {
+		function baseConfig() {
+			return testUtils.deepClone(FAKE_CONFIG);
+		}
+
+		it('validates clean when the models block is absent', () => {
+			const result = configValidator(baseConfig(), true);
+			expect(result.error).to.be.undefined;
+			expect(result.value.models).to.be.undefined;
+		});
+
+		it('accepts an empty models block', () => {
+			const config = baseConfig();
+			config.models = {};
+			const result = configValidator(config, true);
+			expect(result.error).to.be.undefined;
+		});
+
+		it('accepts an ollama embedding entry with host + model', () => {
+			const config = baseConfig();
+			config.models = {
+				embedding: {
+					default: { backend: 'ollama', host: 'localhost:11434', model: 'nomic-embed-text' },
+				},
+			};
+			const result = configValidator(config, true);
+			expect(result.error).to.be.undefined;
+		});
+
+		it('accepts a generative entry with requestTimeoutMs', () => {
+			const config = baseConfig();
+			config.models = {
+				generative: {
+					fast: { backend: 'ollama', model: 'llama3.2', requestTimeoutMs: 30000 },
+				},
+			};
+			const result = configValidator(config, true);
+			expect(result.error).to.be.undefined;
+		});
+
+		it('rejects entries missing a backend discriminator', () => {
+			const config = baseConfig();
+			config.models = { embedding: { default: { model: 'm' } } };
+			const result = configValidator(config, true);
+			expect(result.error).to.not.be.undefined;
+			expect(result.error.message).to.include('backend');
+		});
+
+		it('rejects a non-numeric requestTimeoutMs', () => {
+			const config = baseConfig();
+			config.models = {
+				generative: { default: { backend: 'ollama', model: 'm', requestTimeoutMs: 'soon' } },
+			};
+			const result = configValidator(config, true);
+			expect(result.error).to.not.be.undefined;
+		});
+
+		it('rejects a negative requestTimeoutMs', () => {
+			const config = baseConfig();
+			config.models = {
+				generative: { default: { backend: 'ollama', model: 'm', requestTimeoutMs: -1 } },
+			};
+			const result = configValidator(config, true);
+			expect(result.error).to.not.be.undefined;
+		});
+
+		it('rejects requestTimeoutMs: 0 (omit the field for "no timeout")', () => {
+			const config = baseConfig();
+			config.models = {
+				generative: { default: { backend: 'ollama', model: 'm', requestTimeoutMs: 0 } },
+			};
+			const result = configValidator(config, true);
+			expect(result.error).to.not.be.undefined;
+		});
+
+		it('rejects unknown fields inside a model entry (typo guard)', () => {
+			const config = baseConfig();
+			config.models = {
+				generative: { default: { backend: 'ollama', model: 'm', bakend: 'oops' } },
+			};
+			const result = configValidator(config, true);
+			expect(result.error).to.not.be.undefined;
+			expect(result.error.message).to.include('bakend');
+		});
+
+		it('accepts multiple logical names per kind', () => {
+			const config = baseConfig();
+			config.models = {
+				embedding: {
+					default: { backend: 'ollama', model: 'm1' },
+					high_quality: { backend: 'ollama', model: 'm2' },
+				},
+				generative: {
+					default: { backend: 'ollama', model: 'g1' },
+					fast: { backend: 'ollama', model: 'g2' },
+				},
+			};
+			const result = configValidator(config, true);
+			expect(result.error).to.be.undefined;
+		});
+	});
 });
