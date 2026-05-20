@@ -67,7 +67,8 @@ export function configValidator(configJson, skipFsValidation = false) {
 	});
 
 	// MCP — sub-issue #613 lands the config surface ahead of the transport (#614).
-	// Both profiles default to enabled:false so existing deployments are unchanged on upgrade.
+	// Presence-based enablement: a profile is on iff its sub-block exists in
+	// config (same convention as `replication`). No `enabled` field.
 	const mcpRateLimitSchema = Joi.object({
 		perToolPerSecond: number.min(0).optional(),
 		perToolBurst: number.min(0).optional(),
@@ -75,7 +76,6 @@ export function configValidator(configJson, skipFsValidation = false) {
 		sessionPerSecond: number.min(0).optional(),
 	});
 	const mcpOperationsSchema = Joi.object({
-		enabled: boolean.optional().default(false),
 		mountPath: string.optional().default('/mcp'),
 		allow: array.items(string).optional(),
 		deny: array.items(string).optional(),

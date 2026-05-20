@@ -38,28 +38,28 @@ function makeFakeReply() {
 
 describe('components/mcp/index', () => {
 	describe('registerMcpProfile', () => {
-		it('does nothing when the profile is disabled', () => {
-			const host = makeFakeFastify();
-			registerMcpProfile({
-				profile: 'operations',
-				host,
-				config: { mcp: { operations: { enabled: false } } },
-			});
-			assert.equal(host.calls.length, 0);
-		});
-
 		it('does nothing when the mcp config block is absent', () => {
 			const host = makeFakeFastify();
 			registerMcpProfile({ profile: 'operations', host, config: {} });
 			assert.equal(host.calls.length, 0);
 		});
 
-		it('registers POST /mcp when operations profile is enabled with defaults', () => {
+		it('does nothing when the profile sub-block is absent under mcp', () => {
 			const host = makeFakeFastify();
 			registerMcpProfile({
 				profile: 'operations',
 				host,
-				config: { mcp: { operations: { enabled: true } } },
+				config: { mcp: { application: { mountPath: '/x' } } },
+			});
+			assert.equal(host.calls.length, 0);
+		});
+
+		it('registers POST /mcp when the operations profile block is present', () => {
+			const host = makeFakeFastify();
+			registerMcpProfile({
+				profile: 'operations',
+				host,
+				config: { mcp: { operations: {} } },
 			});
 			assert.equal(host.calls.length, 1);
 			assert.equal(host.calls[0].path, '/mcp');
@@ -71,7 +71,7 @@ describe('components/mcp/index', () => {
 			registerMcpProfile({
 				profile: 'application',
 				host,
-				config: { mcp: { application: { enabled: true, mountPath: '/agent' } } },
+				config: { mcp: { application: { mountPath: '/agent' } } },
 			});
 			assert.equal(host.calls.length, 1);
 			assert.equal(host.calls[0].path, '/agent');
@@ -83,25 +83,12 @@ describe('components/mcp/index', () => {
 			registerMcpProfile({
 				profile: 'operations',
 				host,
-				config: { mcp: { operations: { enabled: true } } },
+				config: { mcp: { operations: {} } },
 				routeOptions: sentinel,
 			});
 			assert.equal(host.calls.length, 1);
 			assert.deepEqual(host.calls[0].options, sentinel);
 			assert.equal(typeof host.calls[0].handler, 'function');
-		});
-
-		it('treats only strict-boolean enabled:true as enabled (no string truthiness)', () => {
-			// Regression: env-sourced configs can deliver the literal string 'false',
-			// which is truthy in JS. The caller is responsible for coercing — this test
-			// just pins the component contract that `enabled` is read as-is.
-			const host = makeFakeFastify();
-			registerMcpProfile({
-				profile: 'operations',
-				host,
-				config: { mcp: { operations: { enabled: 0 } } },
-			});
-			assert.equal(host.calls.length, 0);
 		});
 	});
 

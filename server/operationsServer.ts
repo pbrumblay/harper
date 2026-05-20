@@ -182,19 +182,15 @@ function buildServer(isHttps: boolean, resources: Resources): FastifyInstance {
 	});
 	registerContentHandlers(app);
 
-	const mcpOperationsEnabled = env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_ENABLED);
-	if (!commonUtils.isEmpty(mcpOperationsEnabled) && mcpOperationsEnabled.toString().toLowerCase() === 'true') {
+	const mcpOperationsMountPath = env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_MOUNTPATH);
+	if (!commonUtils.isEmpty(mcpOperationsMountPath)) {
+		// Presence of mountPath (always defaulted by Joi when the mcp.operations
+		// block is configured) gates the registration — Harper's `replication`-
+		// style convention rather than an explicit `enabled` field.
 		registerMcpProfile({
 			profile: 'operations',
 			host: app,
-			config: {
-				mcp: {
-					operations: {
-						enabled: true,
-						mountPath: env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_MOUNTPATH),
-					},
-				},
-			},
+			config: { mcp: { operations: { mountPath: mcpOperationsMountPath } } },
 			routeOptions: { preValidation: [authHandler] },
 		});
 	}

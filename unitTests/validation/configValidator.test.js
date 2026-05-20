@@ -387,25 +387,24 @@ describe('Test configValidator module', () => {
 	});
 
 	describe('mcp config', () => {
-		it('validates clean when mcp block is absent', () => {
+		it('validates clean when the mcp block is absent (profile off)', () => {
 			const result = configValidator(testUtils.deepClone(FAKE_CONFIG), true);
 			expect(result.error).to.be.undefined;
+			expect(result.value.mcp).to.be.undefined;
 		});
 
-		it('validates clean and applies defaults when only mcp.operations.enabled is given', () => {
+		it('applies the default mountPath when mcp.operations is present but empty', () => {
 			const config = testUtils.deepClone(FAKE_CONFIG);
-			config.mcp = { operations: { enabled: false } };
+			config.mcp = { operations: {} };
 			const result = configValidator(config, true);
 			expect(result.error).to.be.undefined;
-			expect(result.value.mcp.operations.enabled).to.equal(false);
 			expect(result.value.mcp.operations.mountPath).to.equal('/mcp');
 		});
 
-		it('validates clean when the full mcp block from defaults is supplied', () => {
+		it('validates clean when both profile blocks are supplied with full keys', () => {
 			const config = testUtils.deepClone(FAKE_CONFIG);
 			config.mcp = {
 				operations: {
-					enabled: false,
 					mountPath: '/mcp',
 					allow: ['describe_*', 'list_*'],
 					deny: [],
@@ -418,7 +417,6 @@ describe('Test configValidator module', () => {
 					},
 				},
 				application: {
-					enabled: false,
 					mountPath: '/mcp',
 					allow: [],
 					deny: [],
@@ -440,20 +438,20 @@ describe('Test configValidator module', () => {
 			expect(result.error).to.be.undefined;
 		});
 
-		it('rejects mcp.operations.enabled with a non-boolean', () => {
-			const config = testUtils.deepClone(FAKE_CONFIG);
-			config.mcp = { operations: { enabled: 'yes' } };
-			const result = configValidator(config, true);
-			expect(result.error).to.not.be.undefined;
-			expect(result.error.message).to.include("'mcp.operations.enabled' must be a boolean");
-		});
-
 		it('rejects mcp.operations.mountPath with a non-string', () => {
 			const config = testUtils.deepClone(FAKE_CONFIG);
 			config.mcp = { operations: { mountPath: 42 } };
 			const result = configValidator(config, true);
 			expect(result.error).to.not.be.undefined;
 			expect(result.error.message).to.include("'mcp.operations.mountPath' must be a string");
+		});
+
+		it('rejects mcp.operations.maxTools below 1', () => {
+			const config = testUtils.deepClone(FAKE_CONFIG);
+			config.mcp = { operations: { maxTools: 0 } };
+			const result = configValidator(config, true);
+			expect(result.error).to.not.be.undefined;
+			expect(result.error.message).to.include("'mcp.operations.maxTools' must be greater than or equal to 1");
 		});
 	});
 });
