@@ -385,4 +385,75 @@ describe('Test configValidator module', () => {
 			"Invalid logging.rotation.interval value. Value should be a number followed by unit e.g. '10D'"
 		);
 	});
+
+	describe('mcp config', () => {
+		it('validates clean when mcp block is absent', () => {
+			const result = configValidator(testUtils.deepClone(FAKE_CONFIG), true);
+			expect(result.error).to.be.undefined;
+		});
+
+		it('validates clean and applies defaults when only mcp.operations.enabled is given', () => {
+			const config = testUtils.deepClone(FAKE_CONFIG);
+			config.mcp = { operations: { enabled: false } };
+			const result = configValidator(config, true);
+			expect(result.error).to.be.undefined;
+			expect(result.value.mcp.operations.enabled).to.equal(false);
+			expect(result.value.mcp.operations.mountPath).to.equal('/mcp');
+		});
+
+		it('validates clean when the full mcp block from defaults is supplied', () => {
+			const config = testUtils.deepClone(FAKE_CONFIG);
+			config.mcp = {
+				operations: {
+					enabled: false,
+					mountPath: '/mcp',
+					allow: ['describe_*', 'list_*'],
+					deny: [],
+					maxTools: 200,
+					rateLimit: {
+						perToolPerSecond: 10,
+						perToolBurst: 20,
+						sessionConcurrency: 25,
+						sessionPerSecond: 100,
+					},
+				},
+				application: {
+					enabled: false,
+					mountPath: '/mcp',
+					allow: [],
+					deny: [],
+					maxTools: 500,
+					searchMaxResults: 100,
+					rateLimit: {
+						perToolPerSecond: 25,
+						perToolBurst: 50,
+						sessionConcurrency: 50,
+						sessionPerSecond: 200,
+					},
+				},
+				session: {
+					idleTimeoutSeconds: 1800,
+					allowClientDelete: true,
+				},
+			};
+			const result = configValidator(config, true);
+			expect(result.error).to.be.undefined;
+		});
+
+		it('rejects mcp.operations.enabled with a non-boolean', () => {
+			const config = testUtils.deepClone(FAKE_CONFIG);
+			config.mcp = { operations: { enabled: 'yes' } };
+			const result = configValidator(config, true);
+			expect(result.error).to.not.be.undefined;
+			expect(result.error.message).to.include("'mcp.operations.enabled' must be a boolean");
+		});
+
+		it('rejects mcp.operations.mountPath with a non-string', () => {
+			const config = testUtils.deepClone(FAKE_CONFIG);
+			config.mcp = { operations: { mountPath: 42 } };
+			const result = configValidator(config, true);
+			expect(result.error).to.not.be.undefined;
+			expect(result.error.message).to.include("'mcp.operations.mountPath' must be a string");
+		});
+	});
 });

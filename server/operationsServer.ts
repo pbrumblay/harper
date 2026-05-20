@@ -25,6 +25,7 @@ import {
 } from './serverHelpers/serverHandlers.js';
 import { registerBunFastifyInstance } from './http.ts';
 import { registerContentHandlers } from './serverHelpers/contentTypes.ts';
+import { registerMcpProfile } from '../components/mcp/index.ts';
 import type { OperationFunctionName } from './serverHelpers/serverUtilities.ts';
 type ParsedSqlObject = any;
 import { generateJsonApi } from '../resources/openApi.ts';
@@ -180,6 +181,21 @@ function buildServer(isHttps: boolean, resources: Resources): FastifyInstance {
 		},
 	});
 	registerContentHandlers(app);
+
+	if (env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_ENABLED)) {
+		registerMcpProfile({
+			profile: 'operations',
+			host: app,
+			config: {
+				mcp: {
+					operations: {
+						enabled: true,
+						mountPath: env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_MOUNTPATH) ?? '/mcp',
+					},
+				},
+			},
+		});
+	}
 
 	// Add a simple health check
 	app.get('/health', () => 'Harper is running.');

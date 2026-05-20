@@ -66,6 +66,35 @@ export function configValidator(configJson, skipFsValidation = false) {
 		privateKey: pemFileConstraints,
 	});
 
+	// MCP — sub-issue #613 lands the config surface ahead of the transport (#614).
+	// Both profiles default to enabled:false so existing deployments are unchanged on upgrade.
+	const mcpRateLimitSchema = Joi.object({
+		perToolPerSecond: number.min(0).optional(),
+		perToolBurst: number.min(0).optional(),
+		sessionConcurrency: number.min(0).optional(),
+		sessionPerSecond: number.min(0).optional(),
+	});
+	const mcpOperationsSchema = Joi.object({
+		enabled: boolean.optional().default(false),
+		mountPath: string.optional().default('/mcp'),
+		allow: array.items(string).optional(),
+		deny: array.items(string).optional(),
+		maxTools: number.min(1).optional(),
+		rateLimit: mcpRateLimitSchema.optional(),
+	});
+	const mcpApplicationSchema = mcpOperationsSchema.keys({
+		searchMaxResults: number.min(1).optional(),
+	});
+	const mcpSessionSchema = Joi.object({
+		idleTimeoutSeconds: number.min(1).optional(),
+		allowClientDelete: boolean.optional(),
+	});
+	const mcpSchema = Joi.object({
+		operations: mcpOperationsSchema.optional(),
+		application: mcpApplicationSchema.optional(),
+		session: mcpSessionSchema.optional(),
+	});
+
 	const configSchema = Joi.object({
 		authentication: Joi.alternatives(
 			Joi.object({
@@ -195,6 +224,7 @@ export function configValidator(configJson, skipFsValidation = false) {
 			maxFreeSpaceToLoad: number.optional(),
 			maxFreeSpaceToRetain: number.optional(),
 		}).required(),
+		mcp: mcpSchema.optional(),
 		ignoreScripts: boolean.optional(),
 		tls: Joi.alternatives([Joi.array().items(tlsConstraints), tlsConstraints]),
 	});

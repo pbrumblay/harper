@@ -77,3 +77,37 @@ tls:
   privateKey: null
 node:
   hostname: null
+mcp:
+  operations:
+    enabled: false
+    mountPath: /mcp
+    allow:
+      - describe_*
+      - list_*
+      - search_*
+      - get_*
+      - system_information
+      - read_log
+      - read_audit_log
+    deny: []
+    maxTools: 200
+    rateLimit:
+      perToolPerSecond: 10
+      perToolBurst: 20
+      sessionConcurrency: 25
+      sessionPerSecond: 100
+  application:
+    enabled: false
+    mountPath: /mcp
+    allow: []
+    deny: []
+    maxTools: 500
+    searchMaxResults: 100
+    rateLimit:
+      perToolPerSecond: 25
+      perToolBurst: 50
+      sessionConcurrency: 50
+      sessionPerSecond: 200
+  session:
+    idleTimeoutSeconds: 1800
+    allowClientDelete: true
