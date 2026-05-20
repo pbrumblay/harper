@@ -27,6 +27,7 @@ interface IncomingMessage extends NodeIncomingMessage {
 export class Request {
 	#body: RequestBody | undefined;
 	#peerCertificate: any;
+	#abortController = new AbortController();
 	public _nodeRequest: IncomingMessage;
 	public _nodeResponse?: NodeServerResponse;
 	public method: string;
@@ -60,7 +61,7 @@ export class Request {
 	public lastModified?: number;
 	public lastRefreshed?: number;
 
-	constructor(nodeRequest: IncomingMessage, nodeResponse: NodeServerResponse) {
+	constructor(nodeRequest: IncomingMessage, nodeResponse?: NodeServerResponse) {
 		this.method = nodeRequest.method;
 		const url = nodeRequest.url;
 		this._nodeRequest = nodeRequest;
@@ -68,6 +69,26 @@ export class Request {
 		this.url = url;
 		this.headers = new RequestHeaders(nodeRequest.headers);
 		this.__harperRequestUpgraded = false;
+		// Abort the request's signal on premature client disconnect. nodeResponse 'close'
+		// also fires on clean completion; the writableFinished guard restricts to disconnect.
+		if (typeof nodeResponse?.on === 'function') {
+			nodeResponse.on('close', () => {
+				if (!nodeResponse.writableFinished) this.#abortController.abort();
+			});
+		} else if (typeof nodeRequest.socket?.once === 'function') {
+			// WebSocket-upgrade path: no response. The TCP socket is the only signal.
+			nodeRequest.socket.once('close', () => this.#abortController.abort());
+		}
+	}
+	get signal(): AbortSignal {
+		return this.#abortController.signal;
+	}
+	/**
+	 * Abort this request's signal. Used by transports (e.g. WebSocket) that need to
+	 * signal client-side cancellation independently of the Node response lifecycle.
+	 */
+	_abort(): void {
+		this.#abortController.abort();
 	}
 	get absoluteURL() {
 		return this.protocol + '://' + this.host + this.url;
@@ -119,8 +140,7 @@ export class Request {
 		return this._nodeRequest.httpVersion;
 	}
 	get isAborted() {
-		// TODO: implement this
-		return false;
+		return this.#abortController.signal.aborted;
 	}
 	// Expose node request for cases that need direct access (e.g., replication)
 	get nodeRequest() {
@@ -391,7 +411,13 @@ export class BunRequest {
 		return '1.1';
 	}
 	get isAborted() {
-		return false;
+		return this._webRequest.signal?.aborted ?? false;
+	}
+	get signal(): AbortSignal {
+		return this._webRequest.signal;
+	}
+	_abort(): void {
+		// On Bun, abort is driven by the underlying Web Request's signal; no-op for parity with Node path.
 	}
 	get nodeRequest() {
 		return null;
