@@ -76,7 +76,12 @@ export class Request {
 				if (!nodeResponse.writableFinished) this.#abortController.abort();
 			});
 		} else if (typeof nodeRequest.socket?.once === 'function') {
-			// WebSocket-upgrade path: no response. The TCP socket is the only signal.
+			// No response on this Request — typically the WebSocket-upgrade path
+			// (http.ts creates the Request before the ws library takes over). The TCP
+			// socket close is the fallback abort trigger; REST.ts's ws.on('close') hook
+			// also calls _abort() and is the primary signal in the WS case. The two
+			// are redundant by design (idempotent abort) so any future single-arg
+			// caller still gets disconnect semantics without relying on the WS layer.
 			nodeRequest.socket.once('close', () => this.#abortController.abort());
 		}
 	}
@@ -414,6 +419,10 @@ export class BunRequest {
 		return this._webRequest.signal?.aborted ?? false;
 	}
 	get signal(): AbortSignal {
+		// Bun.serve() aborts this signal on HTTP client disconnect. Behavior on
+		// WebSocket-upgrade is implementation-defined; if the WS path needs
+		// guaranteed abort-on-close under Bun, wire it through Bun's ws close
+		// handler with a Bun-side AbortController, similar to REST.ts on Node.
 		return this._webRequest.signal;
 	}
 	_abort(): void {
