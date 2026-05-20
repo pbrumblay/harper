@@ -5,7 +5,7 @@ import type { ModelBackend } from './types.ts';
  * Process-wide model backend registry.
  *
  * Stores logical-name → backend-instance mappings for embedding and
- * generative kinds. App code or boot wiring populates the registry via
+ * generative kinds. Boot wiring populates the registry via
  * `setEmbedding(...)` / `setGenerative(...)`; the `Models` facade reads it
  * via `resolveEmbedding(...)` / `resolveGenerative(...)`.
  *
