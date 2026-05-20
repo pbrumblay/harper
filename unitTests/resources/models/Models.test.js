@@ -275,5 +275,22 @@ describe('Models facade', () => {
 			assert.strictEqual(writer.records[0].error_code, 'backend_not_found');
 			assert.strictEqual(writer.records[0].method, 'generateStream');
 		});
+
+		it('records capability-mismatch on generateStream with the resolved backend name (not "unknown")', async () => {
+			setGenerative('default', {
+				name: 'no-stream',
+				capabilities: () => ({ embed: false, generate: true, stream: false, tools: false, adapters: false }),
+			});
+			await assert.rejects(async () => {
+				// eslint-disable-next-line no-unused-vars
+				for await (const _ of models.generateStream('x')) {
+					// will not iterate — requireCapability throws first
+				}
+			});
+			assert.strictEqual(writer.records.length, 1);
+			assert.strictEqual(writer.records[0].backend, 'no-stream');
+			assert.strictEqual(writer.records[0].error_code, 'capability_unsupported');
+			assert.strictEqual(writer.records[0].method, 'generateStream');
+		});
 	});
 });

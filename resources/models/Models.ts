@@ -81,14 +81,17 @@ export class Models implements ModelsContract {
 	generateStream(input: GenerateInput, opts: GenerateOpts = {}): AsyncIterable<GenerateChunk> {
 		const { accounting, signal } = resolveCallContext(opts.signal);
 		const startedAt = performance.now();
-		let backend: ModelBackend;
+		let backend: ModelBackend | undefined;
 		try {
 			backend = resolveGenerative(opts.model);
 			requireCapability(backend, 'stream');
 		} catch (err) {
 			// Record pre-call failure synchronously so callers that hold but never
 			// iterate the returned iterable still produce a billing row, then rethrow.
-			this.#recordFailure(undefined, 'generateStream', opts.model, accounting, opts, startedAt, err);
+			// Pass `backend` (not `undefined`): when the registry hit but the capability
+			// check failed, `backend` is the resolved instance and its name belongs in
+			// the row. Only registry misses leave `backend` undefined → 'unknown'.
+			this.#recordFailure(backend, 'generateStream', opts.model, accounting, opts, startedAt, err);
 			throw err;
 		}
 		const backendOpts: BackendOpts<GenerateOpts> = { ...opts, signal, accounting };
