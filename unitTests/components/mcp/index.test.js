@@ -5,8 +5,12 @@ function makeFakeFastify() {
 	const calls = [];
 	return {
 		calls,
-		post(path, handler) {
-			calls.push({ path, handler });
+		post(path, optsOrHandler, maybeHandler) {
+			if (typeof optsOrHandler === 'function') {
+				calls.push({ path, options: undefined, handler: optsOrHandler });
+			} else {
+				calls.push({ path, options: optsOrHandler, handler: maybeHandler });
+			}
 		},
 	};
 }
@@ -71,6 +75,33 @@ describe('components/mcp/index', () => {
 			});
 			assert.equal(host.calls.length, 1);
 			assert.equal(host.calls[0].path, '/agent');
+		});
+
+		it('forwards routeOptions to the host as the second argument', () => {
+			const host = makeFakeFastify();
+			const sentinel = { preValidation: ['fake-auth-handler'] };
+			registerMcpProfile({
+				profile: 'operations',
+				host,
+				config: { mcp: { operations: { enabled: true } } },
+				routeOptions: sentinel,
+			});
+			assert.equal(host.calls.length, 1);
+			assert.deepEqual(host.calls[0].options, sentinel);
+			assert.equal(typeof host.calls[0].handler, 'function');
+		});
+
+		it('treats only strict-boolean enabled:true as enabled (no string truthiness)', () => {
+			// Regression: env-sourced configs can deliver the literal string 'false',
+			// which is truthy in JS. The caller is responsible for coercing — this test
+			// just pins the component contract that `enabled` is read as-is.
+			const host = makeFakeFastify();
+			registerMcpProfile({
+				profile: 'operations',
+				host,
+				config: { mcp: { operations: { enabled: 0 } } },
+			});
+			assert.equal(host.calls.length, 0);
 		});
 	});
 

@@ -30,6 +30,8 @@ export interface RegisterMcpProfileArgs {
 	profile: McpProfile;
 	host: FastifyLike;
 	config: FullConfig;
+	/** Route-level options forwarded to the host's `post(path, options, handler)` 3-arg form (e.g., Fastify `preValidation`). */
+	routeOptions?: Record<string, unknown>;
 }
 
 const DEFAULT_MOUNT_PATH = '/mcp';
@@ -40,7 +42,7 @@ const DEFAULT_MOUNT_PATH = '/mcp';
  * The stub responder is intentionally minimal — sub-issue #614 replaces it
  * with the real Streamable HTTP transport without changing this gate.
  */
-export function registerMcpProfile({ profile, host, config }: RegisterMcpProfileArgs): void {
+export function registerMcpProfile({ profile, host, config, routeOptions }: RegisterMcpProfileArgs): void {
 	const profileConfig = config?.mcp?.[profile];
 	if (!profileConfig?.enabled) {
 		harperLogger.trace(`MCP ${profile} profile disabled, skipping registration`);
@@ -48,7 +50,12 @@ export function registerMcpProfile({ profile, host, config }: RegisterMcpProfile
 	}
 
 	const mountPath = profileConfig.mountPath ?? DEFAULT_MOUNT_PATH;
-	host.post(mountPath, createStubHandler(profile));
+	const handler = createStubHandler(profile);
+	if (routeOptions) {
+		host.post(mountPath, routeOptions, handler);
+	} else {
+		host.post(mountPath, handler);
+	}
 	harperLogger.info(`MCP ${profile} profile registered at ${mountPath}`);
 }
 

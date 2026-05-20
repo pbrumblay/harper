@@ -182,7 +182,8 @@ function buildServer(isHttps: boolean, resources: Resources): FastifyInstance {
 	});
 	registerContentHandlers(app);
 
-	if (env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_ENABLED)) {
+	const mcpOperationsEnabled = env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_ENABLED);
+	if (!commonUtils.isEmpty(mcpOperationsEnabled) && mcpOperationsEnabled.toString().toLowerCase() === 'true') {
 		registerMcpProfile({
 			profile: 'operations',
 			host: app,
@@ -190,10 +191,11 @@ function buildServer(isHttps: boolean, resources: Resources): FastifyInstance {
 				mcp: {
 					operations: {
 						enabled: true,
-						mountPath: env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_MOUNTPATH) ?? '/mcp',
+						mountPath: env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_MOUNTPATH),
 					},
 				},
 			},
+			routeOptions: { preValidation: [authHandler] },
 		});
 	}
 
