@@ -25,6 +25,7 @@ import {
 } from './serverHelpers/serverHandlers.js';
 import { registerBunFastifyInstance } from './http.ts';
 import { registerContentHandlers } from './serverHelpers/contentTypes.ts';
+import { getConfigObj } from '../config/configUtils.js';
 import { registerMcpProfile } from '../components/mcp/index.ts';
 import type { OperationFunctionName } from './serverHelpers/serverUtilities.ts';
 type ParsedSqlObject = any;
@@ -182,15 +183,17 @@ function buildServer(isHttps: boolean, resources: Resources): FastifyInstance {
 	});
 	registerContentHandlers(app);
 
-	const mcpOperationsMountPath = env.get(terms.CONFIG_PARAMS.MCP_OPERATIONS_MOUNTPATH);
-	if (!commonUtils.isEmpty(mcpOperationsMountPath)) {
-		// Presence of mountPath (always defaulted by Joi when the mcp.operations
-		// block is configured) gates the registration — Harper's `replication`-
-		// style convention rather than an explicit `enabled` field.
+	// Presence-based enablement (matches Harper's `replication` convention):
+	// register iff `mcp.operations` is present in the merged config. The
+	// nested config tree from `getConfigObj()` is used directly here because
+	// Joi defaults under `mcp` are not propagated to env.get's flat map —
+	// only six hardcoded defaults are re-applied in configUtils.validateConfig.
+	const fullConfig = getConfigObj() ?? {};
+	if (fullConfig.mcp?.operations) {
 		registerMcpProfile({
 			profile: 'operations',
 			host: app,
-			config: { mcp: { operations: { mountPath: mcpOperationsMountPath } } },
+			config: fullConfig,
 			routeOptions: { preValidation: [authHandler] },
 		});
 	}
