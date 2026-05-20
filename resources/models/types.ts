@@ -42,13 +42,23 @@ export type GenerateOpts = {
 	temperature?: number;
 	maxTokens?: number;
 	responseFormat?: 'text' | 'json' | { schema: object };
-	tools?: ToolDef[];
+	/**
+	 * How to handle tool calls the model emits. `'return'` (default) hands tool-call
+	 * requests back to the caller; `'auto'` resolves them in-process to completion.
+	 * The tool definitions themselves live on `GenerateInput`'s object variant
+	 * (alongside `messages` and `system`) — they're content, not strategy.
+	 */
 	toolMode?: 'return' | 'auto';
 	/** Accepted in Phase 1; activates with #511 (ConversationResource). */
 	conversationId?: string;
 	signal?: AbortSignal;
 };
 
+/**
+ * Generation input. Tools and system prompt live here (with `messages`) because
+ * they are model-facing content. Caller must use the object form to supply tools:
+ * `{ messages, tools, system }`.
+ */
 export type GenerateInput = string | Message[] | { messages: Message[]; tools?: ToolDef[]; system?: string };
 
 /** Options handed to a backend: caller-supplied opts plus runtime accounting context. */
