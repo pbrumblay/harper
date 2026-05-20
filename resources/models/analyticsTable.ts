@@ -1,5 +1,4 @@
-import { table } from '../databases.ts';
-import { get as envGet } from '../../utility/environment/environmentManager.ts';
+import { table, isReadOnlyMode } from '../databases.ts';
 import { getNextMonotonicTime } from '../../utility/lmdb/commonUtility.ts';
 import harperLogger from '../../utility/logging/harper_logger.ts';
 
@@ -8,7 +7,11 @@ const log = harperLogger.forComponent('models').conditional;
 const DEFAULT_FLUSH_INTERVAL_MS = 10_000; // 10s
 const DEFAULT_MAX_BUFFER_SIZE = 1000;
 const DEFAULT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1h
-const DEFAULT_RETENTION_DAYS = 90;
+// 90-day default tuned for billing windows. Operator-tunable config key will land
+// in Phase 2 alongside the YAML→registry bootstrapper (Harper's `getConfigValue`
+// only reads keys registered in `CONFIG_PARAM_MAP`, so we defer config plumbing
+// until the first real backend ships and the key has a documented owner).
+const DEFAULT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * One row in `hdb_model_calls`. Field names are snake_case to match the table
@@ -109,7 +112,7 @@ export class ModelCallAnalyticsWriter {
 		const flushIntervalMs = opts.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
 		const cleanupIntervalMs = opts.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS;
 		this.#maxBufferSize = opts.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
-		this.#retentionMs = opts.retentionMs ?? resolveRetentionMs();
+		this.#retentionMs = opts.retentionMs ?? DEFAULT_RETENTION_MS;
 		this.#getTable = opts.getTable ?? getModelCallsTable;
 		this.#flushTimer = setInterval(() => {
 			this.flush().catch((err) => log.warn?.(`Model-call analytics flush failed: ${err?.message ?? err}`));
@@ -123,7 +126,9 @@ export class ModelCallAnalyticsWriter {
 
 	write(record: ModelCallRecord): void {
 		if (this.#stopped) return;
-		this.#buffer.push({ id: getNextMonotonicTime(), ...record });
+		// id last so a record that accidentally carries an `id` field can't override
+		// the monotonic primary key.
+		this.#buffer.push({ ...record, id: getNextMonotonicTime() });
 		if (this.#buffer.length >= this.#maxBufferSize) {
 			// Out-of-cadence flush; swallow errors so a failing flush doesn't escape into the caller.
 			this.flush().catch((err) => log.warn?.(`Model-call analytics flush failed: ${err?.message ?? err}`));
@@ -132,26 +137,40 @@ export class ModelCallAnalyticsWriter {
 
 	async flush(): Promise<void> {
 		if (this.#buffer.length === 0) return;
+		// Read-only nodes (followers, recovery mode) shouldn't accumulate doomed writes —
+		// drop the buffer and skip. Matches `resources/analytics/write.ts:643-650`.
+		if (isReadOnlyMode()) {
+			this.#buffer = [];
+			return;
+		}
 		const batch = this.#buffer;
 		this.#buffer = [];
 		const tbl = this.#getTable();
-		const puts: Promise<unknown>[] = [];
+		const puts: Array<{ id: number; promise: Promise<unknown> }> = [];
 		for (const record of batch) {
 			try {
 				const result = tbl.primaryStore.put(record.id, record);
 				if (result && typeof (result as { then?: unknown }).then === 'function') {
-					puts.push(result as Promise<unknown>);
+					puts.push({ id: record.id, promise: result as Promise<unknown> });
 				}
 			} catch (err) {
 				log.warn?.(`Model-call analytics put failed for id=${record.id}: ${(err as Error)?.message ?? err}`);
 			}
 		}
 		if (puts.length > 0) {
-			await Promise.allSettled(puts);
+			const results = await Promise.allSettled(puts.map((p) => p.promise));
+			for (let i = 0; i < results.length; i++) {
+				const r = results[i];
+				if (r.status === 'rejected') {
+					const reason = r.reason as { message?: string } | undefined;
+					log.warn?.(`Model-call analytics async put failed for id=${puts[i].id}: ${reason?.message ?? r.reason}`);
+				}
+			}
 		}
 	}
 
 	async cleanup(): Promise<void> {
+		if (isReadOnlyMode()) return;
 		const end = Date.now() - this.#retentionMs;
 		const tbl = this.#getTable();
 		for (const key of tbl.primaryStore.getKeys({ start: false, end })) {
@@ -170,12 +189,6 @@ export class ModelCallAnalyticsWriter {
 	get bufferSize(): number {
 		return this.#buffer.length;
 	}
-}
-
-function resolveRetentionMs(): number {
-	const days = envGet('analytics.modelCallRetentionDays');
-	const n = typeof days === 'number' && days > 0 ? days : DEFAULT_RETENTION_DAYS;
-	return n * 24 * 60 * 60 * 1000;
 }
 
 let _writer: ModelCallAnalyticsWriter | undefined;

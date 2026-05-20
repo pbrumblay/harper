@@ -137,6 +137,44 @@ describe('ModelCallAnalyticsWriter', () => {
 			assert.ok(typeof stored.id === 'number', 'id should be a numeric monotonic timestamp');
 		});
 
+		it('continues writing remaining records when one put rejects asynchronously (no silent loss)', async () => {
+			let callCount = 0;
+			const rejections = [];
+			const asyncTable = {
+				store: new Map(),
+				primaryStore: {
+					put(id, record) {
+						callCount++;
+						if (callCount === 2) {
+							const p = Promise.reject(new Error('async LMDB rejection'));
+							rejections.push(p);
+							// Avoid unhandled-rejection warnings if the writer doesn't await fast.
+							p.catch(() => {});
+							return p;
+						}
+						this.store.set(id, record);
+						return Promise.resolve();
+					},
+					remove() {},
+					getKeys: () => [],
+				},
+			};
+			asyncTable.primaryStore.store = asyncTable.store;
+			const w = new ModelCallAnalyticsWriter({
+				flushIntervalMs: 60_000,
+				cleanupIntervalMs: 60_000,
+				getTable: () => asyncTable,
+			});
+			w.write(makeRecord({ backend: 'a' }));
+			w.write(makeRecord({ backend: 'b' }));
+			w.write(makeRecord({ backend: 'c' }));
+			await w.flush();
+			w.stop();
+			// Records 1 and 3 wrote; record 2's async rejection was awaited (no unhandled rejection).
+			assert.strictEqual(asyncTable.store.size, 2);
+			assert.strictEqual(rejections.length, 1);
+		});
+
 		it('continues writing remaining records when one put throws', async () => {
 			let callCount = 0;
 			const throwingTable = {

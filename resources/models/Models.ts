@@ -22,12 +22,13 @@ type CallMethod = ModelCallRecord['method'];
  * Public `scope.models` facade. One instance per `Scope`.
  *
  * On every call:
- * - Resolves the configured backend via `backendRegistry` (config-driven).
+ * - Resolves the configured backend via `backendRegistry`.
  * - Reads the ALS-bound request `Context` to extract accounting context
  *   (tenantId, handlerPath) and an `AbortSignal`. Outside an ALS scope
  *   (app-init, internal jobs), accounting is empty and signal is undefined.
  * - Records the call to `hdb_model_calls` via the buffered writer — both
  *   successful and failed calls land in the table for billing visibility.
+ *   Pre-call resolution / capability errors land too, with `backend: 'unknown'`.
  *
  * The ALS pattern matches `resources/Table.ts:3517` and is rooted at
  * `resources/transaction.ts:6`.
@@ -40,15 +41,19 @@ export class Models implements ModelsContract {
 	}
 
 	async embed(input: string | string[], opts: EmbedOpts = {}): Promise<Float32Array[]> {
-		const backend = resolveEmbedding(opts.model);
-		requireCapability(backend, 'embed');
 		const { accounting, signal } = resolveCallContext(opts.signal);
-		const backendOpts: BackendOpts<EmbedOpts> = { ...opts, signal, accounting };
 		const startedAt = performance.now();
+		let backend: ModelBackend | undefined;
 		try {
+			backend = resolveEmbedding(opts.model);
+			requireCapability(backend, 'embed');
+			const backendOpts: BackendOpts<EmbedOpts> = { ...opts, signal, accounting };
 			const result = await backend.embed!(input, backendOpts);
+			// Throw on `pending` BEFORE recording success — otherwise we'd write a
+			// success row followed by a failure row from the catch (duplicate).
+			if (result.status !== 'completed') throw new ModelPendingNotSupportedError(backend.name);
 			this.#record(backend, 'embed', opts.model, accounting, undefined, result, startedAt);
-			return unwrap(backend, result);
+			return result.output;
 		} catch (err) {
 			this.#recordFailure(backend, 'embed', opts.model, accounting, undefined, startedAt, err);
 			throw err;
@@ -56,15 +61,17 @@ export class Models implements ModelsContract {
 	}
 
 	async generate(input: GenerateInput, opts: GenerateOpts = {}): Promise<GenerateResult> {
-		const backend = resolveGenerative(opts.model);
-		requireCapability(backend, 'generate');
 		const { accounting, signal } = resolveCallContext(opts.signal);
-		const backendOpts: BackendOpts<GenerateOpts> = { ...opts, signal, accounting };
 		const startedAt = performance.now();
+		let backend: ModelBackend | undefined;
 		try {
+			backend = resolveGenerative(opts.model);
+			requireCapability(backend, 'generate');
+			const backendOpts: BackendOpts<GenerateOpts> = { ...opts, signal, accounting };
 			const result = await backend.generate!(input, backendOpts);
+			if (result.status !== 'completed') throw new ModelPendingNotSupportedError(backend.name);
 			this.#record(backend, 'generate', opts.model, accounting, opts, result, startedAt);
-			return unwrap(backend, result);
+			return result.output;
 		} catch (err) {
 			this.#recordFailure(backend, 'generate', opts.model, accounting, opts, startedAt, err);
 			throw err;
@@ -72,11 +79,20 @@ export class Models implements ModelsContract {
 	}
 
 	generateStream(input: GenerateInput, opts: GenerateOpts = {}): AsyncIterable<GenerateChunk> {
-		const backend = resolveGenerative(opts.model);
-		requireCapability(backend, 'stream');
 		const { accounting, signal } = resolveCallContext(opts.signal);
+		const startedAt = performance.now();
+		let backend: ModelBackend;
+		try {
+			backend = resolveGenerative(opts.model);
+			requireCapability(backend, 'stream');
+		} catch (err) {
+			// Record pre-call failure synchronously so callers that hold but never
+			// iterate the returned iterable still produce a billing row, then rethrow.
+			this.#recordFailure(undefined, 'generateStream', opts.model, accounting, opts, startedAt, err);
+			throw err;
+		}
 		const backendOpts: BackendOpts<GenerateOpts> = { ...opts, signal, accounting };
-		return this.#wrapStream(backend, input, backendOpts, opts, accounting);
+		return this.#wrapStream(backend, input, backendOpts, opts, accounting, startedAt);
 	}
 
 	async *#wrapStream(
@@ -84,24 +100,29 @@ export class Models implements ModelsContract {
 		input: GenerateInput,
 		backendOpts: BackendOpts<GenerateOpts>,
 		opts: GenerateOpts,
-		accounting: AccountingContext
+		accounting: AccountingContext,
+		startedAt: number
 	): AsyncIterable<GenerateChunk> {
-		const startedAt = performance.now();
-		let success = true;
 		let caught: unknown;
+		let completed = false;
 		try {
 			for await (const chunk of backend.generateStream!(input, backendOpts)) {
 				yield chunk;
 			}
+			completed = true;
 		} catch (err) {
-			success = false;
 			caught = err;
 			throw err;
 		} finally {
-			if (success) {
+			if (completed) {
 				this.#record(backend, 'generateStream', opts.model, accounting, opts, undefined, startedAt);
-			} else {
+			} else if (caught) {
 				this.#recordFailure(backend, 'generateStream', opts.model, accounting, opts, startedAt, caught);
+			} else {
+				// Stream terminated by the consumer (break / iter.return()) without an error
+				// from the backend. Treat as an aborted call rather than success — the model
+				// did real work that the caller didn't consume.
+				this.#recordFailure(backend, 'generateStream', opts.model, accounting, opts, startedAt, 'aborted');
 			}
 		}
 	}
@@ -120,23 +141,24 @@ export class Models implements ModelsContract {
 	}
 
 	#recordFailure(
-		backend: ModelBackend,
+		backend: ModelBackend | undefined,
 		method: CallMethod,
 		model: string | undefined,
 		accounting: AccountingContext,
 		opts: GenerateOpts | undefined,
 		startedAt: number,
-		err: unknown
+		errOrCode: unknown
 	): void {
+		const error_code = typeof errOrCode === 'string' ? errOrCode : classifyError(errOrCode);
 		this.#analyticsWriter.write({
 			...buildRecord(backend, method, model, accounting, opts, undefined, startedAt, false),
-			error_code: classifyError(err),
+			error_code,
 		});
 	}
 }
 
 function buildRecord(
-	backend: ModelBackend,
+	backend: ModelBackend | undefined,
 	method: CallMethod,
 	model: string | undefined,
 	accounting: AccountingContext,
@@ -146,7 +168,7 @@ function buildRecord(
 	success: boolean
 ): ModelCallRecord {
 	const record: ModelCallRecord = {
-		backend: backend.name,
+		backend: backend?.name ?? 'unknown',
 		method,
 		model,
 		tenant: accounting.tenantId,
@@ -166,7 +188,7 @@ function buildRecord(
 }
 
 function resolveCallContext(callerSignal?: AbortSignal): { accounting: AccountingContext; signal?: AbortSignal } {
-	const ctx = contextStorage.getStore() as any;
+	const ctx = contextStorage.getStore();
 	return {
 		accounting: {
 			tenantId: extractTenantId(ctx?.user),
@@ -184,16 +206,13 @@ function requireCapability(backend: ModelBackend, capability: 'embed' | 'generat
 	if (!backend.capabilities()[capability]) throw new ModelCapabilityError(backend.name, capability);
 }
 
-function unwrap<T>(backend: ModelBackend, result: ModelCallResult<T>): T {
-	if (result.status === 'completed') return result.output;
-	throw new ModelPendingNotSupportedError(backend.name);
-}
-
 function classifyError(err: unknown): string {
 	if (err && typeof err === 'object') {
 		const e = err as { name?: string; code?: string };
 		if (e.name === 'AbortError' || e.code === 'ABORT_ERR') return 'aborted';
 		if (e.name === 'ModelCapabilityError') return 'capability_unsupported';
+		if (e.name === 'ModelBackendNotFoundError') return 'backend_not_found';
+		if (e.name === 'ModelPendingNotSupportedError') return 'pending_unsupported';
 	}
 	return 'backend_error';
 }

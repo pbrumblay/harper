@@ -113,15 +113,19 @@ describe('Models facade', () => {
 			assert.strictEqual(seenSignal, ctxSignal);
 		});
 
-		it('throws ModelCapabilityError when the backend does not support embed', async () => {
+		it('throws ModelCapabilityError when the backend does not support embed AND records the failure', async () => {
 			setEmbedding('default', {
 				name: 'no-embed',
 				capabilities: () => ({ embed: false, generate: true, stream: false, tools: false, adapters: false }),
 			});
 			await assert.rejects(() => models.embed('x'), ModelCapabilityError);
+			assert.strictEqual(writer.records.length, 1);
+			assert.strictEqual(writer.records[0].backend, 'no-embed');
+			assert.strictEqual(writer.records[0].success, false);
+			assert.strictEqual(writer.records[0].error_code, 'capability_unsupported');
 		});
 
-		it('throws ModelPendingNotSupportedError when backend returns pending', async () => {
+		it('writes ONE record with success=false on pending result (not duplicate from unwrap+catch)', async () => {
 			setEmbedding('default', {
 				name: 'pending',
 				capabilities: () => ({ embed: true, generate: false, stream: false, tools: false, adapters: false }),
@@ -130,6 +134,19 @@ describe('Models facade', () => {
 				},
 			});
 			await assert.rejects(() => models.embed('x'), ModelPendingNotSupportedError);
+			assert.strictEqual(writer.records.length, 1, 'pending result must not produce duplicate rows');
+			assert.strictEqual(writer.records[0].success, false);
+			assert.strictEqual(writer.records[0].error_code, 'pending_unsupported');
+		});
+
+		it("records pre-call ModelBackendNotFoundError with backend='unknown' and error_code='backend_not_found'", async () => {
+			// No backend mapped for the requested logical name.
+			await assert.rejects(() => models.embed('x', { model: 'no-such-name' }));
+			assert.strictEqual(writer.records.length, 1);
+			assert.strictEqual(writer.records[0].backend, 'unknown');
+			assert.strictEqual(writer.records[0].model, 'no-such-name');
+			assert.strictEqual(writer.records[0].success, false);
+			assert.strictEqual(writer.records[0].error_code, 'backend_not_found');
 		});
 
 		it('writes an analytics record with success=false and sanitized error_code on backend failure', async () => {
@@ -224,6 +241,39 @@ describe('Models facade', () => {
 			});
 			assert.strictEqual(writer.records[0].success, false);
 			assert.strictEqual(writer.records[0].error_code, 'backend_error');
+		});
+
+		it("records success=false with error_code='aborted' when the consumer breaks early", async () => {
+			setGenerative('default', {
+				name: 'long-stream',
+				capabilities: () => ({ embed: false, generate: true, stream: true, tools: false, adapters: false }),
+				async *generateStream() {
+					yield { deltaContent: 'one ' };
+					yield { deltaContent: 'two ' };
+					yield { deltaContent: 'three ' };
+					yield { finishReason: 'stop' };
+				},
+			});
+			let count = 0;
+			for await (const _chunk of models.generateStream('x')) {
+				if (++count === 2) break;
+			}
+			assert.strictEqual(writer.records.length, 1);
+			assert.strictEqual(writer.records[0].success, false);
+			assert.strictEqual(writer.records[0].error_code, 'aborted');
+		});
+
+		it("records pre-call failure with backend='unknown' when the generative backend isn't registered", async () => {
+			await assert.rejects(async () => {
+				// eslint-disable-next-line no-unused-vars
+				for await (const _ of models.generateStream('x', { model: 'no-such-name' })) {
+					// will not iterate — resolve throws first
+				}
+			});
+			assert.strictEqual(writer.records.length, 1);
+			assert.strictEqual(writer.records[0].backend, 'unknown');
+			assert.strictEqual(writer.records[0].error_code, 'backend_not_found');
+			assert.strictEqual(writer.records[0].method, 'generateStream');
 		});
 	});
 });
