@@ -125,6 +125,7 @@
 	"devDependencies": {
 		"@harperdb/code-guidelines": "^0.0.6",
 		"@harperfast/integration-testing": "^0.3.1",
+		"@types/busboy": "^1.5.4",
 		"@types/fs-extra": "^11.0.4",
 		"@types/gunzip-maybe": "^1.4.3",
 		"@types/jsonwebtoken": "^9.0.10",
@@ -180,6 +181,7 @@
 		"amaro": "^1.1.8",
 		"argon2": "0.44.0",
 		"asn1js": "3.0.10",
+		"busboy": "^1.6.0",
 		"cbor-x": "1.6.4",
 		"chalk": "4.1.2",
 		"chokidar": "^4.0.3",

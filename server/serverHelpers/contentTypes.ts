@@ -13,6 +13,7 @@ import { logger } from '../../utility/logging/logger.ts';
 import { Blob } from '../../resources/blob.ts';
 // TODO: Only load this if fastify is loaded
 import fp from 'fastify-plugin';
+import { parseMultipartRequest } from './multipartParser.ts';
 const SERIALIZATION_BIGINT = envMgr.get(CONFIG_PARAMS.SERIALIZATION_BIGINT) !== false;
 const JSONStringify = SERIALIZATION_BIGINT ? stringify : JSON.stringify;
 const JSONParse = SERIALIZATION_BIGINT ? parse : JSON.parse;
@@ -249,6 +250,13 @@ export function registerContentHandlers(app) {
 			error.statusCode = 400;
 			done(error);
 		}
+	});
+
+	// multipart/form-data is streamed: we hand the operation handler a Readable for the file
+	// part rather than buffering the body, so deploy_component payloads can exceed the 2 GB
+	// Node Buffer cap. See multipartParser.ts for the part ordering contract.
+	app.addContentTypeParser(/^multipart\/form-data/, (req, payload, done) => {
+		parseMultipartRequest(req, payload, done);
 	});
 }
 
