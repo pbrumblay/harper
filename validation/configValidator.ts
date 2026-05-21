@@ -66,6 +66,33 @@ export function configValidator(configJson, skipFsValidation = false) {
 		privateKey: pemFileConstraints,
 	});
 
+	// Models — sub-issue #629 (Phase 2) lands ollama. The Joi schema asserts the
+	// common envelope (logical-name keys + required `backend` discriminator) and
+	// the v1 fields. Presence-based enablement: the registry is populated iff
+	// `models` is present in config.
+	//
+	// `.unknown(false)` is intentional: `configValidator` calls `validate(...)`
+	// with `allowUnknown: true`, which propagates into nested schemas by default.
+	// A typo like `bakend: ollama` would otherwise pass validation and reach
+	// `bootstrapModels` as an entry with `backend: undefined` — silently skipped
+	// with a warn. Opting out here turns those typos into boot-blocking errors.
+	// Phase 3+ backends needing extra fields can switch to a per-backend
+	// discriminated schema (`Joi.alternatives().conditional('backend', ...)`).
+	const modelEntrySchema = Joi.object({
+		backend: string.required(),
+		host: string.optional(),
+		model: string.optional(),
+		// `min(1)` (not `min(0)`) so the meaning is unambiguous: omit the field
+		// for "no timeout". `0` would validate but `composeSignal` treats it as
+		// "no timeout" via `if (!timeoutMs)`, surprising a test that sets 0 to
+		// mean "fail immediately".
+		requestTimeoutMs: number.min(1).optional(),
+	}).unknown(false);
+	const modelsSchema = Joi.object({
+		embedding: Joi.object().pattern(Joi.string(), modelEntrySchema).optional(),
+		generative: Joi.object().pattern(Joi.string(), modelEntrySchema).optional(),
+	});
+
 	const configSchema = Joi.object({
 		authentication: Joi.alternatives(
 			Joi.object({
@@ -195,6 +222,7 @@ export function configValidator(configJson, skipFsValidation = false) {
 			maxFreeSpaceToLoad: number.optional(),
 			maxFreeSpaceToRetain: number.optional(),
 		}).required(),
+		models: modelsSchema.optional(),
 		ignoreScripts: boolean.optional(),
 		tls: Joi.alternatives([Joi.array().items(tlsConstraints), tlsConstraints]),
 	});
