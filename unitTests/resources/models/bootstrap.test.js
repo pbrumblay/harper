@@ -94,4 +94,83 @@ describe('bootstrapModels', () => {
 		assert.strictEqual(resolveGenerative('default').name, 'ollama');
 		assert.strictEqual(resolveGenerative('fast').name, 'ollama');
 	});
+
+	// #630 (Phase 3 of #510): openai-specific bootstrap behavior.
+	describe('openai backend (#630)', () => {
+		const ENV_VAR = '__HARPER_TEST_BOOTSTRAP_OPENAI__';
+
+		afterEach(() => {
+			delete process.env[ENV_VAR];
+		});
+
+		it('registers an openai entry under its logical name', () => {
+			bootstrapModels({
+				models: {
+					generative: {
+						default: { backend: 'openai', apiKey: 'sk-test', model: 'gpt-4o-mini' },
+					},
+				},
+			});
+			assert.strictEqual(resolveGenerative('default').name, 'openai');
+		});
+
+		it('resolves ${ENV_VAR} apiKey before constructing the backend', () => {
+			process.env[ENV_VAR] = 'sk-real-key';
+			bootstrapModels({
+				models: {
+					generative: {
+						default: { backend: 'openai', apiKey: `\${${ENV_VAR}}`, model: 'gpt-4o-mini' },
+					},
+				},
+			});
+			// Successful registration proves the env var resolved (otherwise the
+			// backend constructor's `requireApiKey` would throw on the literal
+			// placeholder).
+			assert.strictEqual(resolveGenerative('default').name, 'openai');
+		});
+
+		it('logs error + skips when ${ENV_VAR} apiKey is unset', () => {
+			// ENV_VAR is intentionally not set in this test; the placeholder
+			// stays literal and the backend constructor throws.
+			bootstrapModels({
+				models: {
+					generative: {
+						default: { backend: 'openai', apiKey: `\${${ENV_VAR}}`, model: 'gpt-4o-mini' },
+					},
+				},
+			});
+			// Backend was not registered.
+			assert.throws(() => resolveGenerative('default'), { name: 'ModelBackendNotFoundError' });
+		});
+
+		it('logs error + skips when apiKey is missing entirely', () => {
+			bootstrapModels({
+				models: {
+					generative: {
+						default: { backend: 'openai', model: 'gpt-4o-mini' },
+					},
+				},
+			});
+			assert.throws(() => resolveGenerative('default'), { name: 'ModelBackendNotFoundError' });
+		});
+
+		it('registers ollama + openai entries side by side', () => {
+			bootstrapModels({
+				models: {
+					embedding: {
+						'default': { backend: 'ollama', model: 'nomic-embed-text' },
+						'high-quality': { backend: 'openai', apiKey: 'sk-test', model: 'text-embedding-3-large' },
+					},
+					generative: {
+						fast: { backend: 'ollama', model: 'llama3.2' },
+						default: { backend: 'openai', apiKey: 'sk-test', model: 'gpt-4o-mini' },
+					},
+				},
+			});
+			assert.strictEqual(resolveEmbedding('default').name, 'ollama');
+			assert.strictEqual(resolveEmbedding('high-quality').name, 'openai');
+			assert.strictEqual(resolveGenerative('fast').name, 'ollama');
+			assert.strictEqual(resolveGenerative('default').name, 'openai');
+		});
+	});
 });
