@@ -17,8 +17,15 @@
  * mapping is mechanical.
  */
 import { setEmbedding, setGenerative } from '../../resources/models/backendRegistry.ts';
+import {
+	assignFiniteTokenCount,
+	composeSignal,
+	normalizeOrigin,
+	parseJsonResponse,
+	requireCredential,
+	requireModel,
+} from '../../resources/models/backendHelpers.ts';
 import { ServerError } from '../../utility/errors/hdbError.ts';
-import { isUnresolvedEnvVarPlaceholder } from '../../utility/expandEnvVar.ts';
 import harperLogger from '../../utility/logging/harper_logger.ts';
 import type {
 	BackendOpts,
@@ -95,8 +102,8 @@ export class OpenAIBackend implements ModelBackend {
 	readonly #fetch: typeof fetch;
 
 	constructor(config: OpenAIBackendConfig = {}, fetchImpl: typeof fetch = fetch) {
-		this.#apiKey = requireApiKey(config.apiKey);
-		this.#baseUrl = normalizeBaseUrl(config.baseUrl);
+		this.#apiKey = requireCredential(config.apiKey, 'OpenAI', 'apiKey', OpenAIBackendError);
+		this.#baseUrl = normalizeOrigin(config.baseUrl, { host: DEFAULT_BASE_URL, secure: true });
 		this.#defaultModel = config.model;
 		this.#organization = config.organization;
 		this.#requestTimeoutMs = config.requestTimeoutMs;
@@ -109,13 +116,13 @@ export class OpenAIBackend implements ModelBackend {
 
 	async embed(input: string | string[], opts: BackendOpts<EmbedOpts>): Promise<ModelCallResult<Float32Array[]>> {
 		const model = opts.model ?? this.#defaultModel;
-		requireModel(model, 'embed');
+		requireModel(model, 'embed', OpenAIBackendError);
 		// inputType is honored as a hint but OpenAI's embedding models don't
 		// currently differentiate by it on the wire — pass through unchanged.
 		const texts = Array.isArray(input) ? input : [input];
 		const body: Record<string, unknown> = { model, input: texts };
 		const res = await this.#post('/embeddings', body, opts.signal);
-		const data = await parseJsonResponse<OpenAIEmbedResponse>(res, '/embeddings');
+		const data = await parseJsonResponse<OpenAIEmbedResponse>(res, 'OpenAI /embeddings', OpenAIBackendError);
 		if (!Array.isArray(data.data)) {
 			throw new OpenAIBackendError("OpenAI /embeddings response missing 'data' array");
 		}
@@ -139,10 +146,10 @@ export class OpenAIBackend implements ModelBackend {
 
 	async generate(input: GenerateInput, opts: BackendOpts<GenerateOpts>): Promise<ModelCallResult<GenerateResult>> {
 		const model = opts.model ?? this.#defaultModel;
-		requireModel(model, 'generate');
+		requireModel(model, 'generate', OpenAIBackendError);
 		const body = buildChatRequest(model, input, opts, false);
 		const res = await this.#post('/chat/completions', body, opts.signal);
-		const data = await parseJsonResponse<OpenAIChatResponse>(res, '/chat/completions');
+		const data = await parseJsonResponse<OpenAIChatResponse>(res, 'OpenAI /chat/completions', OpenAIBackendError);
 		const choice = data.choices?.[0];
 		if (!choice) {
 			throw new OpenAIBackendError('OpenAI /chat/completions response missing choices[0]');
@@ -165,7 +172,7 @@ export class OpenAIBackend implements ModelBackend {
 
 	async *generateStream(input: GenerateInput, opts: BackendOpts<GenerateOpts>): AsyncIterable<GenerateChunk> {
 		const model = opts.model ?? this.#defaultModel;
-		requireModel(model, 'generateStream');
+		requireModel(model, 'generateStream', OpenAIBackendError);
 		const body = buildChatRequest(model, input, opts, true);
 		const res = await this.#post('/chat/completions', body, opts.signal);
 		if (!res.body) throw new OpenAIBackendError('OpenAI /chat/completions returned no body for streaming');
@@ -280,38 +287,6 @@ export class OpenAIBackendError extends ServerError {
 }
 
 // ---------- internals ----------
-
-function normalizeBaseUrl(baseUrl?: string): string {
-	const value = baseUrl?.trim() || DEFAULT_BASE_URL;
-	const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
-	return withScheme.replace(/\/+$/, '');
-}
-
-function requireApiKey(apiKey: string | undefined): string {
-	if (!apiKey || apiKey.length === 0) {
-		throw new OpenAIBackendError('OpenAI backend requires an apiKey');
-	}
-	if (isUnresolvedEnvVarPlaceholder(apiKey)) {
-		// Bootstrap ran `expandEnvVarsDeep` but the env var was unset, so the
-		// literal `${VAR_NAME}` survived. Tell the operator exactly what they
-		// need to set — much better than a 401 from upstream.
-		throw new OpenAIBackendError(
-			`OpenAI apiKey is the literal placeholder ${apiKey}; set the matching env var before starting Harper`
-		);
-	}
-	return apiKey;
-}
-
-function requireModel(model: string | undefined, op: string): asserts model is string {
-	if (!model) throw new OpenAIBackendError(`No model specified for ${op}; set 'model' in config or pass opts.model`);
-}
-
-function composeSignal(caller?: AbortSignal, timeoutMs?: number): AbortSignal | undefined {
-	if (!timeoutMs) return caller;
-	const timeout = AbortSignal.timeout(timeoutMs);
-	if (!caller) return timeout;
-	return AbortSignal.any([caller, timeout]);
-}
 
 function buildChatRequest(
 	model: string,
@@ -546,24 +521,6 @@ function parseSseEvent(block: string): OpenAIStreamEvent | 'done' | null {
 		// upstream-derived content.
 		throw new OpenAIBackendError('Invalid SSE data line from OpenAI');
 	}
-}
-
-async function parseJsonResponse<T>(res: Response, endpoint: string): Promise<T> {
-	try {
-		return (await res.json()) as T;
-	} catch {
-		throw new OpenAIBackendError(`OpenAI ${endpoint} returned a non-JSON response body`);
-	}
-}
-
-function assignFiniteTokenCount(
-	usage: TokenUsage,
-	key: 'promptTokens' | 'completionTokens' | 'embeddingTokens',
-	value: unknown
-): void {
-	if (typeof value !== 'number') return;
-	if (!Number.isFinite(value) || value < 0 || !Number.isInteger(value)) return;
-	usage[key] = value;
 }
 
 // ---------- OpenAI wire types (subset we actually read) ----------
