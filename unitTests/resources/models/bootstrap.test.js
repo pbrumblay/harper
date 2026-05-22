@@ -173,4 +173,84 @@ describe('bootstrapModels', () => {
 			assert.strictEqual(resolveGenerative('default').name, 'openai');
 		});
 	});
+
+	// #633 (Phase 6): anthropic + bedrock entries.
+	describe('anthropic + bedrock backends (#633)', () => {
+		it('registers an anthropic generative entry', () => {
+			bootstrapModels({
+				models: {
+					generative: {
+						claude: { backend: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-opus-4-7' },
+					},
+				},
+			});
+			assert.strictEqual(resolveGenerative('claude').name, 'anthropic');
+		});
+
+		it('registers a bedrock generative entry (SDK loads lazily; construction is cheap)', () => {
+			bootstrapModels({
+				models: {
+					generative: {
+						'bedrock-claude': {
+							backend: 'bedrock',
+							region: 'us-east-1',
+							model: 'anthropic.claude-opus-4-v1:0',
+						},
+					},
+				},
+			});
+			assert.strictEqual(resolveGenerative('bedrock-claude').name, 'bedrock');
+		});
+
+		it('registers a bedrock embedding entry', () => {
+			bootstrapModels({
+				models: {
+					embedding: {
+						titan: { backend: 'bedrock', region: 'us-east-1', model: 'amazon.titan-embed-text-v2:0' },
+					},
+				},
+			});
+			assert.strictEqual(resolveEmbedding('titan').name, 'bedrock');
+		});
+
+		it('logs error + skips when an anthropic embedding entry is configured (no Anthropic embed API)', () => {
+			bootstrapModels({
+				models: {
+					embedding: {
+						oops: { backend: 'anthropic', apiKey: 'sk-ant', model: 'claude' },
+					},
+				},
+			});
+			assert.throws(() => resolveEmbedding('oops'), { name: 'ModelBackendNotFoundError' });
+		});
+
+		it('all four backends side by side', () => {
+			bootstrapModels({
+				models: {
+					embedding: {
+						local: { backend: 'ollama', model: 'nomic-embed-text' },
+						hq: { backend: 'openai', apiKey: 'sk', model: 'text-embedding-3-large' },
+						titan: { backend: 'bedrock', region: 'us-east-1', model: 'amazon.titan-embed-text-v2:0' },
+					},
+					generative: {
+						'local-llm': { backend: 'ollama', model: 'llama3.2' },
+						'gpt': { backend: 'openai', apiKey: 'sk', model: 'gpt-4o-mini' },
+						'claude': { backend: 'anthropic', apiKey: 'sk-ant', model: 'claude-opus-4-7' },
+						'bedrock-claude': {
+							backend: 'bedrock',
+							region: 'us-east-1',
+							model: 'anthropic.claude-opus-4-v1:0',
+						},
+					},
+				},
+			});
+			assert.strictEqual(resolveEmbedding('local').name, 'ollama');
+			assert.strictEqual(resolveEmbedding('hq').name, 'openai');
+			assert.strictEqual(resolveEmbedding('titan').name, 'bedrock');
+			assert.strictEqual(resolveGenerative('local-llm').name, 'ollama');
+			assert.strictEqual(resolveGenerative('gpt').name, 'openai');
+			assert.strictEqual(resolveGenerative('claude').name, 'anthropic');
+			assert.strictEqual(resolveGenerative('bedrock-claude').name, 'bedrock');
+		});
+	});
 });

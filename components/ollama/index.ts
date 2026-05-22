@@ -10,6 +10,13 @@
  * `handleApplication(scope)` self-loader.
  */
 import { setEmbedding, setGenerative } from '../../resources/models/backendRegistry.ts';
+import {
+	assignFiniteTokenCount,
+	composeSignal,
+	normalizeOrigin,
+	parseJsonResponse,
+	requireModel,
+} from '../../resources/models/backendHelpers.ts';
 import { ServerError } from '../../utility/errors/hdbError.ts';
 import type {
 	BackendOpts,
@@ -60,7 +67,7 @@ export class OllamaBackend implements ModelBackend {
 	readonly #fetch: typeof fetch;
 
 	constructor(config: OllamaBackendConfig = {}, fetchImpl: typeof fetch = fetch) {
-		this.#origin = normalizeOrigin(config.host);
+		this.#origin = normalizeOrigin(config.host, { host: DEFAULT_HOST, secure: false });
 		this.#defaultModel = config.model;
 		this.#requestTimeoutMs = config.requestTimeoutMs;
 		this.#fetch = fetchImpl;
@@ -72,11 +79,11 @@ export class OllamaBackend implements ModelBackend {
 
 	async embed(input: string | string[], opts: BackendOpts<EmbedOpts>): Promise<ModelCallResult<Float32Array[]>> {
 		const model = opts.model ?? this.#defaultModel;
-		requireModel(model, 'embed');
+		requireModel(model, 'embed', OllamaBackendError);
 		const texts = Array.isArray(input) ? input : [input];
 		const prepared = texts.map((t) => applyEmbedPrefix(model, t, opts.inputType));
 		const res = await this.#post('/api/embed', { model, input: prepared }, opts.signal);
-		const data = await parseJsonResponse<OllamaEmbedResponse>(res, '/api/embed');
+		const data = await parseJsonResponse<OllamaEmbedResponse>(res, 'Ollama /api/embed', OllamaBackendError);
 		if (!Array.isArray(data.embeddings)) {
 			throw new OllamaBackendError("Ollama /api/embed response missing 'embeddings' array");
 		}
@@ -98,10 +105,14 @@ export class OllamaBackend implements ModelBackend {
 
 	async generate(input: GenerateInput, opts: BackendOpts<GenerateOpts>): Promise<ModelCallResult<GenerateResult>> {
 		const model = opts.model ?? this.#defaultModel;
-		requireModel(model, 'generate');
+		requireModel(model, 'generate', OllamaBackendError);
 		const { endpoint, body } = buildGenerateRequest(model, input, opts, false);
 		const res = await this.#post(endpoint, body, opts.signal);
-		const data = await parseJsonResponse<OllamaGenerateResponse & OllamaChatResponse>(res, endpoint);
+		const data = await parseJsonResponse<OllamaGenerateResponse & OllamaChatResponse>(
+			res,
+			`Ollama ${endpoint}`,
+			OllamaBackendError
+		);
 		const rawContent = endpoint === '/api/chat' ? data.message?.content : data.response;
 		if (rawContent !== undefined && typeof rawContent !== 'string') {
 			throw new OllamaBackendError(`Ollama ${endpoint} response content is not a string`);
@@ -118,7 +129,7 @@ export class OllamaBackend implements ModelBackend {
 
 	async *generateStream(input: GenerateInput, opts: BackendOpts<GenerateOpts>): AsyncIterable<GenerateChunk> {
 		const model = opts.model ?? this.#defaultModel;
-		requireModel(model, 'generateStream');
+		requireModel(model, 'generateStream', OllamaBackendError);
 		const { endpoint, body } = buildGenerateRequest(model, input, opts, true);
 		const res = await this.#post(endpoint, body, opts.signal);
 		if (!res.body) throw new OllamaBackendError(`Ollama ${endpoint} returned no body for streaming`);
@@ -165,23 +176,6 @@ export class OllamaBackendError extends ServerError {
 }
 
 // ---------- internals ----------
-
-function normalizeOrigin(host?: string): string {
-	const value = host?.trim() || DEFAULT_HOST;
-	const withScheme = /^https?:\/\//i.test(value) ? value : `http://${value}`;
-	return withScheme.replace(/\/+$/, '');
-}
-
-function requireModel(model: string | undefined, op: string): asserts model is string {
-	if (!model) throw new OllamaBackendError(`No model specified for ${op}; set 'model' in config or pass opts.model`);
-}
-
-function composeSignal(caller?: AbortSignal, timeoutMs?: number): AbortSignal | undefined {
-	if (!timeoutMs) return caller;
-	const timeout = AbortSignal.timeout(timeoutMs);
-	if (!caller) return timeout;
-	return AbortSignal.any([caller, timeout]);
-}
 
 function applyEmbedPrefix(model: string, text: string, inputType?: 'document' | 'query'): string {
 	if (!inputType) return text;
@@ -291,35 +285,6 @@ function parseJsonLine(line: string): OllamaStreamChunk {
 		// of `hdb_model_calls.error_code` (analyticsTable.ts:35).
 		throw new OllamaBackendError('Invalid NDJSON line from Ollama');
 	}
-}
-
-/**
- * Read a JSON response body and throw `OllamaBackendError` on parse failure
- * instead of leaking the raw `SyntaxError` (whose message can include
- * upstream-derived bytes). Mirrors `parseJsonLine`'s sanitization posture.
- */
-async function parseJsonResponse<T>(res: Response, endpoint: string): Promise<T> {
-	try {
-		return (await res.json()) as T;
-	} catch {
-		throw new OllamaBackendError(`Ollama ${endpoint} returned a non-JSON response body`);
-	}
-}
-
-/**
- * Write a token count to `usage` only when the value is a finite, non-negative
- * integer. Rejects `NaN`, `Infinity`, `-Infinity`, negatives, and non-integers —
- * any of which would poison `SUM(prompt_tokens)`-style aggregates over
- * `hdb_model_calls`.
- */
-function assignFiniteTokenCount(
-	usage: TokenUsage,
-	key: 'promptTokens' | 'completionTokens' | 'embeddingTokens',
-	value: unknown
-): void {
-	if (typeof value !== 'number') return;
-	if (!Number.isFinite(value) || value < 0 || !Number.isInteger(value)) return;
-	usage[key] = value;
 }
 
 interface OllamaEmbedResponse {

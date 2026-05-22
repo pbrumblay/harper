@@ -588,5 +588,122 @@ describe('Test configValidator module', () => {
 				expect(result.error).to.be.undefined;
 			});
 		});
+
+		// #633 (Phase 6): anthropic + bedrock schemas.
+		describe('anthropic backend', () => {
+			it('accepts an anthropic entry with apiKey + model', () => {
+				const config = baseConfig();
+				config.models = {
+					generative: {
+						claude: { backend: 'anthropic', apiKey: 'sk-ant-test', model: 'claude-opus-4-7' },
+					},
+				};
+				const result = configValidator(config, true);
+				expect(result.error).to.be.undefined;
+			});
+
+			it('accepts a ${ENV_VAR} placeholder as the apiKey value', () => {
+				const config = baseConfig();
+				config.models = {
+					generative: {
+						claude: { backend: 'anthropic', apiKey: '${ANTHROPIC_API_KEY}', model: 'claude-opus-4-7' },
+					},
+				};
+				const result = configValidator(config, true);
+				expect(result.error).to.be.undefined;
+			});
+
+			it('rejects an anthropic entry missing apiKey', () => {
+				const config = baseConfig();
+				config.models = {
+					generative: { claude: { backend: 'anthropic', model: 'claude-opus-4-7' } },
+				};
+				const result = configValidator(config, true);
+				expect(result.error).to.not.be.undefined;
+				expect(result.error.message).to.include('apiKey');
+			});
+
+			it('rejects an openai-only field (organization) on an anthropic entry', () => {
+				const config = baseConfig();
+				config.models = {
+					generative: {
+						claude: { backend: 'anthropic', apiKey: 'sk-ant', model: 'claude', organization: 'oops' },
+					},
+				};
+				const result = configValidator(config, true);
+				expect(result.error).to.not.be.undefined;
+				expect(result.error.message).to.include('organization');
+			});
+		});
+
+		describe('bedrock backend', () => {
+			it('accepts a bedrock entry with region + model (no apiKey — AWS SDK chain)', () => {
+				const config = baseConfig();
+				config.models = {
+					generative: {
+						'bedrock-claude': {
+							backend: 'bedrock',
+							region: 'us-east-1',
+							model: 'anthropic.claude-opus-4-v1:0',
+						},
+					},
+				};
+				const result = configValidator(config, true);
+				expect(result.error).to.be.undefined;
+			});
+
+			it('accepts a bedrock embedding entry (Titan)', () => {
+				const config = baseConfig();
+				config.models = {
+					embedding: {
+						titan: { backend: 'bedrock', region: 'us-east-1', model: 'amazon.titan-embed-text-v2:0' },
+					},
+				};
+				const result = configValidator(config, true);
+				expect(result.error).to.be.undefined;
+			});
+
+			it('rejects an apiKey field on a bedrock entry (AWS SDK chain only)', () => {
+				const config = baseConfig();
+				config.models = {
+					generative: {
+						claude: {
+							backend: 'bedrock',
+							region: 'us-east-1',
+							model: 'anthropic.claude',
+							apiKey: 'oops',
+						},
+					},
+				};
+				const result = configValidator(config, true);
+				expect(result.error).to.not.be.undefined;
+				expect(result.error.message).to.include('apiKey');
+			});
+		});
+
+		describe('all four backends side by side', () => {
+			it('validates a config with ollama + openai + anthropic + bedrock entries', () => {
+				const config = baseConfig();
+				config.models = {
+					embedding: {
+						local: { backend: 'ollama', model: 'nomic-embed-text' },
+						hq: { backend: 'openai', apiKey: '${OPENAI_KEY}', model: 'text-embedding-3-large' },
+						titan: { backend: 'bedrock', region: 'us-east-1', model: 'amazon.titan-embed-text-v2:0' },
+					},
+					generative: {
+						'local-llm': { backend: 'ollama', model: 'llama3.2' },
+						'gpt': { backend: 'openai', apiKey: '${OPENAI_KEY}', model: 'gpt-4o-mini' },
+						'claude': { backend: 'anthropic', apiKey: '${ANTHROPIC_KEY}', model: 'claude-opus-4-7' },
+						'bedrock-claude': {
+							backend: 'bedrock',
+							region: 'us-east-1',
+							model: 'anthropic.claude-opus-4-v1:0',
+						},
+					},
+				};
+				const result = configValidator(config, true);
+				expect(result.error).to.be.undefined;
+			});
+		});
 	});
 });

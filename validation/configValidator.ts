@@ -102,6 +102,22 @@ export function configValidator(configJson, skipFsValidation = false) {
 		organization: string.optional(),
 		...commonEntryFields,
 	}).unknown(false);
+	const anthropicEntrySchema = Joi.object({
+		backend: string.valid('anthropic').required(),
+		// Same secret-handling posture as openai's `apiKey`.
+		apiKey: string.required(),
+		baseUrl: string.optional(),
+		...commonEntryFields,
+	}).unknown(false);
+	const bedrockEntrySchema = Joi.object({
+		backend: string.valid('bedrock').required(),
+		// AWS credentials resolve via the SDK chain (env / shared file / IAM
+		// roles for service accounts) — no apiKey field. `region` is
+		// effectively required (Bedrock is regional) but the backend can
+		// fall back to AWS_REGION env, so we leave it optional here.
+		region: string.optional(),
+		...commonEntryFields,
+	}).unknown(false);
 	const unknownBackendEntrySchema = Joi.object({
 		backend: string.required(),
 	}).unknown(true);
@@ -109,6 +125,8 @@ export function configValidator(configJson, skipFsValidation = false) {
 		switch: [
 			{ is: 'ollama', then: ollamaEntrySchema },
 			{ is: 'openai', then: openaiEntrySchema },
+			{ is: 'anthropic', then: anthropicEntrySchema },
+			{ is: 'bedrock', then: bedrockEntrySchema },
 		],
 		otherwise: unknownBackendEntrySchema,
 	});

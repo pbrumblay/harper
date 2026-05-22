@@ -22,6 +22,8 @@ import harperLogger from '../../utility/logging/harper_logger.ts';
 import { expandEnvVarsDeep, isUnresolvedEnvVarPlaceholder } from '../../utility/expandEnvVar.ts';
 import { registerOllamaBackend, type OllamaBackendConfig } from '../../components/ollama/index.ts';
 import { registerOpenAIBackend, type OpenAIBackendConfig } from '../../components/openai/index.ts';
+import { registerAnthropicBackend, type AnthropicBackendConfig } from '../../components/anthropic/index.ts';
+import { registerBedrockBackend, type BedrockBackendConfig } from '../../components/bedrock/index.ts';
 
 /**
  * Field names treated as credentials. When present in config as a literal
@@ -38,9 +40,12 @@ interface ModelEntry {
 	host?: string;
 	model?: string;
 	requestTimeoutMs?: number;
-	// openai-specific fields
+	// openai + anthropic credentials
 	apiKey?: string;
 	baseUrl?: string;
+	organization?: string;
+	// bedrock
+	region?: string;
 }
 
 interface ModelsConfig {
@@ -57,6 +62,8 @@ type BackendRegisterFn = (args: { logicalName: string; kind: ModelKind; config: 
 const FACTORIES: Record<string, BackendRegisterFn> = {
 	ollama: (args) => registerOllamaBackend({ ...args, config: args.config as OllamaBackendConfig }),
 	openai: (args) => registerOpenAIBackend({ ...args, config: args.config as OpenAIBackendConfig }),
+	anthropic: (args) => registerAnthropicBackend({ ...args, config: args.config as AnthropicBackendConfig }),
+	bedrock: (args) => registerBedrockBackend({ ...args, config: args.config as BedrockBackendConfig }),
 };
 
 /**

@@ -160,6 +160,19 @@ Generally, dependencies are added by simply adding them to the dependencies list
 - Binary compilation: No
 - Eventual removal: Required as long as we use pkijs. Could be replaced if Node.js adds native ASN.1 parsing or if we implement our own X.509 parser.
 
+## @aws-sdk/client-bedrock-runtime (optional peerDependency)
+
+- Need for usage: AWS Bedrock backend for `scope.models` (#510 Phase 6 / #633). Bedrock requires SigV4-signed requests against region-specific endpoints; rolling SigV4 ourselves is non-trivial and the AWS SDK does it correctly. The SDK also handles the standard AWS credential chain (env vars, shared profile, IAM roles, IRSA) which is exactly what we want.
+- Classification: **optional `peerDependency`**, not a direct dependency. Harper itself does not install the SDK — `package.json` declares it in `peerDependenciesMeta.@aws-sdk/client-bedrock-runtime.optional: true`. Modern npm / pnpm / yarn skip the auto-install and do not warn. The backend dynamic-imports the SDK on first call and throws `BedrockBackendError('@aws-sdk/client-bedrock-runtime is not installed. Add it to your project ...')` if it's missing. Customers that don't use the Bedrock backend pay zero install or runtime cost.
+- Size/memory cost: ~5 MB unpacked including transitive `@smithy/*`, `@aws-sdk/*` packages. Only loaded for users who explicitly opt in by adding the SDK to their own project's `package.json`.
+- Security: AWS-maintained, weekly-cadence releases. CVE history is in the standard AWS SDK channel; Harper does not freeze the patch range — operators install the version their project pins.
+- Environment interaction: None at Harper load time (dynamic import only fires when a Bedrock backend is registered AND a `scope.models` call is made). At runtime, the SDK uses the standard AWS credential chain.
+- Overlap: None. The other model backends (`ollama`, `openai`, `anthropic`) use native `fetch` directly; SigV4 is the genuine reason we use an SDK here and not on the other three.
+- Transitive dependencies: Large `@smithy/*` set required by the SDK runtime. Acceptable because installation is opt-in via peerDep.
+- Can be deferred: Yes, by design — dynamic-imported on first Bedrock call. Customers without Bedrock never load it.
+- Binary compilation: No.
+- Eventual removal: We could implement SigV4 ourselves (~300 lines) and call Bedrock's HTTP endpoint with native `fetch`, matching the pattern used by the other three backends. Worth revisiting if SDK version churn becomes a maintenance burden or if the optional-peerDep pattern proves operator-unfriendly. The dynamic-import boundary means the swap is contained to `components/bedrock/index.ts`.
+
 ## busboy
 
 - Need for usage: Streaming multipart/form-data parser for the operations API. Required so `deploy_component` payloads can exceed the Node.js 2 GB Buffer cap by being piped straight into extraction (gunzip + tar-fs) instead of buffered. Used only on the operations API ingest path; outbound multipart bodies on the CLI are formatted inline in `bin/multipartBuilder.ts` and do not depend on busboy.
