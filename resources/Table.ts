@@ -262,9 +262,13 @@ export function makeTable(options) {
 		// `@embed` write-time hook registry (Phase 5 of #510). `userEmbedders` is the per-
 		// attribute embedder map populated by `setEmbedAttribute` — defaulted at schema
 		// load from the directive's `(source, model)` and overridable by component authors.
-		// `embedAttributes` is the filtered list scanned on every write so we don't pay an
+		// `userSetEmbedders` tracks which names were explicitly set by `setEmbedAttribute`
+		// vs. auto-populated as defaults — on a schema reload with a changed `model:`, we
+		// must refresh defaults while preserving user-author overrides. `embedAttributes`
+		// is the filtered list scanned on every write so we don't pay an
 		// `attributes.filter(...)` per put/patch.
 		static userEmbedders: { [name: string]: Embedder } = {};
+		static userSetEmbedders: Set<string> = new Set();
 		static embedAttributes: EmbedAttribute[] = (attributes as any[]).filter((a) => a?.embed);
 		static source?: typeof TableResource;
 		declare static sourceOptions: any;
@@ -3423,14 +3427,17 @@ export function makeTable(options) {
 				attribute.resolve = null; // reset this
 				const relationship = attribute.relationship;
 				const computed = attribute.computed;
-				// `@embed` directive: register the default embedder if no override is
-				// already in place. This is one-time setup (populating userEmbedders),
-				// not a runtime resolver, so it lives outside the if/else-if chain
-				// below — `@embed` fields ALSO get auto-HNSW indexing, and the chain's
-				// `customIndex.propertyResolver` branch needs to fire for them.
-				// Component authors override the default via
-				// `Table.setEmbedAttribute(name, customEmbedder)` after schema load.
-				if (attribute.embed && !this.userEmbedders[attribute.name]) {
+				// `@embed` directive: register the default embedder. This is one-time
+				// setup (populating userEmbedders), not a runtime resolver, so it lives
+				// outside the if/else-if chain below — `@embed` fields ALSO get
+				// auto-HNSW indexing, and the chain's `customIndex.propertyResolver`
+				// branch needs to fire for them. Component authors override the default
+				// via `Table.setEmbedAttribute(name, customEmbedder)` after schema load.
+				// `userSetEmbedders` tracks the override names so we can refresh defaults
+				// on an in-place `Table.attributes.splice()` schema reload at
+				// `databases.ts:940` (which calls `updatedAttributes()` again on the
+				// existing class) without clobbering an author's custom embedder.
+				if (attribute.embed && !TableResource.userSetEmbedders.has(attribute.name)) {
 					this.userEmbedders[attribute.name] = createDefaultEmbedder(attribute.embed);
 				}
 				if (relationship) {
@@ -3636,6 +3643,7 @@ export function makeTable(options) {
 				return;
 			}
 			this.userEmbedders[attribute_name] = embedder;
+			this.userSetEmbedders.add(attribute_name);
 		}
 		static async deleteHistory(endTime = 0, cleanupDeletedRecords = false) {
 			let completion: Promise<void>;
@@ -4813,12 +4821,14 @@ export function coerceType(value: any, attribute: any): any {
 				return new Date(+value); // epoch ms number
 			case 'Vector':
 				// JSON-typed input arrives as a plain Array<number>; the storage layer
-				// expects Float32Array (what HNSW and the embedder produce). Pass typed
-				// arrays through, coerce JSON arrays, reject anything else.
+				// accepts numeric arrays (what HNSW indexes). Convert element values via
+				// `Float32Array.from(...)` rather than reinterpreting raw bytes — taking
+				// `new Float32Array(view.buffer)` would mis-cast `Float64Array` / typed-
+				// array subarrays as garbage float32s.
 				if (value === null || value === 'null') return null;
 				if (value instanceof Float32Array) return value;
 				if (Array.isArray(value)) return Float32Array.from(value);
-				if (ArrayBuffer.isView(value)) return new Float32Array((value as ArrayBufferView).buffer);
+				if (ArrayBuffer.isView(value)) return Float32Array.from(value as any);
 				throw new SyntaxError();
 			case undefined:
 			case 'Any':
