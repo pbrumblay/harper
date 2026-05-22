@@ -11,11 +11,17 @@
  *     when they need different logic (multi-field concatenation, custom
  *     preprocessing).
  *
- *   - `buildEmbedBefore(...)` — produces the pre-commit `before` callback that
- *     `resources/Table.ts` chains into the existing blob-pre-commit pattern.
- *     Returns `undefined` when there's no work (no embed attributes, or the
- *     write is a replication receiver) so the call site can pass it straight
- *     into `preCommitBlobsForRecordBefore` as the `before` parameter.
+ *   - `buildEmbedBefore(...)` — produces the embedder callback invoked
+ *     *before* `transaction.addWrite(...)` at the put/patch site. The
+ *     embedder mutates `record[attr.name]` so the new vector is on the
+ *     record when the per-write `commit(...)` closure runs. (It can't ride
+ *     the txn's pre-commit `before` slot because that slot is awaited at
+ *     `Promise.all(completions)` at txn-commit time — AFTER each write's
+ *     `commit(...)` has already stored the record. The blob pattern works
+ *     there because blob IDs are pre-allocated synchronously and the blob
+ *     bytes write independently of the record.) Returns `undefined` when
+ *     there's no work (no embed attributes, or the write is a replication
+ *     receiver) so the call site can short-circuit.
  *
  * Replicated-write predicate: the receiver should *store* the originating
  * node's already-computed embedding, not re-compute it. Three signals
@@ -58,7 +64,7 @@ export type EmbedAttribute = {
 	embed: EmbedConfig;
 };
 
-export type Embedder = (record: any) => Promise<Float32Array | null | undefined>;
+export type Embedder = (record: any) => Promise<number[] | Float32Array | null | undefined>;
 
 /**
  * Embed-function shape the default embedder calls into. Matches the public
@@ -83,7 +89,11 @@ type EmbedFn = (
 let _embedFn: EmbedFn | undefined;
 function resolveEmbedFn(): EmbedFn {
 	if (_embedFn) return _embedFn;
-	const { Models } = require('./Models.ts'); // eslint-disable-line @typescript-eslint/no-var-requires
+	// `#src/` alias goes through package.json conditional exports — resolves to
+	// `./*.ts` under the `typestrip` condition (unit tests) and to `./dist/*.js`
+	// in production. A bare `require('./Models.ts')` doesn't survive the dist
+	// build because the `.ts` extension stays literal at runtime.
+	const { Models } = require('#src/resources/models/Models'); // eslint-disable-line @typescript-eslint/no-var-requires
 	const models = new Models();
 	_embedFn = (input, opts) => models.embed(input, opts);
 	return _embedFn;
@@ -99,7 +109,7 @@ export function __setEmbedFnForTest(fn: EmbedFn | undefined): void {
 
 export function createDefaultEmbedder(embedConfig: EmbedConfig): Embedder {
 	const { source, model } = embedConfig;
-	return async (record: any): Promise<Float32Array | null | undefined> => {
+	return async (record: any): Promise<number[] | null | undefined> => {
 		const sourceValue = record?.[source];
 		if (sourceValue == null) return null;
 		// `embed()` always returns an array (one vector per input). `@embed`'s
@@ -109,7 +119,14 @@ export function createDefaultEmbedder(embedConfig: EmbedConfig): Embedder {
 			model,
 			inputType: 'document',
 		});
-		return vectors?.[0];
+		const v = vectors?.[0];
+		if (v == null) return undefined;
+		// Convert Float32Array → plain Array<number> for storage. Harper's record
+		// encoder doesn't round-trip typed arrays cleanly through msgpack/CRDT
+		// merge (`updateAndFreeze` enumerates them as `{0,1,2,...}` maps), so we
+		// store as a plain numeric array. HNSW's `propertyResolver` and
+		// `customIndex.index` both accept `number[]` and `Float32Array`.
+		return v instanceof Float32Array ? Array.from(v) : Array.from(v as any);
 	};
 }
 

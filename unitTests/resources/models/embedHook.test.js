@@ -19,12 +19,15 @@ describe('embedHook', () => {
 	describe('createDefaultEmbedder', () => {
 		afterEach(() => __setEmbedFnForTest(undefined));
 
-		it('reads source field, calls Models.embed with document inputType, returns first vector', async () => {
+		it('reads source field, calls Models.embed with document inputType, returns first vector as Array<number>', async () => {
 			const embedFn = fakeEmbedCapturing();
 			__setEmbedFnForTest(embedFn);
 			const embedder = createDefaultEmbedder({ source: 'content', model: 'default' });
 			const vec = await embedder({ content: 'hello world' });
-			assert.deepEqual(vec, VECTOR);
+			// Default embedder converts Float32Array → Array<number> so Harper's record
+			// encoder doesn't mangle it via `updateAndFreeze`. HNSW accepts both.
+			assert.ok(Array.isArray(vec), 'vec should be a plain Array');
+			assert.deepEqual(vec, Array.from(VECTOR));
 			assert.equal(embedFn.calls.length, 1);
 			assert.equal(embedFn.calls[0].input, 'hello world');
 			assert.equal(embedFn.calls[0].opts.model, 'default');

@@ -1539,14 +1539,16 @@ export function makeTable(options) {
 						return Promise.all(
 							record.map((element) => {
 								const id = element[primaryKey];
-								this._writeUpdate(id, element, true);
-								return this.save() as any;
+								// `_writeUpdate` may return a promise when an `@embed` directive
+								// requires running an embedder before the per-write `commit(...)`
+								// closure. Threading via `when()` so synchronous-return callers
+								// (no embed) and async-return callers (embed pending) both work.
+								return when(this._writeUpdate(id, element, true), () => this.save() as any);
 							})
 						) as any;
 					} else {
 						const id = requestTargetToId(target as any);
-						this._writeUpdate(id, record, true);
-						return this.save() as any;
+						return when(this._writeUpdate(id, record, true), () => this.save() as any);
 					}
 				}) as any;
 			}
@@ -1585,8 +1587,10 @@ export function makeTable(options) {
 						throw new ClientError('Record already exists', 409);
 					}
 				}
-				this._writeUpdate(id, record, true);
-				return record;
+				// `_writeUpdate` may return a promise when an `@embed` directive
+				// requires running an embedder before the per-write `commit(...)`
+				// closure. `when()` passes through synchronous returns.
+				return when(this._writeUpdate(id, record, true), () => record);
 			}) as any;
 		}
 
@@ -1613,7 +1617,6 @@ export function makeTable(options) {
 		_writeUpdate(id: Id, recordUpdate: any, fullUpdate: boolean, options?: any) {
 			const context = this.getContext();
 			const transaction = txnForContext(context);
-
 			checkValidId(id);
 			const entry = this.#entry ?? primaryStore.getEntry(id, { transaction: transaction.getReadTxn() });
 			const writeToSource = () => {
@@ -1962,11 +1965,16 @@ export function makeTable(options) {
 				},
 			};
 			this.#savingOperation = write;
-			// `@embed` write-time hook (Phase 5 of #510). Chains into the existing
-			// blob-pre-commit `before` slot so the embedder runs during the
-			// transaction's `before` phase, before the commit closure stores the
-			// merged record. Skipped on replicated writes — the originating node
-			// already computed the embedding and the receiver should preserve it.
+			// `@embed` write-time hook (Phase 5 of #510). Must run BEFORE `addWrite`
+			// so the embedder's mutation of `recordUpdate` reaches the per-write
+			// `commit(...)` closure. The transaction's pre-commit `before` slot
+			// fires AFTER `commit(...)` for record mutations (the slot is awaited
+			// at `Promise.all(completions)` at txn-commit time, not before each
+			// write's commit closure) — which is fine for blob byte-writes that
+			// reference pre-allocated IDs, but not for embed where the vector
+			// itself must be on the record at commit time. Skipped on replicated
+			// writes — the originating node already computed the embedding and
+			// the receiver should preserve it.
 			const embedBefore = buildEmbedBefore(
 				recordUpdate,
 				context,
@@ -1974,8 +1982,11 @@ export function makeTable(options) {
 				TableResource.embedAttributes,
 				TableResource.userEmbedders
 			);
-			write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate, embedBefore);
-			return transaction.addWrite(write as any);
+			const proceed = (): any => {
+				write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
+				return transaction.addWrite(write as any);
+			};
+			return embedBefore ? embedBefore().then(proceed) : proceed();
 		}
 
 		async delete(target: RequestTargetOrId): Promise<boolean> {

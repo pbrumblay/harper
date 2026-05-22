@@ -47,6 +47,28 @@ const SCHEMA_GRAPHQL = [
 	'',
 ].join('\n');
 
+/**
+ * REST GET returns Float32Array-typed columns as a `{type: "Buffer", data: number[]}`
+ * JSON shape (msgpack/Buffer round-trip). Decode back to Float32 components for
+ * equality assertions.
+ */
+function decodeVector(field: any): number[] | undefined {
+	if (field == null) return undefined;
+	if (Array.isArray(field)) return field.map(Number);
+	if (field instanceof Float32Array) return Array.from(field);
+	if (field && field.type === 'Buffer' && Array.isArray(field.data)) {
+		const bytes = Uint8Array.from(field.data);
+		const f32 = new Float32Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 4));
+		return Array.from(f32);
+	}
+	if (field instanceof Uint8Array || field instanceof ArrayBuffer) {
+		const view = field instanceof ArrayBuffer ? new Uint8Array(field) : field;
+		const f32 = new Float32Array(view.buffer, view.byteOffset, Math.floor(view.byteLength / 4));
+		return Array.from(f32);
+	}
+	return undefined;
+}
+
 interface FakeOllama {
 	url: string;
 	host: string; // <host:port> form for Harper's `host:` config field
@@ -170,13 +192,13 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 	});
 
 	test('schema with @embed creates EmbedDoc table', async () => {
-		await client
-			.req()
-			.send({ operation: 'describe_all' })
-			.expect((r: any) => {
-				ok(JSON.stringify(r.body).includes('"embedtest":{"EmbedDoc":'), 'EmbedDoc table not created: ' + r.text);
-			})
-			.expect(200);
+		const desc = await client.req().send({ operation: 'describe_all' }).expect(200);
+		const embedDoc = desc.body?.embedtest?.EmbedDoc;
+		ok(embedDoc, 'EmbedDoc table not created');
+		const embeddingAttr = (embedDoc.attributes || []).find((a: any) => a.attribute === 'embedding');
+		ok(embeddingAttr, 'embedding attribute should be present');
+		strictEqual(embeddingAttr.type, 'Vector', 'embedding type should be Vector');
+		strictEqual(embeddingAttr.indexed?.type, 'HNSW', 'embedding should be auto-HNSW-indexed');
 	});
 
 	test('happy path: POST → embedder runs → vector stored on record', async () => {
@@ -198,14 +220,11 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 
 		// GET the record back and verify the embedding was stored
 		const getResp = await client.reqRest('/EmbedDoc/doc-happy').expect(200);
-		const body = getResp.body as { id: string; content: string; embedding: number[] };
+		const body = getResp.body as { id: string; content: string; embedding: unknown };
 		strictEqual(body.id, 'doc-happy');
 		strictEqual(body.content, content);
-		ok(
-			Array.isArray(body.embedding) || (body.embedding && (body.embedding as any).length === 3),
-			'embedding field should be populated'
-		);
-		const stored = Array.from(body.embedding as any) as number[];
+		const stored = decodeVector(body.embedding);
+		ok(stored, `embedding field should be populated, got: ${JSON.stringify(body.embedding)}`);
 		strictEqual(stored.length, 3, 'expected 3-element vector');
 		for (let i = 0; i < 3; i++) {
 			ok(
@@ -243,9 +262,10 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		// Verify the embedding is still the one from the original content
 		const expected = deterministicVector(content);
 		const getResp = await client.reqRest('/EmbedDoc/doc-patch').expect(200);
-		const body = getResp.body as { tag: string; embedding: number[] };
+		const body = getResp.body as { tag: string; embedding: unknown };
 		strictEqual(body.tag, 'updated');
-		const stored = Array.from(body.embedding as any) as number[];
+		const stored = decodeVector(body.embedding);
+		ok(stored, `embedding should still be populated after non-source PATCH, got: ${JSON.stringify(body.embedding)}`);
 		strictEqual(stored.length, 3);
 		for (let i = 0; i < 3; i++) {
 			ok(Math.abs(stored[i] - expected[i]) < 1e-5, 'existing embedding should survive non-source PATCH');
@@ -270,10 +290,11 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		);
 
 		const getResp = await client.reqRest('/EmbedDoc/doc-replica').expect(200);
-		const body = getResp.body as { id: string; content: string; embedding: number[] };
+		const body = getResp.body as { id: string; content: string; embedding: unknown };
 		strictEqual(body.id, 'doc-replica');
 		strictEqual(body.content, content);
-		const stored = Array.from(body.embedding as any) as number[];
+		const stored = decodeVector(body.embedding);
+		ok(stored, `embedding should be populated from supplied vector, got: ${JSON.stringify(body.embedding)}`);
 		strictEqual(stored.length, 3);
 		// The receiver must preserve the originator's vector — NOT overwrite with what
 		// it would have computed locally. Compare against suppliedVector, not against
