@@ -6,7 +6,20 @@ import { Resources } from './Resources.ts';
 import type { NamedTypeNode, StringValueNode } from 'graphql';
 import { once } from 'node:events';
 
-const PRIMITIVE_TYPES = ['ID', 'Int', 'Float', 'Long', 'String', 'Boolean', 'Date', 'Bytes', 'Any', 'BigInt', 'Blob'];
+const PRIMITIVE_TYPES = [
+	'ID',
+	'Int',
+	'Float',
+	'Long',
+	'String',
+	'Boolean',
+	'Date',
+	'Bytes',
+	'Any',
+	'BigInt',
+	'Blob',
+	'Vector',
+];
 
 if (!server.knownGraphQLDirectives) {
 	server.knownGraphQLDirectives = [];
@@ -18,6 +31,7 @@ server.knownGraphQLDirectives.push(
 	'primaryKey',
 	'indexed',
 	'computed',
+	'embed',
 	'relationship',
 	'createdTime',
 	'updatedTime',
@@ -143,6 +157,49 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 								}
 							}
 							property.computed = property.computed || true;
+						} else if (directiveName === 'embed') {
+							// `@embed(source: "<field>", model: "<logical-name>")`: schema-level RAG.
+							// On write, the embedder reads `record[source]` and writes a vector to this
+							// attribute (Phase 5 of #510). Auto-attaches HNSW indexing on the same field
+							// when no explicit `@indexed` is present, and tracks the model name as the
+							// attribute version — a model change between deploys triggers reindex the
+							// same way a `@computed` expression change does (see version-driven reindex
+							// below).
+							const embedDefinition: { source?: string; model?: string } = {};
+							for (const arg of directive.arguments || []) {
+								// Only accept string-literal values; reject variables / non-string nodes
+								// so a typoed schema fails loudly instead of silently producing undefined.
+								if (arg.value.kind !== 'StringValue') {
+									console.error(
+										`@embed(${arg.name.value}: ...) on "${property.name}" expects a string literal, at`,
+										arg.loc
+									);
+									continue;
+								}
+								embedDefinition[arg.name.value] = (arg.value as StringValueNode).value;
+							}
+							if (!embedDefinition.source || !embedDefinition.model) {
+								// Missing required args silently degrades the embedder to a no-op at
+								// write time, leaving the vector column empty with no operator signal.
+								// Refuse to register the directive in that case.
+								console.error(
+									`@embed on "${property.name}" requires both "source" and "model" arguments, at`,
+									directive.loc
+								);
+							} else {
+								property.embed = embedDefinition;
+								// Use the model name as the version so changing `model:` in the schema
+								// triggers reindex/re-embed, matching `@computed`'s version semantics.
+								if (property.version == undefined) {
+									property.version = `embed:${embedDefinition.model}`;
+								}
+								// Auto-attach HNSW indexing if no explicit `@indexed` is present on this
+								// field. The issue's "indexed via HNSW. No app code needed." statement
+								// only holds if `@embed` alone wires the index.
+								if (!property.indexed) {
+									property.indexed = { type: 'HNSW' };
+								}
+							}
 						} else if (directiveName === 'relationship') {
 							const relationshipDefinition = {};
 							for (const arg of directive.arguments) {

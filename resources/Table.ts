@@ -47,6 +47,12 @@ import { transaction, contextStorage } from './transaction.ts';
 import { MAXIMUM_KEY, writeKey, compareKeys } from 'ordered-binary';
 import { getWorkerIndex, getWorkerCount } from '../server/threads/manageThreads.js';
 import { HAS_BLOBS, auditRetention, removeAuditEntry } from './auditStore.ts';
+import {
+	buildEmbedBefore,
+	createDefaultEmbedder,
+	type EmbedAttribute,
+	type Embedder,
+} from './models/embedHook.ts';
 import { autoCast, autoCastBooleanStrict } from '../utility/common_utils.ts';
 import {
 	recordUpdater,
@@ -85,6 +91,8 @@ export type Attribute = {
 	computed?: any;
 	resolve?: any;
 	computedFromExpression?: any;
+	embed?: { source: string; model: string };
+	version?: any;
 	properties?: Array<Attribute>;
 	elements?: Attribute;
 	sealed?: boolean;
@@ -256,6 +264,13 @@ export function makeTable(options) {
 		static updatedTimeProperty = updatedTimeProperty;
 		static propertyResolvers;
 		static userResolvers = {};
+		// `@embed` write-time hook registry (Phase 5 of #510). `userEmbedders` is the per-
+		// attribute embedder map populated by `setEmbedAttribute` — defaulted at schema
+		// load from the directive's `(source, model)` and overridable by component authors.
+		// `embedAttributes` is the filtered list scanned on every write so we don't pay an
+		// `attributes.filter(...)` per put/patch.
+		static userEmbedders: { [name: string]: Embedder } = {};
+		static embedAttributes: EmbedAttribute[] = (attributes as any[]).filter((a) => a?.embed);
 		static source?: typeof TableResource;
 		declare static sourceOptions: any;
 		declare static intermediateSource: boolean;
@@ -1952,7 +1967,19 @@ export function makeTable(options) {
 				},
 			};
 			this.#savingOperation = write;
-			write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
+			// `@embed` write-time hook (Phase 5 of #510). Chains into the existing
+			// blob-pre-commit `before` slot so the embedder runs during the
+			// transaction's `before` phase, before the commit closure stores the
+			// merged record. Skipped on replicated writes — the originating node
+			// already computed the embedding and the receiver should preserve it.
+			const embedBefore = buildEmbedBefore(
+				recordUpdate,
+				context,
+				options,
+				TableResource.embedAttributes,
+				TableResource.userEmbedders
+			);
+			write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate, embedBefore);
 			return transaction.addWrite(write as any);
 		}
 
@@ -3368,6 +3395,13 @@ export function makeTable(options) {
 		 * When attributes have been changed, we update the accessors that are assigned to this table
 		 */
 		static updatedAttributes() {
+			// `@embed` attributes are tracked by a separate filtered list to avoid
+			// re-scanning every attribute on every write. The list must be refreshed
+			// here because `databases.ts` does an in-place `Table.attributes.splice(...)`
+			// on schema reload and then calls `Table.updatedAttributes()` — the
+			// initializer at class-construction would otherwise hold a stale snapshot
+			// from the first schema deployment.
+			this.embedAttributes = (this.attributes as any[]).filter((a) => a?.embed);
 			propertyResolvers = this.propertyResolvers = {
 				$id: (object, context, entry) => ({ value: entry.key }),
 				$updatedtime: (object, context, entry) => entry.version,
@@ -3383,6 +3417,16 @@ export function makeTable(options) {
 				attribute.resolve = null; // reset this
 				const relationship = attribute.relationship;
 				const computed = attribute.computed;
+				// `@embed` directive: register the default embedder if no override is
+				// already in place. This is one-time setup (populating userEmbedders),
+				// not a runtime resolver, so it lives outside the if/else-if chain
+				// below — `@embed` fields ALSO get auto-HNSW indexing, and the chain's
+				// `customIndex.propertyResolver` branch needs to fire for them.
+				// Component authors override the default via
+				// `Table.setEmbedAttribute(name, customEmbedder)` after schema load.
+				if (attribute.embed && !this.userEmbedders[attribute.name]) {
+					this.userEmbedders[attribute.name] = createDefaultEmbedder(attribute.embed);
+				}
 				if (relationship) {
 					if (attribute.indexed) {
 						console.error(
@@ -3565,6 +3609,29 @@ export function makeTable(options) {
 				return;
 			}
 			this.userResolvers[attribute_name] = resolver;
+		}
+		/**
+		 * Override the embedder that fires on writes to an `@embed`-decorated
+		 * attribute (Phase 5 of #510). The default embedder calls
+		 * `Models.embed(record[source], { model, inputType: 'document' })`. Pass a
+		 * custom function when you need multi-field concatenation, custom
+		 * preprocessing, or a different inputType — the embedder receives the
+		 * full record (post-merge with the existing entry for PATCH) and returns
+		 * the vector to store at `attribute_name`.
+		 */
+		static setEmbedAttribute(attribute_name: string, embedder: Embedder): void {
+			const attribute = findAttribute(attributes, attribute_name);
+			if (!attribute) {
+				console.error(`The attribute "${attribute_name}" does not exist in the table "${tableName}"`);
+				return;
+			}
+			if (!attribute.embed) {
+				console.error(
+					`The attribute "${attribute_name}" is not declared with @embed in the table "${tableName}"`
+				);
+				return;
+			}
+			this.userEmbedders[attribute_name] = embedder;
 		}
 		static async deleteHistory(endTime = 0, cleanupDeletedRecords = false) {
 			let completion: Promise<void>;
@@ -4740,6 +4807,15 @@ export function coerceType(value: any, attribute: any): any {
 					return date;
 				}
 				return new Date(+value); // epoch ms number
+			case 'Vector':
+				// JSON-typed input arrives as a plain Array<number>; the storage layer
+				// expects Float32Array (what HNSW and the embedder produce). Pass typed
+				// arrays through, coerce JSON arrays, reject anything else.
+				if (value === null || value === 'null') return null;
+				if (value instanceof Float32Array) return value;
+				if (Array.isArray(value)) return Float32Array.from(value);
+				if (ArrayBuffer.isView(value)) return new Float32Array((value as ArrayBufferView).buffer);
+				throw new SyntaxError();
 			case undefined:
 			case 'Any':
 				return autoCast(value);

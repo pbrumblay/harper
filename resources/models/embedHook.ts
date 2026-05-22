@@ -1,0 +1,187 @@
+/**
+ * `@embed` directive write-time hook (#632 / Phase 5 of #510).
+ *
+ * Two surfaces:
+ *
+ *   - `createDefaultEmbedder(embedConfig)` — produces the default embedder a
+ *     table registers when its schema includes an `@embed` directive. The
+ *     embedder reads `record[embedConfig.source]`, calls `Models.embed(...)`
+ *     with `inputType: 'document'`, and returns the first vector. Component
+ *     authors can replace it via `Table.setEmbedAttribute(name, customEmbedder)`
+ *     when they need different logic (multi-field concatenation, custom
+ *     preprocessing).
+ *
+ *   - `buildEmbedBefore(...)` — produces the pre-commit `before` callback that
+ *     `resources/Table.ts` chains into the existing blob-pre-commit pattern.
+ *     Returns `undefined` when there's no work (no embed attributes, or the
+ *     write is a replication receiver) so the call site can pass it straight
+ *     into `preCommitBlobsForRecordBefore` as the `before` parameter.
+ *
+ * Replicated-write predicate: the receiver should *store* the originating
+ * node's already-computed embedding, not re-compute it. Three signals
+ * indicate this is NOT a local-originating write, and we must skip the
+ * embedder for any of them:
+ *
+ *   - `options.isNotification === true` — cluster-replication path; the
+ *     `source.subscribe()` handler in `Table.ts` sets this when applying a
+ *     write from a peer.
+ *   - `context.replicateFrom === false` — REST `x-replicate-from: none`
+ *     header path. NOTE: the value is the literal `false`, not a truthy
+ *     identifier; `server/REST.ts` only ever assigns `replicateFrom = false`.
+ *   - `context.alreadyLogged === true` — local audit-log replay path at
+ *     `resources/replayLogs.ts` (process-restart catch-up). The vector is
+ *     already on disk; the replay only re-emits to the in-memory state.
+ *
+ * Sync-by-default execution: the embedder runs during the transaction's
+ * `before` phase, so commit blocks on it. Queued mode is a follow-up: it would
+ * commit the record without the vector, then back-fill via the existing job
+ * infrastructure at `server/jobs/`.
+ *
+ * Model-change invalidation: the parser sets `property.version = "embed:<model>"`
+ * so the schema-load path at `databases.ts:1111` detects a model change between
+ * deploys (same pattern `@computed` uses). Today the version-change pathway
+ * triggers an HNSW *re-index* of stored vectors — it does NOT *re-embed* the
+ * source field through the new model. New writes after a model change pick up
+ * the new model; existing rows keep their old-model vectors until they are
+ * re-written. Full re-embed-on-model-change backfill is tracked as a follow-up
+ * to #632 — the queued-mode plumbing is the natural place to land it, since
+ * it already needs the iterate-records-and-back-fill primitive.
+ */
+
+export type EmbedConfig = {
+	source: string;
+	model: string;
+};
+
+export type EmbedAttribute = {
+	name: string;
+	embed: EmbedConfig;
+};
+
+export type Embedder = (record: any) => Promise<Float32Array | null | undefined>;
+
+/**
+ * Embed-function shape the default embedder calls into. Matches the public
+ * `Models.embed` signature. Pulled out as a type so we can dependency-inject
+ * a fake for unit tests without dragging the transaction stack into module
+ * load.
+ */
+type EmbedFn = (input: string | string[], opts: { model?: string; inputType?: 'document' | 'query' }) => Promise<Float32Array[]>;
+
+/**
+ * Models facade resolver for the default embedder. Lazy-imported so this
+ * module can be unit-tested without loading the transaction stack that
+ * `Models.ts` pulls in. Overridable via `__setEmbedFnForTest` (test seam).
+ *
+ * The `Models` class reads ALS-scoped context and a process-wide backend
+ * registry, so per-call instantiation has the same observable behavior as a
+ * singleton — we just lazy-cache for allocation churn.
+ */
+let _embedFn: EmbedFn | undefined;
+function resolveEmbedFn(): EmbedFn {
+	if (_embedFn) return _embedFn;
+	const { Models } = require('./Models.ts'); // eslint-disable-line @typescript-eslint/no-var-requires
+	const models = new Models();
+	_embedFn = (input, opts) => models.embed(input, opts);
+	return _embedFn;
+}
+
+/**
+ * Override the embed function used by `createDefaultEmbedder`. Test seam
+ * only. Pass `undefined` to reset to the lazily-loaded `Models.embed`.
+ */
+export function __setEmbedFnForTest(fn: EmbedFn | undefined): void {
+	_embedFn = fn;
+}
+
+export function createDefaultEmbedder(embedConfig: EmbedConfig): Embedder {
+	const { source, model } = embedConfig;
+	return async (record: any): Promise<Float32Array | null | undefined> => {
+		const sourceValue = record?.[source];
+		if (sourceValue == null) return null;
+		// `embed()` always returns an array (one vector per input). `@embed`'s
+		// single-source-field semantics mean we only ever pass a single input
+		// and return the first vector.
+		const vectors = await resolveEmbedFn()(String(sourceValue), {
+			model,
+			inputType: 'document',
+		});
+		return vectors?.[0];
+	};
+}
+
+/**
+ * Build the pre-commit `before` callback that fires registered embedders for
+ * every `@embed`-decorated attribute whose source field is present in this
+ * write's payload. Returns `undefined` when:
+ *
+ *   - the table has no `@embed` attributes,
+ *   - the write is a replication receiver, or
+ *   - no source field on any embed attribute appears in the write's record.
+ *
+ * Source-field semantics: the embedder runs only when the source field is
+ * explicitly included in the write payload (PUT or PATCH that touches the
+ * source). On a PATCH that omits the source, the existing embedding survives
+ * via patch-merge — we don't recompute, and we don't clear. On an explicit
+ * `source: null`, we clear the embedding to `null` to preserve consistency
+ * between the source and its derived vector.
+ *
+ * The returned callback awaits each embedder serially. Multi-`@embed`-per-
+ * table is rare; parallelism here would complicate error reporting without a
+ * meaningful latency win in the common case (one embed attribute per table).
+ */
+export function buildEmbedBefore(
+	record: any,
+	context: any,
+	options: any,
+	embedAttributes: EmbedAttribute[] | undefined,
+	userEmbedders: Record<string, Embedder>
+): (() => Promise<void>) | undefined {
+	if (!embedAttributes || embedAttributes.length === 0) return undefined;
+	if (
+		options?.isNotification === true ||
+		context?.replicateFrom === false ||
+		context?.alreadyLogged === true
+	) {
+		return undefined;
+	}
+	if (!record || typeof record !== 'object') return undefined;
+	// quick scan: skip the whole pass if no embed-source field is in this payload
+	let anySourcePresent = false;
+	for (const attr of embedAttributes) {
+		const sourceKey = attr.embed?.source;
+		if (sourceKey && Object.prototype.hasOwnProperty.call(record, sourceKey)) {
+			anySourcePresent = true;
+			break;
+		}
+	}
+	if (!anySourcePresent) return undefined;
+	return async (): Promise<void> => {
+		for (const attr of embedAttributes) {
+			const sourceKey = attr.embed?.source;
+			if (!sourceKey) continue;
+			if (!Object.prototype.hasOwnProperty.call(record, sourceKey)) continue;
+			const sourceValue = record[sourceKey];
+			if (sourceValue == null) {
+				record[attr.name] = null;
+				continue;
+			}
+			const embedder = userEmbedders[attr.name];
+			if (!embedder) continue;
+			let vector;
+			try {
+				vector = await embedder(record);
+			} catch (err) {
+				// Embedder backends (OpenAI, Anthropic, Bedrock, Ollama) may include URLs,
+				// model identifiers, or API-key tails in error messages. Those land in HTTP
+				// responses if propagated raw — Harper's threat model trusts deployers but
+				// not arbitrary REST callers, so we log the raw error and rethrow a
+				// sanitized one. The original error stays in server logs for diagnosis.
+				const logger = (globalThis as any).logger;
+				logger?.error?.(`Embedder for attribute "${attr.name}" failed:`, err);
+				throw new Error(`Failed to compute embedding for attribute "${attr.name}"`);
+			}
+			record[attr.name] = vector == null ? null : vector;
+		}
+	};
+}
