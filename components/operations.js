@@ -217,7 +217,7 @@ async function addComponent(req) {
 
 	log.trace(`adding component`);
 	const cfDir = configUtils.getConfigPath(hdbTerms.CONFIG_PARAMS.COMPONENTSROOT);
-	const { project, install_command, install_timeout } = req;
+	const { project, install_command, install_timeout, install_allow_scripts } = req;
 
 	const template = req.template || 'https://github.com/harperdb/application-template';
 
@@ -230,6 +230,7 @@ async function addComponent(req) {
 			install: {
 				command: install_command,
 				timeout: install_timeout,
+				allowInstallScripts: install_allow_scripts,
 			},
 		});
 		await prepareApplication(application);
@@ -375,10 +376,11 @@ async function deployComponent(req) {
 
 		const applicationConfig = { package: req.package };
 		// Avoid writing an empty `install:` block
-		if (req.install_command || req.install_timeout) {
+		if (req.install_command || req.install_timeout || req.install_allow_scripts !== undefined) {
 			applicationConfig.install = {
 				command: req.install_command,
 				timeout: req.install_timeout,
+				allowInstallScripts: req.install_allow_scripts,
 			};
 		}
 		await configUtils.addConfig(req.project, applicationConfig);
@@ -391,6 +393,7 @@ async function deployComponent(req) {
 		install: {
 			command: req.install_command,
 			timeout: req.install_timeout,
+			allowInstallScripts: req.install_allow_scripts,
 		},
 	});
 
@@ -548,6 +551,8 @@ async function getComponents() {
  * @param req
  * @returns {Promise<*>}
  */
+const DEFAULT_COMPONENT_FILE_MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+
 async function getComponentFile(req) {
 	const validation = validator.getComponentFileValidator(req);
 	if (validation) {
@@ -555,12 +560,23 @@ async function getComponentFile(req) {
 	}
 
 	const compRoot = configUtils.getConfigPath(hdbTerms.CONFIG_PARAMS.COMPONENTSROOT);
+	const filePath = path.join(compRoot, req.project, req.file);
 	const options = req.encoding ? { encoding: req.encoding } : { encoding: 'utf8' };
+	const configuredMax = configUtils.getConfigValue(hdbTerms.CONFIG_PARAMS.OPERATIONSAPI_COMPONENTFILE_MAXSIZE);
+	const maxSize =
+		Number.isFinite(+configuredMax) && +configuredMax > 0 ? +configuredMax : DEFAULT_COMPONENT_FILE_MAX_SIZE;
 
 	try {
-		const stats = await fs.stat(path.join(compRoot, req.project, req.file));
+		const stats = await fs.stat(filePath);
+		if (stats.size > maxSize) {
+			throw handleHDBError(
+				new Error(HDB_ERROR_MSGS.COMPONENT_FILE_TOO_LARGE(stats.size, maxSize)),
+				HDB_ERROR_MSGS.COMPONENT_FILE_TOO_LARGE(stats.size, maxSize),
+				HTTP_STATUS_CODES.CONTENT_TOO_LARGE
+			);
+		}
 		return {
-			message: await fs.readFile(path.join(compRoot, req.project, req.file), options),
+			message: await fs.readFile(filePath, options),
 			size: stats.size,
 			birthtime: stats.birthtime,
 			mtime: stats.mtime,

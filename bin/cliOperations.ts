@@ -9,12 +9,24 @@ import { httpRequest } from '../utility/common_utils.ts';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import * as YAML from 'yaml';
-import { packageDirectory } from '../components/packageComponent.ts';
-import { encode } from 'cbor-x';
+import { streamPackagedDirectory } from '../components/packageComponent.ts';
+import { buildMultipartBody } from './multipartBuilder.ts';
 import { getHdbPid } from '../utility/processManagement/processManagement.js';
 import { initConfig, getConfigPath } from '../config/configUtils.js';
 
 const OP_ALIASES = { deploy: 'deploy_component', package: 'package_component' };
+
+// Properties on `req` that the CLI itself uses for transport/UX, not the operations API.
+// They never get serialized into the request body.
+const TRANSPORT_ONLY_FIELDS = new Set([
+	'target',
+	'username',
+	'password',
+	'rejectUnauthorized',
+	'json',
+	'skip_node_modules',
+	'skip_symlinks',
+]);
 
 export { cliOperations, buildRequest };
 const PREPARE_OPERATION: any = {
@@ -24,9 +36,15 @@ const PREPARE_OPERATION: any = {
 		}
 
 		const projectPath = process.cwd();
-		req.payload = await packageDirectory(projectPath, { skip_node_modules: true, ...req });
-		req.cborEncode = true;
 		if (!req.project) req.project = path.basename(projectPath);
+		// Stream the tar+gzip directly to the server as the file part of a multipart body.
+		// This bypasses the Node Buffer 2 GB cap that the previous CBOR-encoded path was
+		// subject to, so large components can deploy without materializing in memory.
+		req._packageStream = streamPackagedDirectory(projectPath, {
+			skip_node_modules: req.skip_node_modules !== false,
+			skip_symlinks: req.skip_symlinks === true,
+		});
+		req._multipart = true;
 	},
 };
 
@@ -173,11 +191,29 @@ async function cliOperations(req: any, skipResponseLog = false) {
 				options.headers.Authorization = `Bearer ${tokens.operation_token}`;
 			}
 		}
-		if (req.cborEncode) {
-			options.headers['Content-Type'] = 'application/cbor';
-			req = encode(req);
+		let body;
+		if (req._multipart) {
+			const packageStream = req._packageStream;
+			const fields = {};
+			for (const [key, value] of Object.entries(req)) {
+				if (key.startsWith('_') || TRANSPORT_ONLY_FIELDS.has(key)) continue;
+				fields[key] = value;
+			}
+			const multipart = buildMultipartBody(
+				fields,
+				packageStream
+					? { name: 'payload', filename: 'package.tar.gz', contentType: 'application/gzip', stream: packageStream }
+					: undefined
+			);
+			options.headers['Content-Type'] = multipart.contentType;
+			// Use chunked transfer-encoding: we don't know the total size up front because the
+			// payload is streamed from `tar.pack` and never fully buffered.
+			options.headers['Transfer-Encoding'] = 'chunked';
+			body = multipart.stream;
+		} else {
+			body = req;
 		}
-		let response: any = await httpRequest(options, req);
+		let response: any = await httpRequest(options, body);
 
 		let responseData;
 		try {

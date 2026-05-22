@@ -39,6 +39,7 @@ import {
 	flattenKey,
 	COERCIBLE_OPERATORS,
 	executeConditions,
+	resolveComparator,
 } from './search.ts';
 import { logger } from '../utility/logging/logger.ts';
 import { Addition, assignTrackedAccessors, updateAndFreeze, hasChanges, GenericTrackedObject } from './tracked.ts';
@@ -141,6 +142,7 @@ type ResidencyDefinition = number | string[] | void;
  * Instances of the returned class are Resource instances, intended to provide a consistent view or transaction of the table
  * @param options
  */
+// #section: setup-and-factory
 export function makeTable(options) {
 	const {
 		primaryKey,
@@ -235,6 +237,7 @@ export function makeTable(options) {
 		#savingOperation?: any; // operation for the record is currently being saved
 
 		declare getProperty: (name: string) => any;
+		// #section: static-config
 		static name = tableName; // for display/debugging purposes
 		static primaryStore = primaryStore;
 		static auditStore = auditStore;
@@ -270,6 +273,7 @@ export function makeTable(options) {
 		 * @param options
 		 * @returns
 		 */
+		// #section: resource-registry
 		static sourcedFrom(source, options) {
 			// define a source for retrieving invalidated entries for caching purposes
 			if (options) {
@@ -323,6 +327,8 @@ export function makeTable(options) {
 						ensureLoaded: false,
 						nodeId: event.nodeId,
 						viaNodeId: event.viaNodeId,
+						// use per-event expiresAt: batched txn context only holds the first event's expiration
+						expiresAt: event.expiresAt,
 						async: true,
 					};
 					const id = event.id;
@@ -644,6 +650,7 @@ export function makeTable(options) {
 				});
 			}
 		}
+		// #section: lifecycle-admin
 		static getNewId(): any {
 			const type = primaryKeyAttribute?.type;
 			// the default Resource behavior is to return a GUID, but for a table we can return incrementing numeric keys if the type is (or can be) numeric
@@ -943,6 +950,7 @@ export function makeTable(options) {
 				new SchemaEventMsg(process.pid, OPERATIONS_ENUM.DROP_TABLE, databaseName, tableName)
 			);
 		}
+		// #section: read-path
 		/**
 		 * This retrieves the data of this resource.
 		 * @param target - If included, is an identifier/query that specifies the requested target to retrieve and query
@@ -1050,6 +1058,7 @@ export function makeTable(options) {
 			}
 			return undefined;
 		}
+		// #section: authz-hooks
 		/**
 		 * Determine if the user is allowed to get/read data from the current resource
 		 */
@@ -1160,6 +1169,7 @@ export function makeTable(options) {
 			return !!tablePermission?.delete && checkContextPermissions(context);
 		}
 
+		// #section: write-path-public
 		/**
 		 * Start updating a record. The returned resource will record changes which are written
 		 * once the corresponding transaction is committed. These changes can (eventually) include CRDT type operations.
@@ -1586,6 +1596,7 @@ export function makeTable(options) {
 				}) as any;
 			}
 		}
+		// #section: write-path-internals
 		// perform the actual write operation; this may come from a user request to write (put, post, etc.), or
 		// a notification that a write has already occurred in the canonical data source, we need to update our
 		// local copy
@@ -1690,7 +1701,8 @@ export function makeTable(options) {
 					const type = fullUpdate ? 'put' : 'patch';
 					let residencyId: number | undefined;
 					if (options?.residencyId != undefined) residencyId = options.residencyId;
-					const expiresAt: number = context?.expiresAt ?? (expirationMs ? expirationMs + Date.now() : -1);
+					const expiresAt: number =
+						options?.expiresAt ?? context?.expiresAt ?? (expirationMs ? expirationMs + Date.now() : -1);
 					const additionalAuditRefs: Array<{ version: number; nodeId: number }> = []; // track additional audit refs to store
 
 					if (precedesExisting <= 0) {
@@ -1908,7 +1920,7 @@ export function makeTable(options) {
 					updateIndices(id, existingRecord, recordToStore, transaction && { transaction });
 
 					writeCommit(true);
-					if (context.expiresAt) scheduleCleanup();
+					if (expiresAt >= 0) scheduleCleanup(); // arm for replicated writes too, not just local-context writes
 					function writeCommit(storeRecord: boolean) {
 						// we need to write the commit. if storeRecord then we need to store the record, otherwise we just need to store the audit record
 						updateRecord(
@@ -2023,6 +2035,7 @@ export function makeTable(options) {
 			return true;
 		}
 
+		// #section: search-query
 		search(target: RequestTarget): AsyncIterable<Record & Partial<RecordObject>> {
 			const context = this.getContext();
 			const txn = txnForContext(context);
@@ -2073,15 +2086,37 @@ export function makeTable(options) {
 						condition.conditions = prepareConditions(condition.conditions, condition.operator);
 						continue;
 					}
+					// Normalize `not_X` comparator forms passed in via structured queries.
+					// The REST parser already does this, but programmatic callers may
+					// pass `not_in`, `not_starts_with`, etc. directly.
+					if (condition.comparator) {
+						const resolved = resolveComparator(condition.comparator);
+						if (resolved.negated) {
+							condition.comparator = resolved.comparator;
+							condition.negated = true;
+						}
+					}
 					const attribute_name = condition[0] ?? condition.attribute;
-					const attribute = attribute_name == null ? primaryKeyAttribute : findAttribute(attributes, attribute_name);
+					let attribute = attribute_name == null ? primaryKeyAttribute : findAttribute(attributes, attribute_name);
+					if (!attribute && Array.isArray(attribute_name) && attribute_name.length > 1) {
+						// Plain JSON nested path: the leaf may not be declared in the
+						// schema. Fall back to the root attribute so we can validate
+						// existence without requiring the inner structure to be typed.
+						attribute = findAttribute(attributes, attribute_name[0]);
+					}
 					if (!attribute) {
 						if (attribute_name != null && !target.allowConditionsOnDynamicAttributes)
 							throw handleHDBError(new Error(), `${attribute_name} is not a defined attribute`, 404);
 					} else if (attribute.type || COERCIBLE_OPERATORS[condition.comparator]) {
-						// Do auto-coercion or coercion as required by the attribute type
-						if (condition[1] === undefined) condition.value = coerceTypedValues(condition.value, attribute);
-						else condition[1] = coerceTypedValues(condition[1], attribute);
+						// Do auto-coercion or coercion as required by the attribute type.
+						// Skipped for nested paths into plain JSON — the root attribute's
+						// type is not the leaf type, so coercion would be wrong.
+						const isNestedPathRoot =
+							Array.isArray(attribute_name) && attribute_name.length > 1 && !attribute.relationship;
+						if (!isNestedPathRoot) {
+							if (condition[1] === undefined) condition.value = coerceTypedValues(condition.value, attribute);
+							else condition[1] = coerceTypedValues(condition[1], attribute);
+						}
 					}
 					if (condition.chainedConditions) {
 						if (condition.chainedConditions.length === 1 && (!condition.operator || condition.operator == 'and')) {
@@ -2593,12 +2628,22 @@ export function makeTable(options) {
 						} else {
 							value = record[attribute_name];
 							if (value && typeof value === 'object' && attribute_name !== attribute) {
-								value = TableResource.transformEntryForSelect(
+								const subTransform = TableResource.transformEntryForSelect(
 									attribute.select || attribute,
 									context,
 									readTxn,
 									null
-								)({ value } as any);
+								);
+								// Plain JSON nested values: arrays project per-element so that
+								// `select: [{ name: 'addresses', select: ['city'] }]` returns
+								// `addresses: [{ city }, { city }]` rather than a single object.
+								if (Array.isArray(value)) {
+									value = value.map((item) =>
+										item && typeof item === 'object' ? subTransform({ value: item } as any) : item
+									);
+								} else if (!(value instanceof Date)) {
+									value = subTransform({ value } as any);
+								}
 							}
 						}
 						callback(value, attribute_name);
@@ -2641,6 +2686,7 @@ export function makeTable(options) {
 			return transform;
 		}
 
+		// #section: pub-sub
 		async subscribe(request: SubscriptionRequest): Promise<AsyncIterable<Record>> {
 			if (!auditStore) throw new Error('Can not subscribe to a table without an audit log');
 			if (!audit) {
@@ -3030,6 +3076,7 @@ export function makeTable(options) {
 			write.beforeIntermediate = preCommitBlobsForRecordBefore(write, message, undefined, true);
 			transaction.addWrite(write);
 		}
+		// #section: validation
 		validate(record: any, patch?: boolean) {
 			let validationErrors;
 			const validateValue = (value, attribute: Attribute, name) => {
@@ -3199,6 +3246,7 @@ export function makeTable(options) {
 				throw new ClientError(validationErrors.join('. '));
 			}
 		}
+		// #section: stats-admin
 		getUpdatedTime() {
 			return this.#version;
 		}
@@ -3505,6 +3553,7 @@ export function makeTable(options) {
 				}
 			}
 		}
+		// #section: computed-history
 		static setComputedAttribute(attribute_name, resolver) {
 			const attribute = findAttribute(attributes, attribute_name);
 			if (!attribute) {
