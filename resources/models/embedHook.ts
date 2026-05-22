@@ -66,7 +66,10 @@ export type Embedder = (record: any) => Promise<Float32Array | null | undefined>
  * a fake for unit tests without dragging the transaction stack into module
  * load.
  */
-type EmbedFn = (input: string | string[], opts: { model?: string; inputType?: 'document' | 'query' }) => Promise<Float32Array[]>;
+type EmbedFn = (
+	input: string | string[],
+	opts: { model?: string; inputType?: 'document' | 'query' }
+) => Promise<Float32Array[]>;
 
 /**
  * Models facade resolver for the default embedder. Lazy-imported so this
@@ -138,11 +141,7 @@ export function buildEmbedBefore(
 	userEmbedders: Record<string, Embedder>
 ): (() => Promise<void>) | undefined {
 	if (!embedAttributes || embedAttributes.length === 0) return undefined;
-	if (
-		options?.isNotification === true ||
-		context?.replicateFrom === false ||
-		context?.alreadyLogged === true
-	) {
+	if (options?.isNotification === true || context?.replicateFrom === false || context?.alreadyLogged === true) {
 		return undefined;
 	}
 	if (!record || typeof record !== 'object') return undefined;

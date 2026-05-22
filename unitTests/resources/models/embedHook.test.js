@@ -1,11 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const {
-	buildEmbedBefore,
-	createDefaultEmbedder,
-	__setEmbedFnForTest,
-} = require('#src/resources/models/embedHook');
+const { buildEmbedBefore, createDefaultEmbedder, __setEmbedFnForTest } = require('#src/resources/models/embedHook');
 
 const VECTOR = new Float32Array([0.1, 0.2, 0.3]);
 
@@ -107,10 +103,7 @@ describe('embedHook', () => {
 
 		it('returns undefined when record is not an object', () => {
 			assert.equal(buildEmbedBefore(null, {}, {}, attrs, { embedding: async () => VECTOR }), undefined);
-			assert.equal(
-				buildEmbedBefore(undefined, {}, {}, attrs, { embedding: async () => VECTOR }),
-				undefined
-			);
+			assert.equal(buildEmbedBefore(undefined, {}, {}, attrs, { embedding: async () => VECTOR }), undefined);
 		});
 
 		it('runs the embedder and writes vector to the target attribute when source is present', async () => {

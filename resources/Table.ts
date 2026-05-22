@@ -47,12 +47,7 @@ import { transaction, contextStorage } from './transaction.ts';
 import { MAXIMUM_KEY, writeKey, compareKeys } from 'ordered-binary';
 import { getWorkerIndex, getWorkerCount } from '../server/threads/manageThreads.js';
 import { HAS_BLOBS, auditRetention, removeAuditEntry } from './auditStore.ts';
-import {
-	buildEmbedBefore,
-	createDefaultEmbedder,
-	type EmbedAttribute,
-	type Embedder,
-} from './models/embedHook.ts';
+import { buildEmbedBefore, createDefaultEmbedder, type EmbedAttribute, type Embedder } from './models/embedHook.ts';
 import { autoCast, autoCastBooleanStrict } from '../utility/common_utils.ts';
 import {
 	recordUpdater,
@@ -3626,9 +3621,7 @@ export function makeTable(options) {
 				return;
 			}
 			if (!attribute.embed) {
-				console.error(
-					`The attribute "${attribute_name}" is not declared with @embed in the table "${tableName}"`
-				);
+				console.error(`The attribute "${attribute_name}" is not declared with @embed in the table "${tableName}"`);
 				return;
 			}
 			this.userEmbedders[attribute_name] = embedder;
