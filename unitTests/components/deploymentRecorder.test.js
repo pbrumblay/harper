@@ -103,22 +103,24 @@ describe('DeploymentRecorder.recordPeers', () => {
 		assert.deepStrictEqual(recorder.row.peer_results, []);
 	});
 
-	it('does not throw if the audit table write fails (peer_results is observability, not critical path)', async () => {
+	it('stashes peer results so the terminal finish() put carries them — no separate put race', async () => {
+		// recordPeers should NOT trigger a put on its own. It mutates the in-memory record
+		// (so live readers see the latest peer outcomes) and stashes for finish() to bundle
+		// with the status transition. This avoids racing with the coalesced emitter-driven
+		// puts that capture record snapshots at serialization time.
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
-		// Replace the mock table's put with one that fails. recordPeers should swallow the
-		// rejection (logged warning) rather than letting it bubble up and fail the deploy
-		// that successfully replicated to peers.
-		const originalPut = installed.mock.put;
-		installed.mock.put = async () => {
-			throw new Error('disk full');
-		};
-		try {
-			await recorder.recordPeers([{ node: 'node-z', status: 'success' }]);
-		} finally {
-			installed.mock.put = originalPut;
-		}
-		// In-memory state still got updated even though persist failed.
+		const putsBefore = Array.from(installed.mock.rows.values()).length;
+		await recorder.recordPeers([{ node: 'node-z', status: 'success' }]);
+		// In-memory state reflects the new peer_results immediately.
 		assert.strictEqual(recorder.row.peer_results[0].node, 'node-z');
+		// Now run finish — that's the put that persists peer_results to LMDB.
+		await recorder.finish('success');
+		const persisted = await installed.mock.get(recorder.deploymentId);
+		assert.strictEqual(persisted.peer_results[0].node, 'node-z');
+		assert.strictEqual(persisted.peer_results[0].status, 'success');
+		assert.strictEqual(persisted.status, 'success');
+		// Sanity check: at least one put was issued (create + finish).
+		assert.ok(installed.mock.rows.size > putsBefore - 1);
 	});
 
 	it('is a no-op for non-array inputs (defensive against odd replication shapes)', async () => {

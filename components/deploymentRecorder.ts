@@ -73,6 +73,11 @@ export class DeploymentRecorder {
 	private unsubscribe: (() => void) | null = null;
 	private pendingPut: Promise<void> | null = null;
 	private dirty = false;
+	// Slice B2: peer outcomes are stashed here by recordPeers and applied inside finish()
+	// so the terminal put always carries them, avoiding a race with concurrent
+	// emitter-triggered puts that might otherwise overwrite peer_results with their
+	// pre-mutation snapshot of the record.
+	private pendingPeerResults: unknown[] | null = null;
 
 	private constructor(deploymentId: string, initial: Record<string, any>) {
 		this.deploymentId = deploymentId;
@@ -233,17 +238,19 @@ export class DeploymentRecorder {
 	 * once. Tolerates unknown shapes — anything we can't interpret becomes a plain
 	 * stringified entry so the audit trail at least records that a peer was contacted.
 	 */
+	// eslint-disable-next-line @typescript-eslint/require-await
 	async recordPeers(results: unknown): Promise<void> {
 		if (this.finished) return;
 		if (!Array.isArray(results)) return;
+		// Stash for the terminal finish() put rather than writing immediately. A separate
+		// put here races with the coalesced emitter-triggered puts (each captures the
+		// in-memory record as it's serialized) and can lose peer_results when an earlier
+		// put's later-completing write overwrites our row. finish() bundles peer_results
+		// with the status=success/failed transition into one put, eliminating the race.
+		this.pendingPeerResults = results;
+		// Also update the in-memory record so any get_deployment SSE replay or other read
+		// before finish() sees the latest peer outcomes.
 		this.record.peer_results = results.map(normalizePeerResult);
-		// peer_results is audit data — never let an audit-write failure fail a deploy that
-		// successfully replicated to all peers. The in-memory record is still updated; the
-		// terminal finish() will get another chance to persist it.
-		await this.put().catch((err: unknown) => {
-			const message = err instanceof Error ? err.message : String(err);
-			logger.warn?.(`Failed to persist peer_results for deployment ${this.deploymentId}: ${message}`);
-		});
 	}
 
 	async finish(status: 'success' | 'failed' | 'rolled_back', error?: unknown): Promise<void> {
@@ -267,6 +274,12 @@ export class DeploymentRecorder {
 		}
 		this.record.status = status;
 		this.record.completed_at = Date.now();
+		// Slice B2: re-apply any stashed peer outcomes right before the terminal put so they
+		// are bundled with the status transition and can't be lost to a put race.
+		if (this.pendingPeerResults) {
+			this.record.peer_results = this.pendingPeerResults.map(normalizePeerResult);
+			this.pendingPeerResults = null;
+		}
 		if (error) {
 			const e = error as { message?: string; code?: string | number; stack?: string };
 			this.record.error = {
