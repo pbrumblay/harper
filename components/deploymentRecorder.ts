@@ -17,6 +17,7 @@ import * as terms from '../utility/hdbTerms.ts';
 import { ClientError } from '../utility/errors/hdbError.ts';
 import { hostname } from 'node:os';
 import { ProgressEmitter } from '../server/serverHelpers/progressEmitter.ts';
+import logger from '../utility/logging/harper_logger.ts';
 
 // Bound the event_log so a pathologically chatty install can't grow a row without limit.
 // Slice B emits a handful of phase events plus aggregated install summaries; 200 entries
@@ -225,6 +226,26 @@ export class DeploymentRecorder {
 		await this.put();
 	}
 
+	/**
+	 * Slice B2: write per-peer results back to the origin row after `replicateOperation`
+	 * returns. The replication layer returns an opaque array of per-peer outcomes; we
+	 * normalize them here to `{node, status, error?, started_at, completed_at}` and write
+	 * once. Tolerates unknown shapes — anything we can't interpret becomes a plain
+	 * stringified entry so the audit trail at least records that a peer was contacted.
+	 */
+	async recordPeers(results: unknown): Promise<void> {
+		if (this.finished) return;
+		if (!Array.isArray(results)) return;
+		this.record.peer_results = results.map(normalizePeerResult);
+		// peer_results is audit data — never let an audit-write failure fail a deploy that
+		// successfully replicated to all peers. The in-memory record is still updated; the
+		// terminal finish() will get another chance to persist it.
+		await this.put().catch((err: unknown) => {
+			const message = err instanceof Error ? err.message : String(err);
+			logger.warn?.(`Failed to persist peer_results for deployment ${this.deploymentId}: ${message}`);
+		});
+	}
+
 	async finish(status: 'success' | 'failed' | 'rolled_back', error?: unknown): Promise<void> {
 		if (this.finished) return;
 		// Send a terminal sentinel through the emitter (if any) BEFORE we unsubscribe and
@@ -270,6 +291,73 @@ export class DeploymentRecorder {
 		}
 		await table.put(this.record);
 	}
+}
+
+/**
+ * Slice B2: peer-side helper — wait for the hdb_deployment row to arrive via table
+ * replication, then return it. The row is committed on origin before `replicateOperation`
+ * is called, so peers normally find it immediately; this polling loop is for the rare
+ * case where the operation arrives faster than the table-replication channel.
+ *
+ * The payload_blob's chunks may still be in flight after the row arrives — that's fine,
+ * the Blob's `stream()` / `bytes()` API blocks on incomplete writes (resources/blob.ts).
+ */
+export async function awaitDeploymentRow(
+	deploymentId: string,
+	options: { timeoutMs?: number; pollIntervalMs?: number; initialPollIntervalMs?: number } = {}
+): Promise<Record<string, any>> {
+	const timeoutMs = options.timeoutMs ?? 30_000;
+	const maxIntervalMs = options.pollIntervalMs ?? 100;
+	// Start fast (5ms) so the common case — replication has already caught up — sees no
+	// human-noticeable latency, then back off exponentially up to maxIntervalMs for the
+	// rare case where the row is genuinely still replicating.
+	let intervalMs = options.initialPollIntervalMs ?? 5;
+	const table = (databases as any).system?.[terms.SYSTEM_TABLE_NAMES.DEPLOYMENT_TABLE_NAME];
+	if (!table) {
+		throw new Error(
+			`Deployment tracking is not initialized on this node (system.${terms.SYSTEM_TABLE_NAMES.DEPLOYMENT_TABLE_NAME} missing).`
+		);
+	}
+	const deadline = Date.now() + timeoutMs;
+	let lastError: unknown;
+	while (Date.now() < deadline) {
+		try {
+			const row = await table.get(deploymentId);
+			if (row && row.payload_blob != null) return row;
+		} catch (err) {
+			lastError = err;
+		}
+		await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+		intervalMs = Math.min(intervalMs * 2, maxIntervalMs);
+	}
+	throw new Error(
+		`Timed out after ${timeoutMs}ms waiting for hdb_deployment row '${deploymentId}' to replicate` +
+			(lastError ? ` (last error: ${(lastError as Error).message ?? lastError})` : '')
+	);
+}
+
+function normalizePeerResult(raw: unknown): Record<string, unknown> {
+	if (!raw || typeof raw !== 'object') {
+		// Replication layer returned a primitive — preserve as a stringified marker so the
+		// audit row at least records that something came back from a peer.
+		return { node: null, status: 'unknown', raw: String(raw) };
+	}
+	const r = raw as Record<string, unknown>;
+	const err = r.error;
+	const hasError =
+		err != null && (typeof err === 'string' ? err.length > 0 : typeof err === 'object' || typeof err === 'number');
+	return {
+		node: r.node ?? r.name ?? r.hostname ?? null,
+		status: hasError ? 'failed' : (r.status ?? 'success'),
+		error: hasError
+			? {
+					message: typeof err === 'object' ? ((err as any).message ?? String(err)) : String(err),
+					code: typeof err === 'object' ? (err as any).code : undefined,
+				}
+			: null,
+		started_at: r.started_at ?? null,
+		completed_at: r.completed_at ?? null,
+	};
 }
 
 function startStatusFor(phase: string | undefined): DeploymentStatus | null {

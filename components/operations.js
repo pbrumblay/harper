@@ -18,7 +18,7 @@ const { packageDirectory } = require('../components/packageComponent.ts');
 const { Resources } = require('../resources/Resources.ts');
 const { Application, prepareApplication } = require('./Application.ts');
 const { server } = require('../server/Server.ts');
-const { DeploymentRecorder } = require('./deploymentRecorder.ts');
+const { DeploymentRecorder, awaitDeploymentRow } = require('./deploymentRecorder.ts');
 const { ProgressEmitter } = require('../server/serverHelpers/progressEmitter.ts');
 
 /**
@@ -417,12 +417,19 @@ async function deployComponent(req) {
 	try {
 		// On the origin, tee the tarball (Buffer or Readable from the multipart parser)
 		// through a hash-and-size tap into the row's payload_blob, then re-source extraction
-		// from the persisted blob. This is the staging area and (in Slice B) the channel
-		// peers will replicate from. On peer nodes we skip recording entirely and use the
-		// raw payload as-is.
+		// from the persisted blob. The blob is the channel peers read from in Slice B2.
 		if (recorder && req.payload != null) {
 			await recorder.ingestPayload(req.payload);
 			extractionPayload = recorder.row.payload_blob.stream();
+		} else if (isReplicatedExecution && req.payload == null && !req.package) {
+			// Slice B2 of #641: peer-side blob read. Origin stripped req.payload before
+			// replicateOperation; the tarball travels via the replicated hdb_deployment row's
+			// payload_blob attribute instead. Wait for the row to arrive on this node, then
+			// stream the blob — Blob.stream() handles in-flight BLOB_CHUNK writes by blocking
+			// until the chunks land. If the row never replicates within the timeout, peer
+			// records a failure and origin will see it in peer_results.
+			const row = await awaitDeploymentRow(req._deploymentId);
+			extractionPayload = row.payload_blob.stream();
 		}
 
 		const application = new Application({
@@ -434,6 +441,11 @@ async function deployComponent(req) {
 				timeout: req.install_timeout,
 				allowInstallScripts: req.install_allow_scripts,
 			},
+			// Slice B2: forward each complete line of install stdout/stderr to the SSE channel
+			// (and into the recorder's event_log via the same subscriber). Peers have no
+			// emitter — their install output goes to the local logger only; cross-node install
+			// streaming is intentionally out of scope for B2.
+			onInstallLine: emitter ? (manager, stream, line) => emit('install', { manager, stream, line }) : undefined,
 		});
 
 		emit('phase', { phase: 'prepare', status: 'start' });
@@ -466,13 +478,19 @@ async function deployComponent(req) {
 		const rollingRestart = req.restart === 'rolling';
 		// if doing a rolling restart set restart to false so that other nodes don't also restart.
 		req.restart = rollingRestart ? false : req.restart;
-		// ProgressEmitter holds function listeners that can't survive the replication
-		// channel's serialization, and the recorder is local to origin anyway. Strip both
-		// before sending so peers see a clean req.
+		// Strip transport-only fields that don't survive the replication channel and aren't
+		// meaningful to peers. The payload travels via the replicated hdb_deployment row's
+		// payload_blob attribute (Slice B2), so peers don't need req.payload at all — they
+		// look the row up by deployment_id. req._deploymentId is intentionally KEPT; it is
+		// the handoff that lets peers find the replicated row.
 		delete req.progress;
+		delete req.payload;
 		emit('phase', { phase: 'replicate', status: 'start' });
 		let response = await server.replication.replicateOperation(req);
 		emit('phase', { phase: 'replicate', status: 'done' });
+		if (recorder && response?.replicated) {
+			await recorder.recordPeers(response.replicated);
+		}
 		if (req.restart === true) {
 			emit('phase', { phase: 'restart', status: 'start' });
 			manageThreads.restartWorkers('http');
