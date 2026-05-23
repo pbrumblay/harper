@@ -1248,14 +1248,16 @@ export function makeTable(options) {
 						}
 						return when(loading, () => {
 							this.#changes = updates;
-							this._writeUpdate(id, this.#changes, false);
-							return this;
+							// Thread `_writeUpdate`'s return through `when()` so the embed-hook
+							// promise (when `@embed` is active) is awaited before this method
+							// resolves — otherwise the caller proceeds to `save()` with the
+							// write not yet registered on the txn.
+							return when(this._writeUpdate(id, this.#changes, false), () => this);
 						});
 					});
 				}
 			}
-			this._writeUpdate(id, this.#changes, fullUpdate);
-			return this;
+			return when(this._writeUpdate(id, this.#changes, fullUpdate), () => this);
 		}
 
 		/**
@@ -4506,6 +4508,23 @@ export function makeTable(options) {
 							}
 						},
 					};
+					// `@embed` write-time hook on the cache-from-source path. The
+					// `getFromSource` write builds its own write op and addWrite-s it
+					// directly here — bypassing `_writeUpdate` — so we have to wire the
+					// embedder here too. Caching tables that declare `@embed` are a
+					// canonical use case (see #750): the source resource returns the
+					// record's content fields, and this table derives the vector.
+					// Receivers do not run the embedder; this path is on the originating
+					// node by definition (no `replicateFrom` / `alreadyLogged` / cluster-
+					// subscribe context here).
+					const embedBefore = buildEmbedBefore(
+						updatedRecord,
+						sourceContext,
+						undefined,
+						TableResource.embedAttributes,
+						TableResource.userEmbedders
+					);
+					if (embedBefore) await embedBefore();
 					sourceWrite.before = preCommitBlobsForRecordBefore(sourceWrite, updatedRecord);
 					dbTxn.addWrite(sourceWrite);
 				}),
@@ -4820,15 +4839,18 @@ export function coerceType(value: any, attribute: any): any {
 				}
 				return new Date(+value); // epoch ms number
 			case 'Vector':
-				// JSON-typed input arrives as a plain Array<number>; the storage layer
-				// accepts numeric arrays (what HNSW indexes). Convert element values via
-				// `Float32Array.from(...)` rather than reinterpreting raw bytes — taking
-				// `new Float32Array(view.buffer)` would mis-cast `Float64Array` / typed-
-				// array subarrays as garbage float32s.
+				// Coerce to plain `Array<number>`. Typed arrays are stored unchanged by
+				// `updateAndFreeze` only if we hand them off as plain arrays — handing a
+				// `Float32Array` through gets enumerated as `{0,1,2,...}` map keys and
+				// loses the typed-array shape on read. HNSW's `propertyResolver` and
+				// `customIndex.index` both accept `number[]`. (Open Q in PR review:
+				// should Vector preserve Float64 / Float16 precision? Today everything
+				// flattens to `number[]` and is re-narrowed when the HNSW index needs
+				// Float32 for distance computation.)
 				if (value === null || value === 'null') return null;
-				if (value instanceof Float32Array) return value;
-				if (Array.isArray(value)) return Float32Array.from(value);
-				if (ArrayBuffer.isView(value)) return Float32Array.from(value as any);
+				if (value instanceof Float32Array) return Array.from(value);
+				if (Array.isArray(value)) return value.map(Number);
+				if (ArrayBuffer.isView(value)) return Array.from(value as any);
 				throw new SyntaxError();
 			case undefined:
 			case 'Any':

@@ -179,12 +179,20 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 								embedDefinition[arg.name.value] = (arg.value as StringValueNode).value;
 							}
 							if (!embedDefinition.source || !embedDefinition.model) {
-								// Missing required args silently degrades the embedder to a no-op at
-								// write time, leaving the vector column empty with no operator signal.
-								// Refuse to register the directive in that case.
-								console.error(
-									`@embed on "${property.name}" requires both "source" and "model" arguments, at`,
-									directive.loc
+								// Missing required args would silently degrade the embedder to a
+								// no-op at write time, leaving the vector column empty with no
+								// operator signal. Halt schema processing so the component install
+								// surfaces the error instead of returning 200 OK on a broken
+								// schema. Other directive validations in this parser (e.g. dup
+								// primary key at line ~119) only log and continue — the difference
+								// here is that the failure mode is "looks-correct schema that
+								// never embeds anything," which is harder to diagnose than a
+								// missing primary key.
+								const loc = directive.loc;
+								console.error(`@embed on "${property.name}" requires both "source" and "model" arguments, at`, loc);
+								throw new Error(
+									`@embed on "${property.name}" requires both "source" and "model" arguments` +
+										(loc ? ` (line ${loc.startToken?.line ?? '?'}, column ${loc.startToken?.column ?? '?'})` : '')
 								);
 							} else {
 								property.embed = embedDefinition;

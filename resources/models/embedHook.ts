@@ -54,6 +54,22 @@
  * it already needs the iterate-records-and-back-fill primitive.
  */
 
+/**
+ * Lazy logger resolver. A static `import { logger } from '../../utility/logging/logger.ts'`
+ * would be cleaner but trips the documented `common_utils.ts ↔ harper_logger.ts`
+ * CJS cycle (ERR_REQUIRE_CYCLE_MODULE) the moment this module is loaded by a
+ * unit-test path that bypasses the full transaction stack. We only need the
+ * logger on the failure path, so we resolve it lazily.
+ */
+function getLogger(): { error?: (...args: any[]) => void } {
+	try {
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		return require('#src/utility/logging/logger').logger ?? {};
+	} catch {
+		return {};
+	}
+}
+
 export type EmbedConfig = {
 	source: string;
 	model: string;
@@ -166,38 +182,45 @@ export function buildEmbedBefore(
 	let anySourcePresent = false;
 	for (const attr of embedAttributes) {
 		const sourceKey = attr.embed?.source;
-		if (sourceKey && Object.prototype.hasOwnProperty.call(record, sourceKey)) {
+		if (sourceKey && sourceKey in record) {
 			anySourcePresent = true;
 			break;
 		}
 	}
 	if (!anySourcePresent) return undefined;
 	return async (): Promise<void> => {
-		for (const attr of embedAttributes) {
-			const sourceKey = attr.embed?.source;
-			if (!sourceKey) continue;
-			if (!Object.prototype.hasOwnProperty.call(record, sourceKey)) continue;
-			const sourceValue = record[sourceKey];
-			if (sourceValue == null) {
-				record[attr.name] = null;
-				continue;
-			}
-			const embedder = userEmbedders[attr.name];
-			if (!embedder) continue;
-			let vector;
-			try {
-				vector = await embedder(record);
-			} catch (err) {
-				// Embedder backends (OpenAI, Anthropic, Bedrock, Ollama) may include URLs,
-				// model identifiers, or API-key tails in error messages. Those land in HTTP
-				// responses if propagated raw — Harper's threat model trusts deployers but
-				// not arbitrary REST callers, so we log the raw error and rethrow a
-				// sanitized one. The original error stays in server logs for diagnosis.
-				const logger = (globalThis as any).logger;
-				logger?.error?.(`Embedder for attribute "${attr.name}" failed:`, err);
-				throw new Error(`Failed to compute embedding for attribute "${attr.name}"`);
-			}
-			record[attr.name] = vector == null ? null : vector;
-		}
+		// Run embedders for each `@embed` attribute in parallel — typical schemas
+		// have a single `@embed` field per table but a multi-`@embed` table would
+		// otherwise serialize HTTP roundtrips for no benefit. Each embedder
+		// mutates a distinct attribute on the same record, so there's no
+		// ordering hazard between them.
+		await Promise.all(
+			embedAttributes.map(async (attr) => {
+				const sourceKey = attr.embed?.source;
+				if (!sourceKey) return;
+				if (!(sourceKey in record)) return;
+				const sourceValue = record[sourceKey];
+				if (sourceValue == null) {
+					record[attr.name] = null;
+					return;
+				}
+				const embedder = userEmbedders[attr.name];
+				if (!embedder) return;
+				let vector;
+				try {
+					vector = await embedder(record);
+				} catch (err) {
+					// Embedder backends (OpenAI, Anthropic, Bedrock, Ollama) may include
+					// URLs, model identifiers, or API-key tails in error messages. Those
+					// land in HTTP responses if propagated raw — Harper's threat model
+					// trusts deployers but not arbitrary REST callers, so we log the raw
+					// error and rethrow a sanitized one. The original error stays in
+					// server logs for diagnosis.
+					getLogger().error?.(`Embedder for attribute "${attr.name}" failed:`, err);
+					throw new Error(`Failed to compute embedding for attribute "${attr.name}"`);
+				}
+				record[attr.name] = vector == null ? null : vector;
+			})
+		);
 	};
 }
