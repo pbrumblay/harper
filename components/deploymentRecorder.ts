@@ -17,7 +17,6 @@ import * as terms from '../utility/hdbTerms.ts';
 import { ClientError } from '../utility/errors/hdbError.ts';
 import { hostname } from 'node:os';
 import { ProgressEmitter } from '../server/serverHelpers/progressEmitter.ts';
-import logger from '../utility/logging/harper_logger.ts';
 
 // Bound the event_log so a pathologically chatty install can't grow a row without limit.
 // Slice B emits a handful of phase events plus aggregated install summaries; 200 entries
