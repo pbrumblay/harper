@@ -52,6 +52,14 @@ suite('Delete operations', (ctx) => {
 				records: [{ id: 987654321 }, { id: 987654322 }, { id: 987654323 }, { id: 987654324 }],
 			})
 			.expect(200);
+
+		// Numeric-string schemas/tables used by the "Drop number" tests.
+		// In the legacy suite these were created by 1_environmentSetup.mjs;
+		// here we create them in before() so the suite is fully self-contained.
+		await client.req().send({ operation: 'create_schema', schema: '123' }).expect(200);
+		await client.req().send({ operation: 'create_table', schema: '123', table: '4', primary_key: 'id' }).expect(200);
+		await client.req().send({ operation: 'create_schema', schema: '1123' }).expect(200);
+		await client.req().send({ operation: 'create_table', schema: '1123', table: '1', primary_key: 'id' }).expect(200);
 	});
 
 	after(async () => {
@@ -1134,7 +1142,7 @@ suite('Delete operations', (ctx) => {
 				operation: 'search_by_hash',
 				schema: 'northnwd',
 				table: 'employees',
-				hash_values: [7924, 7925, 7926, 7925],
+				hash_values: [7924, 7925, 7926, 7927],
 				get_attributes: ['employeeid', 'address'],
 			})
 			.expect((r) => assert.deepEqual(r.body, [], r.text))
