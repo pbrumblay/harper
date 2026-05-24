@@ -11,15 +11,20 @@ const { _setSessionTableForTest } = require('#src/components/mcp/session');
 
 function makeFakeFastify() {
 	const calls = [];
+	function record(method) {
+		return function (path, optsOrHandler, maybeHandler) {
+			if (typeof optsOrHandler === 'function') {
+				calls.push({ method, path, options: undefined, handler: optsOrHandler });
+			} else {
+				calls.push({ method, path, options: optsOrHandler, handler: maybeHandler });
+			}
+		};
+	}
 	return {
 		calls,
-		post(path, optsOrHandler, maybeHandler) {
-			if (typeof optsOrHandler === 'function') {
-				calls.push({ path, options: undefined, handler: optsOrHandler });
-			} else {
-				calls.push({ path, options: optsOrHandler, handler: maybeHandler });
-			}
-		},
+		post: record('post'),
+		get: record('get'),
+		delete: record('delete'),
 	};
 }
 
@@ -69,25 +74,31 @@ describe('components/mcp/index', () => {
 			assert.equal(host.calls.length, 0);
 		});
 
-		it('registers POST /mcp when the operations profile block is present', () => {
+		it('registers POST/GET/DELETE on /mcp when the operations profile block is present', () => {
 			const host = makeFakeFastify();
 			registerMcpProfile({ profile: 'operations', host, config: { mcp: { operations: {} } } });
-			assert.equal(host.calls.length, 1);
-			assert.equal(host.calls[0].path, '/mcp');
-			assert.equal(typeof host.calls[0].handler, 'function');
+			assert.equal(host.calls.length, 3);
+			assert.deepEqual(
+				host.calls.map((c) => c.method),
+				['post', 'get', 'delete']
+			);
+			for (const call of host.calls) {
+				assert.equal(call.path, '/mcp');
+				assert.equal(typeof call.handler, 'function');
+			}
 		});
 
-		it('honors a custom mountPath', () => {
+		it('honors a custom mountPath on all three methods', () => {
 			const host = makeFakeFastify();
 			registerMcpProfile({
 				profile: 'operations',
 				host,
 				config: { mcp: { operations: { mountPath: '/agent' } } },
 			});
-			assert.equal(host.calls[0].path, '/agent');
+			for (const call of host.calls) assert.equal(call.path, '/agent');
 		});
 
-		it('forwards routeOptions to the host as the second argument', () => {
+		it('forwards routeOptions to every method registration', () => {
 			const host = makeFakeFastify();
 			const sentinel = { preValidation: ['fake-auth-handler'] };
 			registerMcpProfile({
@@ -96,7 +107,7 @@ describe('components/mcp/index', () => {
 				config: { mcp: { operations: {} } },
 				routeOptions: sentinel,
 			});
-			assert.deepEqual(host.calls[0].options, sentinel);
+			for (const call of host.calls) assert.deepEqual(call.options, sentinel);
 		});
 	});
 

@@ -45,6 +45,8 @@ interface FullConfig {
 
 interface FastifyLikeHost {
 	post: (path: string, ...rest: unknown[]) => unknown;
+	get: (path: string, ...rest: unknown[]) => unknown;
+	delete: (path: string, ...rest: unknown[]) => unknown;
 }
 
 export interface RegisterMcpProfileArgs {
@@ -69,10 +71,18 @@ export function registerMcpProfile({ profile, host, config, routeOptions }: Regi
 	ensureSessionTable();
 	const mountPath = profileConfig.mountPath ?? DEFAULT_MOUNT_PATH;
 	const handler = createFastifyHandler(profile);
-	if (routeOptions) {
-		host.post(mountPath, routeOptions, handler);
-	} else {
-		host.post(mountPath, handler);
+	// Register POST, GET, and DELETE on the same mount path. The transport
+	// core decides whether to handle (POST initialize / JSON-RPC dispatch),
+	// return 405 with an accurate `Allow` header (GET always in v1, DELETE
+	// when `mcp.session.allowClientDelete` is false), or process (DELETE
+	// when enabled). Without explicit GET/DELETE routes Fastify would
+	// short-circuit to its built-in 404 before the transport runs.
+	for (const method of ['post', 'get', 'delete'] as const) {
+		if (routeOptions) {
+			host[method](mountPath, routeOptions, handler);
+		} else {
+			host[method](mountPath, handler);
+		}
 	}
 	harperLogger.info(`MCP ${profile} profile registered at ${mountPath}`);
 }
