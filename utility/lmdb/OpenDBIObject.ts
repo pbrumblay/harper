@@ -34,10 +34,10 @@ export class OpenDBIObject {
 		this.sharedStructuresKey = Symbol.for('structures');
 		/** @type {any} */
 		this.compression = undefined;
+		this.encoder = { Encoder: RecordEncoder };
 		if (isPrimary) {
 			this.cache = LMDB_CACHING && { validated: true };
 			this.freezeData = true;
-			this.encoder = { Encoder: RecordEncoder };
 		}
 	}
 }
