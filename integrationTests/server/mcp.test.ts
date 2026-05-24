@@ -43,9 +43,17 @@ async function jsonRpcPost(
 
 suite('MCP Streamable HTTP transport (operations profile)', (ctx: ContextWithHarper) => {
 	before(async () => {
+		// NOTE on the explicit `mountPath`: the integration-testing harness
+		// passes config via the `HARPER_SET_CONFIG` env var, which is applied
+		// via `applyConfigLayer` → `flattenObject` in
+		// `config/harperConfigEnvVars.ts:176`. `flattenObject` skips empty
+		// objects (no flat paths to set), so `mcp: { operations: {} }` would
+		// be lost entirely from the runtime override. Production YAML loading
+		// preserves empty objects, so the presence-based enablement works for
+		// real users — this is a harness-only workaround.
 		await startHarper(ctx, {
 			config: {
-				mcp: { operations: {} },
+				mcp: { operations: { mountPath: '/mcp' } },
 			},
 			env: {},
 		});
