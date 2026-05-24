@@ -77,7 +77,7 @@ export async function handleMcpRequest(request: NormRequest): Promise<NormRespon
 		if (request.method === 'POST') return await handlePost(request);
 		if (request.method === 'GET') return handleGet();
 		if (request.method === 'DELETE') return await handleDelete(request);
-		return { status: 405, headers: { Allow: 'POST, GET, DELETE' } };
+		return { status: 405, headers: { Allow: currentlyAllowedMethods() } };
 	} catch (err) {
 		harperLogger.error(`MCP transport internal error: ${(err as Error).stack ?? (err as Error).message}`);
 		return jsonRpcErrorResponse(500, null, ERROR_CODES.INTERNAL_ERROR, 'internal error');
@@ -198,13 +198,13 @@ async function dispatchInitialize(
 function handleGet(): NormResponse {
 	// v1 does not offer a GET SSE channel. #619 will replace this with a
 	// real server-push stream for `listChanged` notifications.
-	return { status: 405, headers: { Allow: 'POST, DELETE' } };
+	return { status: 405, headers: { Allow: currentlyAllowedMethods() } };
 }
 
 async function handleDelete(request: NormRequest): Promise<NormResponse> {
 	const allow = env.get(CONFIG_PARAMS.MCP_SESSION_ALLOWCLIENTDELETE);
 	if (allow !== true) {
-		return { status: 405, headers: { Allow: 'POST, GET' } };
+		return { status: 405, headers: { Allow: currentlyAllowedMethods() } };
 	}
 	const sessionId = request.headers[SESSION_HEADER];
 	if (!sessionId) {
@@ -269,4 +269,14 @@ function jsonRpcErrorResponse(
 function maskSessionId(id: string): string {
 	if (id.length <= 8) return '***';
 	return `${id.slice(0, 8)}…`;
+}
+
+/**
+ * Build the `Allow` header value for a 405 response. Per RFC 9110 §9.1 the
+ * server MUST list only currently-supported methods. In v1, POST is always
+ * supported; GET is never supported (no SSE channel until #619); DELETE is
+ * conditional on `mcp.session.allowClientDelete`.
+ */
+function currentlyAllowedMethods(): string {
+	return env.get(CONFIG_PARAMS.MCP_SESSION_ALLOWCLIENTDELETE) === true ? 'POST, DELETE' : 'POST';
 }

@@ -224,12 +224,24 @@ describe('mcp/transport', () => {
 			const res = await handleMcpRequest(makeReq({ method: 'GET' }));
 			assert.equal(res.status, 405);
 		});
+
+		it('Allow header lists only POST when DELETE is disabled (RFC 9110 §9.1)', async () => {
+			const res = await handleMcpRequest(makeReq({ method: 'GET' }));
+			assert.equal(res.headers.Allow, 'POST');
+		});
+
+		it('Allow header lists POST + DELETE when DELETE is enabled', async () => {
+			envOverrides.mcp_session_allowClientDelete = true;
+			const res = await handleMcpRequest(makeReq({ method: 'GET' }));
+			assert.equal(res.headers.Allow, 'POST, DELETE');
+		});
 	});
 
 	describe('DELETE /mcp', () => {
 		it('returns 405 when allowClientDelete is not configured', async () => {
 			const res = await handleMcpRequest(makeReq({ method: 'DELETE' }));
 			assert.equal(res.status, 405);
+			assert.equal(res.headers.Allow, 'POST');
 		});
 
 		it('terminates the session and returns 204 when allowClientDelete is true', async () => {
@@ -358,9 +370,17 @@ describe('mcp/transport', () => {
 	});
 
 	describe('unsupported HTTP methods', () => {
-		it('returns 405 for PUT', async () => {
+		it('returns 405 for PUT with accurate Allow header', async () => {
 			const res = await handleMcpRequest(makeReq({ method: 'PUT' }));
 			assert.equal(res.status, 405);
+			assert.equal(res.headers.Allow, 'POST');
+		});
+
+		it('PUT 405 advertises DELETE when allowClientDelete is enabled', async () => {
+			envOverrides.mcp_session_allowClientDelete = true;
+			const res = await handleMcpRequest(makeReq({ method: 'PUT' }));
+			assert.equal(res.status, 405);
+			assert.equal(res.headers.Allow, 'POST, DELETE');
 		});
 	});
 });
