@@ -17,7 +17,12 @@ interface HarperHttpRequest {
 	method: string;
 	headers: Iterable<[string, string | string[]]> & { get?: (name: string) => string | undefined };
 	body?: AsyncIterable<Buffer | string>;
-	user?: { username?: string };
+	/**
+	 * Full user object as Harper's auth pipeline attaches it (includes role +
+	 * permission tree). The transport reads `username` for session binding
+	 * and forwards the full object as `userObject` for tool RBAC.
+	 */
+	user?: { username?: string; role?: unknown };
 	isWebSocket?: boolean;
 }
 
@@ -40,6 +45,7 @@ export function createHarperHttpHandler(profile: McpProfile) {
 			headers: normalizeHeaders(request.headers),
 			body: await readBody(request.body),
 			user: request.user?.username ?? '',
+			userObject: request.user as NormRequest['userObject'],
 			profile,
 		};
 
