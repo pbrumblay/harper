@@ -2056,36 +2056,27 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 			await client.req().send({ operation: 'create_schema', schema }).expect(200);
 		}
 
-		// ── Northwind tables (create + CSV load) ─────────────────────────────
-		const northwindTables = [
-			['customers', 'customerid', 'Customers.csv'],
-			['suppliers', 'supplierid', 'Suppliers.csv'],
-			['region', 'regionid', 'Region.csv'],
-			['employees', 'employeeid', 'Employees.csv'],
-			['territories', 'territoryid', 'Territories.csv'],
-			['employeeterritories', 'employeeid', 'EmployeeTerritories.csv'],
-			['shippers', 'shipperid', 'Shippers.csv'],
-			['categories', 'categoryid', 'Categories.csv'],
-			['products', 'productid', 'Products.csv'],
-			['order_details', 'orderdetailid', 'Orderdetails.csv'],
-			['orders', 'orderid', 'Orders.csv'],
-		];
-		for (const [table, pk, csv] of northwindTables) {
+		// ── Northwind tables (created empty; 2_dataLoad sub-suite loads the CSVs) ─
+		// CSV loads are NOT done here to avoid duplicate-PK conflicts when the
+		// 2_dataLoad tests run their csvFileUpload assertions against the same files.
+		// Sequential sub-suite execution guarantees the data is present for 3–10.
+		for (const [table, pk] of [
+			['customers', 'customerid'],
+			['suppliers', 'supplierid'],
+			['region', 'regionid'],
+			['employees', 'employeeid'],
+			['territories', 'territoryid'],
+			['employeeterritories', 'employeeid'],
+			['shippers', 'shipperid'],
+			['categories', 'categoryid'],
+			['products', 'productid'],
+			['order_details', 'orderdetailid'],
+			['orders', 'orderid'],
+		]) {
 			await client.req().send({ operation: 'create_table', schema: 'northnwd', table, primary_key: pk }).expect(200);
-			const csvR = await client
-				.req()
-				.send({
-					operation: 'csv_file_load',
-					action: 'insert',
-					schema: 'northnwd',
-					table,
-					file_path: csvPath + csv,
-				})
-				.expect(200);
-			await awaitJobCompleted(client, getJobId(csvR.body), { timeoutSeconds: 60 });
 		}
 
-		// ── dev tables (created empty; JSON data inserted by 2_dataLoad tests) ─
+		// ── dev tables (created empty; JSON data + CSVs inserted by 2_dataLoad) ─
 		const devTables = [
 			['long_text', 'id'],
 			['AttributeDropTest', 'hashid'],
@@ -2099,29 +2090,13 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 			['leading_zero', 'id'],
 			['dog_conditions', 'id'],
 			['rando', 'id'],
+			['books', 'id'],
+			['ratings', 'id'],
+			['movie', 'id'],
+			['credits', 'movie_id'],
 		];
 		for (const [table, pk] of devTables) {
 			await client.req().send({ operation: 'create_table', schema: 'dev', table, primary_key: pk }).expect(200);
-		}
-		// Large dev CSVs (books, ratings, movie, credits) — no test in 2_dataLoad re-inserts these
-		for (const [table, pk, csv, timeout] of [
-			['books', 'id', 'Books.csv', 30],
-			['ratings', 'id', 'BooksRatings.csv', 60],
-			['movie', 'id', 'movies.csv', 60],
-			['credits', 'movie_id', 'credits.csv', 120],
-		]) {
-			await client.req().send({ operation: 'create_table', schema: 'dev', table, primary_key: pk }).expect(200);
-			const r = await client
-				.req()
-				.send({
-					operation: 'csv_file_load',
-					action: 'insert',
-					schema: 'dev',
-					table,
-					file_path: csvPath + csv,
-				})
-				.expect(200);
-			await awaitJobCompleted(client, getJobId(r.body), { timeoutSeconds: timeout });
 		}
 
 		// ── Numeric-string schemas (used by NoSQL tests) ────────────────────────
@@ -2242,7 +2217,9 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 	async function checkJobCompleted(jobId, expectedErrorMsg, expectedCompleteMsg) {
 		const jobResp = await awaitJob(client, jobId, 60);
 		const job = jobResp.body[0];
+		assert.ok(job, `No job found in response: ${jobResp.text}`);
 		if (expectedErrorMsg) {
+			assert.notEqual(job.status, 'COMPLETE', jobResp.text);
 			const msgStr = typeof job.message === 'string' ? job.message : JSON.stringify(job.message);
 			assert.ok(msgStr.includes(expectedErrorMsg), jobResp.text);
 		} else {
