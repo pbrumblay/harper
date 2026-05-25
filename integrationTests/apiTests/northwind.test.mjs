@@ -2098,6 +2098,7 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 			['sql_function', 'id'],
 			['leading_zero', 'id'],
 			['dog_conditions', 'id'],
+			['rando', 'id'],
 		];
 		for (const [table, pk] of devTables) {
 			await client.req().send({ operation: 'create_table', schema: 'dev', table, primary_key: pk }).expect(200);
@@ -2122,6 +2123,13 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 				.expect(200);
 			await awaitJobCompleted(client, getJobId(r.body), { timeoutSeconds: timeout });
 		}
+
+		// ── Numeric-string schemas (used by NoSQL tests) ────────────────────────
+		await client.req().send({ operation: 'create_schema', schema: '123' }).expect(200);
+		await client
+			.req()
+			.send({ operation: 'create_table', schema: '123', table: '4', primary_key: 'id' })
+			.expect(200);
 
 		// ── call / other / another (created empty; data inserted by 2_dataLoad) ─
 		await client
@@ -2177,8 +2185,11 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 				data,
 			})
 			.expect(200);
-		const job = await awaitJob(client, getJobId(r.body), 30);
-		return job.body[0].message;
+		return awaitJobCompleted(client, getJobId(r.body), {
+			expectedError: _expectedError || undefined,
+			expectedMessage: _expectedMessage || undefined,
+			timeoutSeconds: 30,
+		});
 	}
 
 	async function csvUrlLoad(schema, table, url, _expectedError, _expectedMessage) {
