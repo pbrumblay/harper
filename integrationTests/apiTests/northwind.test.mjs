@@ -23,7 +23,7 @@ import { createApiClient, createHeaders } from './utils/client.mjs';
 import { awaitJob, awaitJobCompleted, getJobId } from './utils/operations.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const csvPath = join(__dirname, '../data') + '/';
+const csvPath = join(__dirname, 'data') + '/';
 
 // JSON fixture record sets (parsed once at module load; used by 2_dataLoad tests)
 const LONG_TEXT_RECORDS = [
@@ -2101,10 +2101,7 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 
 		// ── Numeric-string schemas (used by NoSQL tests) ────────────────────────
 		await client.req().send({ operation: 'create_schema', schema: '123' }).expect(200);
-		await client
-			.req()
-			.send({ operation: 'create_table', schema: '123', table: '4', primary_key: 'id' })
-			.expect(200);
+		await client.req().send({ operation: 'create_table', schema: '123', table: '4', primary_key: 'id' }).expect(200);
 
 		// ── call / other / another (created empty; data inserted by 2_dataLoad) ─
 		await client
