@@ -1,6 +1,6 @@
 'use strict';
 
-// Slice B2 of issue #641: unit-tests for the helpers added to DeploymentRecorder:
+// Unit tests for the per-peer tracking and row-await helpers in DeploymentRecorder:
 //   - `recordPeers()` — normalizes the opaque replication-layer per-peer outcomes into
 //     a stable `[{node, status, error?, started_at, completed_at}]` shape on the row.
 //   - `awaitDeploymentRow()` — peer-side helper that polls the hdb_deployment table
@@ -43,7 +43,7 @@ function installMockDeploymentTable() {
 	};
 }
 
-describe('DeploymentRecorder.recordPeers', () => {
+describe('DeploymentRecorder.recordPeer', () => {
 	let installed;
 	beforeEach(() => {
 		installed = installMockDeploymentTable();
@@ -52,7 +52,7 @@ describe('DeploymentRecorder.recordPeers', () => {
 
 	it('normalizes a single-peer success result', async () => {
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
-		await recorder.recordPeers([{ node: 'node-b', status: 'success', started_at: 1000, completed_at: 1500 }]);
+		recorder.recordPeer({ node: 'node-b', status: 'success', started_at: 1000, completed_at: 1500 });
 		assert.deepStrictEqual(recorder.row.peer_results, [
 			{ node: 'node-b', status: 'success', error: null, started_at: 1000, completed_at: 1500 },
 		]);
@@ -60,7 +60,7 @@ describe('DeploymentRecorder.recordPeers', () => {
 
 	it('maps an Error-bearing result to status="failed" with structured error', async () => {
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
-		await recorder.recordPeers([{ node: 'node-c', error: { message: 'install timed out', code: 'ETIMEDOUT' } }]);
+		recorder.recordPeer({ node: 'node-c', error: { message: 'install timed out', code: 'ETIMEDOUT' } });
 		assert.deepStrictEqual(recorder.row.peer_results, [
 			{
 				node: 'node-c',
@@ -74,61 +74,89 @@ describe('DeploymentRecorder.recordPeers', () => {
 
 	it('treats a string-shaped error as failed and preserves the message', async () => {
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
-		await recorder.recordPeers([{ node: 'node-d', error: 'connection refused' }]);
+		recorder.recordPeer({ node: 'node-d', error: 'connection refused' });
 		assert.strictEqual(recorder.row.peer_results[0].status, 'failed');
 		assert.strictEqual(recorder.row.peer_results[0].error.message, 'connection refused');
 	});
 
 	it('falls back to "name"/"hostname" when "node" is missing', async () => {
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
-		await recorder.recordPeers([
-			{ name: 'node-by-name', status: 'success' },
-			{ hostname: 'node-by-hostname', status: 'success' },
-		]);
+		recorder.recordPeer({ name: 'node-by-name', status: 'success' });
+		recorder.recordPeer({ hostname: 'node-by-hostname', status: 'success' });
 		assert.strictEqual(recorder.row.peer_results[0].node, 'node-by-name');
 		assert.strictEqual(recorder.row.peer_results[1].node, 'node-by-hostname');
 	});
 
 	it('preserves primitive entries as stringified raw markers', async () => {
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
-		await recorder.recordPeers(['node-x failed somehow']);
+		recorder.recordPeer('node-x failed somehow');
 		assert.strictEqual(recorder.row.peer_results[0].status, 'unknown');
 		assert.strictEqual(recorder.row.peer_results[0].raw, 'node-x failed somehow');
+	});
+
+	it('upserts by node name on repeat calls — same peer transitions from pending to success', async () => {
+		// The real-time use case: first call recorder.recordPeer({node:'n1', status:'pending'}),
+		// then later recordPeer({node:'n1', status:'success'}). Only one entry should
+		// exist for 'n1', and it should reflect the latest call.
+		const recorder = await DeploymentRecorder.create({ project: 'p' });
+		recorder.recordPeer({ node: 'n1', status: 'pending' });
+		recorder.recordPeer({ node: 'n2', status: 'pending' });
+		assert.strictEqual(recorder.row.peer_results.length, 2);
+		recorder.recordPeer({ node: 'n1', status: 'success' });
+		assert.strictEqual(recorder.row.peer_results.length, 2, 'no duplicate entry for n1');
+		const n1 = recorder.row.peer_results.find((e) => e.node === 'n1');
+		assert.strictEqual(n1.status, 'success', 'n1 upserted to latest status');
 	});
 
 	it('is a no-op when called after finish()', async () => {
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
 		await recorder.finish('success');
-		await recorder.recordPeers([{ node: 'node-late', status: 'success' }]);
+		recorder.recordPeer({ node: 'node-late', status: 'success' });
 		assert.deepStrictEqual(recorder.row.peer_results, []);
 	});
 
-	it('stashes peer results so the terminal finish() put carries them — no separate put race', async () => {
-		// recordPeers should NOT trigger a put on its own. It mutates the in-memory record
-		// (so live readers see the latest peer outcomes) and stashes for finish() to bundle
-		// with the status transition. This avoids racing with the coalesced emitter-driven
-		// puts that capture record snapshots at serialization time.
+	it('persists via scheduleFlush so the row eventually reflects peer outcomes', async () => {
+		// recordPeer mutates in-memory and triggers the coalesced flush — by the time
+		// finish() drains pending puts, the persisted row carries peer_results.
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
-		const putsBefore = Array.from(installed.mock.rows.values()).length;
-		await recorder.recordPeers([{ node: 'node-z', status: 'success' }]);
-		// In-memory state reflects the new peer_results immediately.
-		assert.strictEqual(recorder.row.peer_results[0].node, 'node-z');
-		// Now run finish — that's the put that persists peer_results to LMDB.
+		recorder.recordPeer({ node: 'node-z', status: 'success' });
 		await recorder.finish('success');
 		const persisted = await installed.mock.get(recorder.deploymentId);
 		assert.strictEqual(persisted.peer_results[0].node, 'node-z');
 		assert.strictEqual(persisted.peer_results[0].status, 'success');
 		assert.strictEqual(persisted.status, 'success');
-		// Sanity check: at least one put was issued (create + finish).
-		assert.ok(installed.mock.rows.size > putsBefore - 1);
+	});
+});
+
+describe('DeploymentRecorder.recordPeers (bulk wrapper)', () => {
+	let installed;
+	beforeEach(() => {
+		installed = installMockDeploymentTable();
+	});
+	afterEach(() => installed.restore());
+
+	it('iterates the input array and upserts each entry', async () => {
+		const recorder = await DeploymentRecorder.create({ project: 'p' });
+		recorder.recordPeers([
+			{ node: 'a', status: 'success' },
+			{ node: 'b', status: 'success' },
+		]);
+		assert.strictEqual(recorder.row.peer_results.length, 2);
+	});
+
+	it('is idempotent when the same entries arrive via per-peer and aggregate paths', async () => {
+		const recorder = await DeploymentRecorder.create({ project: 'p' });
+		recorder.recordPeer({ node: 'a', status: 'success' });
+		recorder.recordPeers([{ node: 'a', status: 'success' }]);
+		assert.strictEqual(recorder.row.peer_results.length, 1);
 	});
 
 	it('is a no-op for non-array inputs (defensive against odd replication shapes)', async () => {
 		const recorder = await DeploymentRecorder.create({ project: 'p' });
-		await recorder.recordPeers(undefined);
-		await recorder.recordPeers(null);
-		await recorder.recordPeers('not an array');
-		await recorder.recordPeers({ node: 'object-not-array' });
+		recorder.recordPeers(undefined);
+		recorder.recordPeers(null);
+		recorder.recordPeers('not an array');
+		recorder.recordPeers({ node: 'object-not-array' });
 		assert.deepStrictEqual(recorder.row.peer_results, []);
 	});
 });

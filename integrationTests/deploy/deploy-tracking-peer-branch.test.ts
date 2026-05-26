@@ -1,5 +1,5 @@
 /**
- * Deployment tracking — peer-side branch (Slice B2 of issue #641).
+ * Deployment tracking — peer-side branch.
  *
  * In a real multi-node deploy, the origin strips `req.payload` before `replicateOperation`
  * and the peer reads the tarball from the replicated `hdb_deployment.payload_blob` row
@@ -86,7 +86,7 @@ async function callOperation(
 	return { status: res.status, body: parsed, rawText: text };
 }
 
-suite('Deployment tracking — peer-side branch (Slice B2)', (ctx: ContextWithHarper) => {
+suite('Deployment tracking — peer-side branch', (ctx: ContextWithHarper) => {
 	let fixtureDir: string;
 	let seedDeploymentId: string;
 

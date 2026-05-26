@@ -454,7 +454,7 @@ export async function installApplication(application: Application) {
 }
 
 /**
- * Slice B2: callback invoked once per complete line of install stdout/stderr from
+ * Callback invoked once per complete line of install stdout/stderr from
  * `nonInteractiveSpawn`. Threaded through `installApplication` to the underlying spawn
  * so a deploy can stream `npm install` output back to the caller as an SSE `install`
  * event in real time, rather than waiting for the process to exit. Line-buffered so a
@@ -638,7 +638,7 @@ function getGitSSHCommand() {
  * @returns A promise that resolves when the command completes.
  */
 /**
- * Slice B2: line-buffered split that emits complete `\n`-terminated lines as they
+ * Line-buffered split that emits complete `\n`-terminated lines as they
  * arrive, holding any partial trailing fragment until the next chunk or `flush()`.
  * Required because `child_process` stdout/stderr `'data'` events fire per OS-level
  * chunk, with no guarantee a chunk ends on a newline — without buffering, a long
@@ -713,8 +713,8 @@ export function nonInteractiveSpawn(
 			reject(new Error(`Command\`${command} ${args.join(' ')}\` timed out after ${timeoutMs}ms`));
 		}, timeoutMs);
 
-		// Slice B2: if a caller passed onLine, line-buffer stdout/stderr alongside the
-		// existing string accumulation so we never report a half-line.
+		// If a caller passed onLine, line-buffer stdout/stderr alongside the existing
+		// string accumulation so we never report a half-line.
 		const stdoutSplitter = onLine ? createLineSplitter((line) => onLine('stdout', line)) : null;
 		const stderrSplitter = onLine ? createLineSplitter((line) => onLine('stderr', line)) : null;
 

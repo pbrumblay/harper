@@ -1,6 +1,6 @@
 'use strict';
 
-// Slice B2 of issue #641: verifies the line-buffered `onLine` callback added to
+// Verifies the line-buffered `onLine` callback added to
 // `nonInteractiveSpawn`. The spawn function buffers stdout/stderr by newline so a
 // chunk that splits mid-line never fires a partial line; trailing fragments are
 // flushed on process close. These tests drive that contract through Node running
