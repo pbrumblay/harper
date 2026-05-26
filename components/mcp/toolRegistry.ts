@@ -14,8 +14,19 @@
  *      `dataLayer/schemaDescribe.ts:29-49`. Resource.allow* methods are
  *      *not* used — they're per-record instance methods.
  *
- * The schema-level filter here is a UX optimization, not a security boundary.
- * Runtime enforcement still runs at tool-call time.
+ * Security model — important:
+ *   - `visibleTo` controls **listing** (the LLM only sees what it's likely
+ *     allowed to use). It is **not** invoked at `tools/call` time and is
+ *     explicitly NOT a security boundary.
+ *   - **Enforcement runs in the tool handler at call time**, via Harper's
+ *     existing `transactional()` + per-record `allow{Read,Create,Update,
+ *     Delete}` predicates (#617 wraps `OPERATION_FUNCTION_MAP`, #618 wraps
+ *     `Resources` — both inherit the existing ACL path). The framework
+ *     intentionally passes a known-but-filtered-out tool through to its
+ *     handler so an LLM that hallucinates a name gets a clean `isError`
+ *     result from the runtime predicate (mirroring the verification test
+ *     in #465). See the `tools/call` pass-through test in
+ *     `transport.test.js`.
  */
 import type { McpProfile } from './transport.ts';
 

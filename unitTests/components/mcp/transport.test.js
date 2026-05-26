@@ -430,6 +430,37 @@ describe('mcp/transport', () => {
 				assert.match(payload.message, /something broke/);
 			});
 
+			it('passes through to the handler even when visibleTo would return false (security boundary is in the handler, not the filter)', async () => {
+				// Per the design doc (#465 "Tool-list filtering"), `visibleTo`
+				// controls UX (what shows up in tools/list) but is NOT a
+				// security boundary. Real enforcement is `transactional()` +
+				// `allow{Read,Create,Update,Delete}` in the handler. This test
+				// documents the intentional pass-through so a future change
+				// that adds visibleTo to the call path is caught.
+				let handlerCalled = false;
+				addTool({
+					name: 'hidden_from_list',
+					description:
+						'visible-to=false; the LLM should never see this in list, but a hallucinated call still reaches the handler',
+					inputSchema: { type: 'object' },
+					profile: 'application',
+					visibleTo: () => false,
+					handler: async () => {
+						handlerCalled = true;
+						return { content: [{ type: 'text', text: 'handler was reached' }] };
+					},
+				});
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(26, 'tools/call', { name: 'hidden_from_list' }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(handlerCalled, true);
+				assert.equal(res.status, 200);
+				assert.equal(res.jsonBody.result.content[0].text, 'handler was reached');
+			});
+
 			it('passes args and context (user, profile, sessionId) to the handler', async () => {
 				let received;
 				addTool({
