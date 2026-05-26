@@ -2,7 +2,7 @@
  * `@embed` directive integration test (#632 / Phase 5 of #510).
  *
  * Spins up a fake Ollama HTTP server inside the test, points Harper's models
- * config at it, deploys a schema with `@embed`, and exercises three paths
+ * config at it, deploys a schema with `@embed`, and exercises six paths
  * end-to-end:
  *
  *   1. **Happy path** — POST a record → fake-ollama returns a deterministic
@@ -12,11 +12,29 @@
  *      no new embed call is made (fake-ollama hit count stays flat); the
  *      existing embedding survives via patch-merge.
  *
- *   3. **Replication-receiver skip** — POST with `x-replicate-from: none` and
+ *   3. **Source-changing PATCH** — PATCH a record with the source field →
+ *      embed fires once, the stored vector matches the NEW content. Covers
+ *      the async branch of `update()` that 47bd103c wrapped in `when(...)` —
+ *      the production path that produced "transaction already closed" /
+ *      silent data loss before the fix.
+ *
+ *   4. **PUT (full-record update)** — PUT a record on an existing id with the
+ *      source field present → embed fires once, the stored vector reflects the
+ *      new content. Exercises the parallel legacy-URLSearchParams branch in
+ *      `Table.put()` (same when() fix as PATCH).
+ *
+ *   5. **Replication-receiver skip** — POST with `x-replicate-from: none` and
  *      a pre-supplied vector → no embed call is made; the supplied vector is
  *      stored as-is. (The REST receiver path; the cluster-subscribe path is
  *      covered by the `options.isNotification === true` branch in
  *      `embedHook.test.js`.)
+ *
+ *   6. **Caching-table `@embed`** — a table with `sourcedFrom(SourceResource)`
+ *      and `@embed` declared on a derived field. GET fires `getFromSource`,
+ *      the cache write goes through the `Table.ts:~4520` embed wiring (which
+ *      bypasses `_writeUpdate`), and the cached row ends up with a populated
+ *      vector. Canonical use case Kris highlighted in review and the
+ *      derived-cache-table follow-up (#750).
  *
  * Setup notes:
  *   - The fake-ollama server returns deterministic 3-element Float32 vectors
@@ -44,6 +62,28 @@ const SCHEMA_GRAPHQL = [
 	'\ttag: String',
 	'\tembedding: Vector @embed(source: "content", model: "default")',
 	'}',
+	'',
+	'type CachedEmbedDoc @table(database: "embedtest") @sealed @export {',
+	'\tid: ID! @primaryKey',
+	'\tcontent: String',
+	'\tembedding: Vector @embed(source: "content", model: "default")',
+	'}',
+	'',
+].join('\n');
+
+// resources.js wiring for the caching-table @embed path. The Resource base class
+// and the `databases` global are provided by Harper's component loader at boot.
+const RESOURCES_JS = [
+	'const { CachedEmbedDoc } = databases.embedtest;',
+	'',
+	'export class CachedEmbedSource extends Resource {',
+	'\tasync get() {',
+	'\t\tconst id = this.getId();',
+	'\t\treturn { id, content: `derived content for ${id}` };',
+	'\t}',
+	'}',
+	'',
+	'CachedEmbedDoc.sourcedFrom(CachedEmbedSource);',
 	'',
 ].join('\n');
 
@@ -179,6 +219,12 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 			.expect((r: any) => ok(r.body?.message?.includes?.('Successfully set component: schema.graphql'), r.text))
 			.expect(200);
 
+		await client
+			.req()
+			.send({ operation: 'set_component_file', project: 'embedtest', file: 'resources.js', payload: RESOURCES_JS })
+			.expect((r: any) => ok(r.body?.message?.includes?.('Successfully set component: resources.js'), r.text))
+			.expect(200);
+
 		await restartHttpWorkers(client, '/openapi');
 		fake.reset();
 	});
@@ -272,6 +318,91 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		}
 	});
 
+	test('PATCH source field DOES re-run embedder; stored vector matches new content', async () => {
+		// Seed a record with one content value.
+		const initialContent = 'patch-source baseline';
+		await request(ctx.harper.httpURL)
+			.post('/EmbedDoc/')
+			.set(client.headers)
+			.send({ id: 'doc-source-patch', content: initialContent })
+			.expect((r: any) => ok([200, 201, 204].includes(r.status), `seed POST status ${r.status}: ${r.text}`));
+
+		const baselineEmbedCalls = fake.embedCallCount();
+
+		// PATCH the source field. This exercises the async branch of TableResource.update()
+		// — the path that 47bd103c wrapped in `when(...)`. Before that fix, the embed promise
+		// was dropped, leading to a silent empty commit or a "transaction already closed"
+		// crash when the embedder finally resolved.
+		const updatedContent = 'patch-source updated text';
+		await request(ctx.harper.httpURL)
+			.patch('/EmbedDoc/doc-source-patch')
+			.set(client.headers)
+			.send({ content: updatedContent })
+			.expect((r: any) => ok([200, 204].includes(r.status), `PATCH status ${r.status}: ${r.text}`));
+
+		strictEqual(
+			fake.embedCallCount(),
+			baselineEmbedCalls + 1,
+			'embed should fire exactly once when the source field is in the PATCH payload'
+		);
+		const inputs = fake.lastEmbedInputs().at(-1)!;
+		ok(
+			inputs.some((s) => s.includes(updatedContent)),
+			`embed input ${JSON.stringify(inputs)} should reflect the updated content`
+		);
+
+		// Verify the stored vector matches the NEW content, not the seed.
+		const expected = deterministicVector(updatedContent);
+		const getResp = await client.reqRest('/EmbedDoc/doc-source-patch').expect(200);
+		const body = getResp.body as { id: string; content: string; embedding: unknown };
+		strictEqual(body.content, updatedContent, 'PATCH should have updated the source field');
+		const stored = decodeVector(body.embedding);
+		ok(stored, `embedding should be populated after source PATCH, got: ${JSON.stringify(body.embedding)}`);
+		strictEqual(stored.length, 3);
+		for (let i = 0; i < 3; i++) {
+			ok(
+				Math.abs(stored[i] - expected[i]) < 1e-5,
+				`vector[${i}] mismatch: stored=${stored[i]} expected (from new content)=${expected[i]}`
+			);
+		}
+	});
+
+	test('PUT (full-record update) on existing row re-runs embedder', async () => {
+		// PUT exercises the SAME legacy-URLSearchParams branch in Table.ts that PATCH does
+		// (REST dispatches as `resource.put(data, query)`; the query is a URLSearchParams,
+		// so put() takes the back-compat branch that — pre-fix — dropped update()'s promise).
+		await request(ctx.harper.httpURL)
+			.post('/EmbedDoc/')
+			.set(client.headers)
+			.send({ id: 'doc-put-source', content: 'put baseline' })
+			.expect((r: any) => ok([200, 201, 204].includes(r.status), `seed POST status ${r.status}: ${r.text}`));
+
+		const baselineEmbedCalls = fake.embedCallCount();
+		const updatedContent = 'put updated text';
+
+		await request(ctx.harper.httpURL)
+			.put('/EmbedDoc/doc-put-source')
+			.set(client.headers)
+			.send({ id: 'doc-put-source', content: updatedContent })
+			.expect((r: any) => ok([200, 204].includes(r.status), `PUT status ${r.status}: ${r.text}`));
+
+		strictEqual(
+			fake.embedCallCount(),
+			baselineEmbedCalls + 1,
+			'embed should fire exactly once on a PUT that includes the source field'
+		);
+
+		const expected = deterministicVector(updatedContent);
+		const getResp = await client.reqRest('/EmbedDoc/doc-put-source').expect(200);
+		const body = getResp.body as { content: string; embedding: unknown };
+		strictEqual(body.content, updatedContent);
+		const stored = decodeVector(body.embedding);
+		ok(stored, `embedding should be populated after PUT, got: ${JSON.stringify(body.embedding)}`);
+		for (let i = 0; i < 3; i++) {
+			ok(Math.abs(stored[i] - expected[i]) < 1e-5, `PUT vector[${i}] mismatch: ${stored[i]} vs ${expected[i]}`);
+		}
+	});
+
 	test('replication-receiver: POST with x-replicate-from:none + supplied vector → embedder skipped', async () => {
 		const content = 'replicated record content';
 		const suppliedVector = [0.111, 0.222, 0.333];
@@ -305,5 +436,64 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 				`receiver stored ${stored[i]} but should be the originator's ${suppliedVector[i]}`
 			);
 		}
+	});
+
+	test('caching table with @embed: GET fires source → cache write embeds → vector stored', async () => {
+		// GET on a caching-sourced table with no existing row triggers `getFromSource`.
+		// The source (CachedEmbedSource in RESOURCES_JS) returns { id, content }; Harper
+		// then writes that record into the cache via a path that bypasses `_writeUpdate`
+		// and instead builds its own write op + addWrite (Table.ts:~4520). The embed
+		// wiring on THAT path is what 47bd103c added, and what this test exercises.
+		const id = 'cached-1';
+		const expectedContent = `derived content for ${id}`;
+		const expectedVector = deterministicVector(expectedContent);
+		const baselineEmbedCalls = fake.embedCallCount();
+
+		// First GET: cache miss → source resolves → cache write fires embed hook.
+		const firstGet = await client.reqRest(`/CachedEmbedDoc/${id}`).expect(200);
+		const firstBody = firstGet.body as { id: string; content: string; embedding: unknown };
+		strictEqual(firstBody.id, id);
+		strictEqual(firstBody.content, expectedContent, 'cache should reflect the source-returned content');
+
+		// The embedder must have run exactly once during the cache write.
+		strictEqual(
+			fake.embedCallCount(),
+			baselineEmbedCalls + 1,
+			'embed should fire exactly once when populating a caching table from source'
+		);
+		const inputs = fake.lastEmbedInputs().at(-1)!;
+		ok(
+			inputs.some((s) => s.includes(expectedContent)),
+			`embed input ${JSON.stringify(inputs)} should reflect the source content`
+		);
+
+		// Stored row must have the embedding. The GET response above may not surface the
+		// embedding column for sourced-table reads, so verify against an authoritative
+		// search_by_hash on the underlying table.
+		const search = await client
+			.req()
+			.send({
+				operation: 'search_by_hash',
+				database: 'embedtest',
+				table: 'CachedEmbedDoc',
+				hash_values: [id],
+				get_attributes: ['*'],
+			})
+			.expect(200);
+		ok(Array.isArray(search.body) && search.body.length === 1, `search_by_hash body: ${JSON.stringify(search.body)}`);
+		const stored = decodeVector(search.body[0].embedding);
+		ok(stored, `embedding should be populated on the cached row, got: ${JSON.stringify(search.body[0].embedding)}`);
+		strictEqual(stored.length, 3);
+		for (let i = 0; i < 3; i++) {
+			ok(
+				Math.abs(stored[i] - expectedVector[i]) < 1e-5,
+				`cached-row vector[${i}] mismatch: stored=${stored[i]} expected=${expectedVector[i]}`
+			);
+		}
+
+		// Second GET: cache hit. The embedder must NOT fire again.
+		const callsAfterFirst = fake.embedCallCount();
+		await client.reqRest(`/CachedEmbedDoc/${id}`).expect(200);
+		strictEqual(fake.embedCallCount(), callsAfterFirst, 'cache-hit GET should not re-run the embedder');
 	});
 });

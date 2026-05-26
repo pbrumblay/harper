@@ -1525,9 +1525,13 @@ export function makeTable(options) {
 			record: Record & RecordObject
 		): void | (Record & Partial<RecordObject>) | Promise<void | (Record & Partial<RecordObject>)> {
 			if (record === undefined || record instanceof URLSearchParams) {
-				// legacy argument position, shift the arguments and go through the update method for back-compat
-				(this as any).update(target, true);
-				return this.save() as any;
+				// legacy argument position, shift the arguments and go through the update method for back-compat.
+				// Await `update()` through `when(...)` so an `@embed` hook's pending promise is settled before
+				// `save()` runs — same hazard as the patch() legacy path: `_writeUpdate` returns a pending
+				// promise and a synchronous `save()` would commit with the write not yet staged on the txn.
+				// REST PUT dispatches as `resource.put(data, query)` where `query` is a URLSearchParams,
+				// so this is the canonical PUT path — not the `else` branch below.
+				return when((this as any).update(target, true), () => this.save() as any) as any;
 			} else {
 				let allowed = true;
 				if (target == undefined) throw new TypeError('Can not put a record without a target');
@@ -1606,9 +1610,13 @@ export function makeTable(options) {
 			recordUpdate: Partial<Record & RecordObject>
 		): void | (Record & Partial<RecordObject>) | Promise<void | (Record & Partial<RecordObject>)> {
 			if (recordUpdate === undefined || recordUpdate instanceof URLSearchParams) {
-				// legacy argument position, shift the arguments and go through the update method for back-compat
-				(this as any).update(target, false);
-				return this.save() as any;
+				// legacy argument position, shift the arguments and go through the update method for back-compat.
+				// Await `update()` through `when(...)` so an `@embed` hook's pending promise is settled before
+				// `save()` runs — without this, `_writeUpdate` returns a pending promise and `save()` runs
+				// while the write is not yet staged on the txn (silent data loss / "transaction already closed").
+				// REST PATCH dispatches as `resource.patch(data, query)` where `query` is a URLSearchParams,
+				// so this is the canonical PATCH path — not the `else` branch below.
+				return when(this.update(target, false), () => this.save() as any) as any;
 			} else {
 				// standard path, ensure there is no return object
 				return when(this.update(target, recordUpdate), () => {
