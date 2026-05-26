@@ -492,16 +492,25 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		// Stored row must have the embedding. The GET response above may not surface the
 		// embedding column for sourced-table reads, so verify against an authoritative
 		// search_by_hash on the underlying table.
-		const search = await client
-			.req()
-			.send({
-				operation: 'search_by_hash',
-				database: 'embedtest',
-				table: 'CachedEmbedDoc',
-				hash_values: [id],
-				get_attributes: ['*'],
-			})
-			.expect(200);
+		// `getFromSource` resolves the GET BEFORE the cache write's txn commits (see
+		// `Table.ts:~4275` design comment — "we don't want to wait for the transaction").
+		// On a slow CI runner the txn commit can land AFTER our next search_by_hash, so
+		// poll a few times with a short backoff rather than assert on first read.
+		let search: any;
+		for (let attempt = 0; attempt < 10; attempt++) {
+			search = await client
+				.req()
+				.send({
+					operation: 'search_by_hash',
+					database: 'embedtest',
+					table: 'CachedEmbedDoc',
+					hash_values: [id],
+					get_attributes: ['*'],
+				})
+				.expect(200);
+			if (Array.isArray(search.body) && search.body.length === 1) break;
+			await new Promise((resolve) => setTimeout(resolve, 25));
+		}
 		ok(Array.isArray(search.body) && search.body.length === 1, `search_by_hash body: ${JSON.stringify(search.body)}`);
 		const stored = decodeVector(search.body[0].embedding);
 		ok(stored, `embedding should be populated on the cached row, got: ${JSON.stringify(search.body[0].embedding)}`);
