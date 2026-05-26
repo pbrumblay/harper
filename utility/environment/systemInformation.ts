@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import si from 'systeminformation';
-import logger from '../logging/harper_logger.js';
+import logger from '../logging/harper_logger.ts';
 import * as hdbTerms from '../hdbTerms.ts';
 import { lmdbGetTableSize } from '../../dataLayer/harperBridge/lmdbBridge/lmdbUtility/lmdbGetTableSize.ts';
 import { getThreadInfo } from '../../server/threads/manageThreads.js';
-import env from './environmentManager.js';
+import * as env from './environmentManager.ts';
 import { getDatabases, type Table } from '../../resources/databases.ts';
 import { TableSizeObject } from '../../dataLayer/harperBridge/TableSizeObject.ts';
 import { RocksDatabase, StatsHistogramData } from '@harperfast/rocksdb-js';
@@ -613,8 +613,8 @@ function getLMDBStats(table: Table, dbStats: DBStats): void {
 		const { root: _root, ...stats } = table.primaryStore.rootStore.getStats();
 		Object.assign(dbStats, stats);
 		dbStats.readers = table.primaryStore.rootStore
-			.readerList()
-			.split(/\n\s+/)
+			.readerList?.()
+			?.split(/\n\s+/)
 			.slice(1)
 			.map((line) => {
 				const [pid, thread, txnid] = line.trim().split(' ');

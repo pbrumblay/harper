@@ -1,10 +1,11 @@
-import { platform } from 'os';
 import type { IncomingMessage as NodeIncomingMessage, ServerResponse as NodeServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import { TLSSocket } from 'node:tls';
 import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
+import { Readable, PassThrough } from 'node:stream';
 import { Headers as ResponseHeaders } from './Headers.ts';
+
+export const isBun = typeof globalThis.Bun !== 'undefined';
 
 // Some request compatible type-ing. We can handle both HTTP and HTTPS requests and the server is augmented.
 interface IncomingMessage extends NodeIncomingMessage {
@@ -26,27 +27,73 @@ interface IncomingMessage extends NodeIncomingMessage {
 export class Request {
 	#body: RequestBody | undefined;
 	#peerCertificate: any;
+	#abortController = new AbortController();
 	public _nodeRequest: IncomingMessage;
 	public _nodeResponse?: NodeServerResponse;
 	public method: string;
 	public url: string;
-	public headers: Headers;
+	public headers: RequestHeaders;
+	public requestId?: number;
+	public isOperationsServer?: boolean;
+	public handlerPath?: string;
+	public __harperdbRequestUpgraded?: boolean;
+	public __harperRequestUpgraded?: boolean;
+	public createdResource?: boolean;
+	public newLocation?: string;
 	public isWebSocket?: boolean;
 	public user?: any; // User object can be attached during authentication
 	public response: {
 		status?: number;
 		headers: ResponseHeaders;
 	};
-	public __harperRequestUpgraded: boolean;
+	public responseHeaders?: any;
+	public expiresAt?: number;
+	public onlyIfCached?: boolean;
+	public noCache?: boolean;
+	public noCacheStore?: boolean;
+	public staleIfError?: boolean;
+	public mustRevalidate?: boolean;
+	public replicatedConfirmation?: number;
+	public replicateTo?: any;
+	public replicateFrom?: any;
+	public data?: any;
+	public authorize?: boolean;
+	public lastModified?: number;
+	public lastRefreshed?: number;
 
-	constructor(nodeRequest: IncomingMessage, nodeResponse: NodeServerResponse) {
+	constructor(nodeRequest: IncomingMessage, nodeResponse?: NodeServerResponse) {
 		this.method = nodeRequest.method;
 		const url = nodeRequest.url;
 		this._nodeRequest = nodeRequest;
 		this._nodeResponse = nodeResponse;
 		this.url = url;
-		this.headers = new Headers(nodeRequest.headers);
+		this.headers = new RequestHeaders(nodeRequest.headers);
 		this.__harperRequestUpgraded = false;
+		// Abort the request's signal on premature client disconnect. nodeResponse 'close'
+		// also fires on clean completion; the writableFinished guard restricts to disconnect.
+		if (typeof nodeResponse?.on === 'function') {
+			nodeResponse.on('close', () => {
+				if (!nodeResponse.writableFinished) this.#abortController.abort();
+			});
+		} else if (typeof nodeRequest.socket?.once === 'function') {
+			// No response on this Request — typically the WebSocket-upgrade path
+			// (http.ts creates the Request before the ws library takes over). The TCP
+			// socket close is the fallback abort trigger; REST.ts's ws.on('close') hook
+			// also calls _abort() and is the primary signal in the WS case. The two
+			// are redundant by design (idempotent abort) so any future single-arg
+			// caller still gets disconnect semantics without relying on the WS layer.
+			nodeRequest.socket.once('close', () => this.#abortController.abort());
+		}
+	}
+	get signal(): AbortSignal {
+		return this.#abortController.signal;
+	}
+	/**
+	 * Abort this request's signal. Used by transports (e.g. WebSocket) that need to
+	 * signal client-side cancellation independently of the Node response lifecycle.
+	 */
+	_abort(): void {
+		this.#abortController.abort();
 	}
 	get absoluteURL() {
 		return this.protocol + '://' + this.host + this.url;
@@ -98,8 +145,7 @@ export class Request {
 		return this._nodeRequest.httpVersion;
 	}
 	get isAborted() {
-		// TODO: implement this
-		return false;
+		return this.#abortController.signal.aborted;
 	}
 	// Expose node request for cases that need direct access (e.g., replication)
 	get nodeRequest() {
@@ -280,6 +326,116 @@ export class Request {
 		this._nodeResponse.writeEarlyHints(headers);
 	}
 }
+
+/**
+ * Bun-compatible Request adapter. Wraps a Web Fetch API Request (from Bun.serve's fetch handler)
+ * to present the same interface as the Node.js-based Request class.
+ */
+export class BunRequest {
+	#body: BunRequestBody | undefined;
+	#ip: string | undefined;
+	#isSecure: boolean;
+	public _webRequest: globalThis.Request;
+	public _bunServer: any;
+	// Provide _nodeRequest as null for code that checks it; _nodeResponse is not applicable
+	public _nodeRequest: any = null;
+	public _nodeResponse: any = null;
+	public method: string;
+	public url: string;
+	public headers: RequestHeaders;
+	public isWebSocket?: boolean;
+	public user?: any;
+	public response: {
+		status?: number;
+		headers: ResponseHeaders;
+	};
+	public __harperRequestUpgraded: boolean;
+
+	constructor(webRequest: globalThis.Request, bunServer: any, isSecure: boolean) {
+		this._webRequest = webRequest;
+		this._bunServer = bunServer;
+		this.#isSecure = isSecure;
+		this.method = webRequest.method;
+		// Web Request.url is a full URL; extract the path + query to match Node's IncomingMessage.url
+		const fullUrl = webRequest.url;
+		const protocolEnd = fullUrl.indexOf('//');
+		const pathStart = fullUrl.indexOf('/', protocolEnd + 2);
+		this.url = pathStart >= 0 ? fullUrl.slice(pathStart) : '/';
+		// Convert Web Headers to plain object for our RequestHeaders wrapper
+		const headersObj: Record<string, string> = {};
+		webRequest.headers.forEach((value, key) => {
+			headersObj[key] = value;
+		});
+		this.headers = new RequestHeaders(headersObj);
+		this.__harperRequestUpgraded = false;
+	}
+	get absoluteURL() {
+		return this._webRequest.url;
+	}
+	get pathname() {
+		const queryStart = this.url.indexOf('?');
+		if (queryStart > -1) return this.url.slice(0, queryStart);
+		return this.url;
+	}
+	set pathname(pathname) {
+		const queryStart = this.url.indexOf('?');
+		if (queryStart > -1) this.url = pathname + this.url.slice(queryStart);
+		else this.url = pathname;
+	}
+	get protocol() {
+		return this.#isSecure ? 'https' : 'http';
+	}
+	get ip() {
+		if (this.#ip === undefined) {
+			const addr = this._bunServer?.requestIP?.(this._webRequest);
+			this.#ip = addr?.address || '';
+		}
+		return this.#ip;
+	}
+	get authorized() {
+		// TLS client authorization is not directly accessible via Bun.serve()
+		return undefined;
+	}
+	get peerCertificate() {
+		// Peer certificates are not accessible via Bun.serve()
+		return null;
+	}
+	get mtlsConfig() {
+		return undefined;
+	}
+	get body() {
+		return this.#body || (this.#body = new BunRequestBody(this._webRequest));
+	}
+	get host() {
+		return this.headers.get('host') as string;
+	}
+	get hostname() {
+		return this.headers.get('host') as string;
+	}
+	get httpVersion() {
+		return '1.1';
+	}
+	get isAborted() {
+		return this._webRequest.signal?.aborted ?? false;
+	}
+	get signal(): AbortSignal {
+		// Bun.serve() aborts this signal on HTTP client disconnect. Behavior on
+		// WebSocket-upgrade is implementation-defined; if the WS path needs
+		// guaranteed abort-on-close under Bun, wire it through Bun's ws close
+		// handler with a Bun-side AbortController, similar to REST.ts on Node.
+		return this._webRequest.signal;
+	}
+	_abort(): void {
+		// On Bun, abort is driven by the underlying Web Request's signal; no-op for parity with Node path.
+	}
+	get nodeRequest() {
+		return null;
+	}
+	sendEarlyHints(_link: string, _headers: Record<string, any> = {}) {
+		// Early hints not supported on Bun
+	}
+}
+
 class RequestBody {
 	#nodeRequest: IncomingMessage;
 	constructor(nodeRequest: IncomingMessage) {
@@ -294,8 +450,39 @@ class RequestBody {
 	}
 }
 
-class Headers {
-	private asObject: Record<string, string | string[]>;
+class BunRequestBody {
+	#webRequest: any;
+	#readable: any; // lazily created Readable stream
+	constructor(webRequest: any) {
+		this.#webRequest = webRequest;
+	}
+	#getReadable() {
+		if (!this.#readable) {
+			const body = this.#webRequest.body;
+			if (body) {
+				this.#readable = Readable.fromWeb(body as any);
+			} else {
+				// No body — create an empty readable that immediately ends
+				this.#readable = new Readable({
+					read() {
+						this.push(null);
+					},
+				});
+			}
+		}
+		return this.#readable;
+	}
+	on(event: string, listener: (...args: any[]) => void) {
+		this.#getReadable().on(event, listener);
+		return this;
+	}
+	pipe(destination: any, options?: any) {
+		return this.#getReadable().pipe(destination, options);
+	}
+}
+
+class RequestHeaders {
+	public asObject: Record<string, string | string[]>;
 
 	constructor(asObject: Record<string, string | string[]>) {
 		this.asObject = asObject;
@@ -322,11 +509,9 @@ class Headers {
 	delete(name: string) {
 		delete this.asObject[name.toLowerCase()];
 	}
-	forEach(callback: (value: string | string[], key: string, headers: Headers) => void) {
+	forEach(callback: (value: string | string[], key: string, headers: RequestHeaders) => void) {
 		for (const [key, value] of this) {
 			callback(value, key, this);
 		}
 	}
 }
-export let createReuseportFd: any;
-if (platform() != 'win32') createReuseportFd = require('node-unix-socket').createReuseportFd;

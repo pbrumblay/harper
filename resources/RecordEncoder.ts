@@ -15,7 +15,7 @@ import {
 	ACTION_32_BIT,
 	HAS_ADDITIONAL_AUDIT_REFS as HAS_ADDITIONAL_AUDIT_REFS_AUDIT,
 } from './auditStore.ts';
-import * as harperLogger from '../utility/logging/harper_logger.js';
+import * as harperLogger from '../utility/logging/harper_logger.ts';
 import './blob.ts';
 import { blobsWereEncoded, decodeFromDatabase, deleteBlobsInObject, encodeBlobsWithFilePath } from './blob.ts';
 import { getThisNodeId } from './nodeIdMapping.ts';
@@ -33,6 +33,7 @@ export type Entry = {
 	residencyId: number;
 	size: number;
 	deref?: () => any;
+	[METADATA]?: any;
 	additionalAuditRefs?: Array<{ version: number; nodeId: number }>;
 };
 
@@ -74,6 +75,9 @@ let timestampNextEncoding = 0,
 // tracking metadata with a singleton works better than trying to alter response of getEntry/get and coordinating that across caching layers
 export let lastMetadata: Entry | null = null;
 export class RecordEncoder extends Encoder {
+	rootStore: any;
+	declare saveStructures: any;
+	declare getStructures: any;
 	structureUpdate?: any;
 	isRocksDB: boolean;
 	name: string;
@@ -195,20 +199,23 @@ export class RecordEncoder extends Encoder {
 		const superGetStructures = this.getStructures;
 		this.saveStructures = function (structures, isCompatible): boolean | undefined {
 			if (this.isRocksDB) {
-				return this.rootStore.transactionSync((txn) => {
-					const sharedStructuresKey = [Symbol.for('structures'), this.name];
-					const existingStructuresBuffer = txn.getBinarySync(sharedStructuresKey);
-					const existingStructures = existingStructuresBuffer ? this.decode(existingStructuresBuffer) : undefined;
-					if (typeof isCompatible == 'function') {
-						if (!isCompatible(existingStructures)) {
+				return this.rootStore.transactionSync(
+					(txn) => {
+						const sharedStructuresKey = [Symbol.for('structures'), this.name];
+						const existingStructuresBuffer = txn.getBinarySync(sharedStructuresKey);
+						const existingStructures = existingStructuresBuffer ? this.decode(existingStructuresBuffer) : undefined;
+						if (typeof isCompatible == 'function') {
+							if (!isCompatible(existingStructures)) {
+								return false;
+							}
+						} else if (existingStructures && existingStructures.length !== isCompatible) {
 							return false;
 						}
-					} else if (existingStructures && existingStructures.length !== isCompatible) {
-						return false;
-					}
-					txn.putSync(sharedStructuresKey, structures);
-					this.structureUpdate = structures;
-				});
+						txn.putSync(sharedStructuresKey, structures);
+						this.structureUpdate = structures;
+					},
+					{ retryOnBusy: true }
+				);
 			} else {
 				const result = superSaveStructures.call(this, structures, isCompatible);
 				this.structureUpdate = structures;
@@ -318,7 +325,7 @@ export class RecordEncoder extends Encoder {
 					additionalAuditRefs,
 					size: end - start,
 					value,
-				};
+				} as any;
 				if (this.isRocksDB) return lastMetadata;
 				return value;
 			} // else a normal entry
@@ -387,7 +394,7 @@ export function handleLocalTimeForGets(store, rootStore) {
 				if (entry.value.constructor === Object) {
 					// if an object was deserialized as a plain object, give it the right prototype for computed properties to be accessible
 					const originalValue = entry.value;
-					entry.value = new this.encoder.structPrototype.constructor();
+					entry.value = new store.encoder.structPrototype.constructor();
 					Object.assign(entry.value, originalValue);
 				}
 				entryMap.set(entry.value, entry); // allow the record to access the entry
@@ -445,7 +452,7 @@ export function handleLocalTimeForGets(store, rootStore) {
 				if (entry.value.constructor === Object) {
 					// if an object was deserialized as a plain object, give it the right prototype for computed properties to be accessible
 					const originalValue = entry.value;
-					entry.value = new this.encoder.structPrototype.constructor();
+					entry.value = new store.encoder.structPrototype.constructor();
 					for (const key in originalValue) entry.value[key] = originalValue[key];
 				}
 			}
@@ -565,6 +572,7 @@ export function recordUpdater(store, tableId, auditStore) {
 			version: number;
 			instructedWrite?: boolean;
 			ifVersion?: number;
+			transaction?: any;
 		} = {
 			version: newVersion,
 			instructedWrite: timestampNextEncoding > 0,
@@ -580,7 +588,7 @@ export function recordUpdater(store, tableId, auditStore) {
 				metadataInNextEncoding |= HAS_RESIDENCY_ID;
 				extendedType |= HAS_CURRENT_RESIDENCY_ID;
 			} else residencyIdAtNextEncoding = 0;
-			const nodeId = options?.nodeId;
+			const nodeId = options?.nodeId ?? (audit ? getThisNodeId(auditStore) : undefined);
 			if (nodeId >= 0) {
 				nodeIdAtNextEncoding = nodeId;
 				metadataInNextEncoding |= HAS_NODE_ID;

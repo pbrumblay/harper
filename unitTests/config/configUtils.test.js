@@ -8,12 +8,12 @@ const path = require('path');
 const fs = require('fs-extra');
 const config_utils_rw = rewire('#js/config/configUtils');
 const YAML = require('yaml');
-const logger = require('#js/utility/logging/harper_logger');
-const common_utils = require('#js/utility/common_utils');
+const logger = require('#src/utility/logging/harper_logger');
+const common_utils = require('#src/utility/common_utils');
 const testUtils = require('../testUtils.js');
 const hdbTerms = require('#src/utility/hdbTerms');
-const { handleHDBError } = require('#js/utility/errors/hdbError');
-const { HTTP_STATUS_CODES } = require('#js/utility/errors/commonErrors');
+const { handleHDBError } = require('#src/utility/errors/hdbError');
+const { HTTP_STATUS_CODES } = require('#src/utility/errors/commonErrors');
 
 const DIRNAME = __dirname;
 const HDB_ROOT = path.join(DIRNAME, 'yaml');
@@ -194,6 +194,27 @@ describe('Test configUtils module', () => {
 				.readdirSync(path.dirname(ATOMIC_TEST_PATH))
 				.filter((e) => e.startsWith('atomic-write-test.yaml.') && e.endsWith('.tmp'));
 			expect(stragglers).to.be.empty;
+		});
+
+		it('generates a unique temp path even when pid and timestamp are identical', () => {
+			// Worker threads share process.pid, and worker arrivals cluster within the
+			// same millisecond — a pid+timestamp scheme would collide. Pin Date.now()
+			// so this test fails if uniqueness ever stops depending on randomness.
+			const writeStub = sandbox.stub(fs, 'writeFileSync');
+			const renameStub = sandbox.stub(fs, 'renameSync');
+			const dateStub = sandbox.stub(Date, 'now').returns(1234567890);
+			try {
+				const tempPaths = new Set();
+				for (let i = 0; i < 100; i++) {
+					atomicWriteFile(ATOMIC_TEST_PATH, 'content');
+					tempPaths.add(writeStub.lastCall.args[0]);
+				}
+				expect(tempPaths.size).to.equal(100);
+			} finally {
+				writeStub.restore();
+				renameStub.restore();
+				dateStub.restore();
+			}
 		});
 	});
 

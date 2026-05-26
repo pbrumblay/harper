@@ -314,8 +314,13 @@ describe('Subscription replay', () => {
 				inFlight.push(FreshTable.put(20000 + i, { name: 'fresh_inflight' + i }));
 			}
 			const subscription = await FreshTable.subscribe({ startTime: startTime - 1, isCollection: true });
-			const events = await collect(subscription, 250);
+			// Collect while writes commit: attach listener first, await all commits, then drain.
+			// Using collect()'s quiet-period timer here is racy — it can expire before all in-flight
+			// writes have committed and their events have been delivered.
+			const events = [];
+			subscription.on('data', (e) => events.push(e));
 			await Promise.all(inFlight);
+			await delay(300);
 			subscription.return?.();
 
 			const ids = new Set(events.map((e) => e.id));
@@ -345,8 +350,13 @@ describe('Subscription replay', () => {
 					}
 				}
 			})();
-			const events = await collect(subscription, 200);
+			// Attach listener before awaiting writes so no event is missed during commit.
+			// collect()'s quiet-period can expire while round-2 writes are still in progress,
+			// causing the final-value assertion below to see stale values.
+			const events = [];
+			subscription.on('data', (e) => events.push(e));
 			await concurrentWrites;
+			await delay(200);
 			subscription.return?.();
 
 			// every key in 6000..6199 must appear at least once
@@ -472,8 +482,12 @@ describe('Subscription replay', () => {
 			}
 			// subscribe immediately — lastTxnTime is captured now, mid-flight
 			const subscription = await StartTimeTable.subscribe({ startTime: startTime - 1, isCollection: true });
-			const events = await collect(subscription, 250);
+			// Same fix as FIRST-subscription race test: attach listener before awaiting writes
+			// so events from commits that land after collect()'s quiet period aren't dropped.
+			const events = [];
+			subscription.on('data', (e) => events.push(e));
 			await Promise.all(inFlight);
+			await delay(300);
 			subscription.return?.();
 
 			const ids = new Set(events.map((e) => e.id));
@@ -504,6 +518,36 @@ describe('Subscription replay', () => {
 			for (let i = 0; i < 200; i++) {
 				assert.ok(lastByKey.has(14000 + i), `in-flight id ${14000 + i} never delivered`);
 			}
+		});
+
+		// Regression: subscribe to an empty table, then write a single record. Production
+		// repro: cloneNode peers not appearing in subscribeToNodeUpdates. The rocksdb-backed
+		// aggregate audit-log iterator (RocksTransactionLogStore.getRange with no specified
+		// log) was created when the only log was empty, so its initial
+		// `iterators.map(it => it.next())` populated `nextEntries` with `{ done: true }`. The
+		// inner `next()` loop kept skipping that stale done slot without re-polling the
+		// underlying iterator, so when the write's `'committed'` wake-up arrived and called
+		// `notifyFromTransactionData`, the aggregate iterator returned `done` immediately
+		// and the write was silently dropped — leaving the subscriber waiting forever.
+		it('!omitCurrent: subscribe-then-write on a fresh database delivers the write', async () => {
+			const T = table({
+				table: 'SubReplaySubThenOne',
+				database: 'subReplaySubThenOne', // fresh database — no prior subscriptions/iterator
+				attributes: [{ name: 'id', isPrimaryKey: true }, { name: 'name' }],
+				audit: true,
+			});
+			const subscription = await T.subscribe({ isCollection: true });
+			const events = [];
+			subscription.on('data', (e) => events.push(e));
+			// allow subscribe's IIFE to fully complete before issuing the write — this is
+			// the production timing: subscribe is established, then a live write arrives
+			await delay(50);
+			await T.put(50000, { name: 'single' });
+			await delay(300);
+			subscription.return?.();
+
+			assert.equal(events.length, 1, `expected 1 event for the post-subscribe write, got ${events.length}`);
+			assert.equal(events[0].id, 50000);
 		});
 
 		it('count: subscribe while writes are in flight does not duplicate history', async function () {
@@ -868,6 +912,96 @@ describe('Subscription replay', () => {
 			await delay(200);
 			// shouldn't have crashed; we likely got some events (anywhere from 0 to 500)
 			assert.ok(events.length >= 0, `events array exists`);
+		});
+
+		it('delivers all live events when a single committed burst exceeds the notify batch size', async () => {
+			// transactionBroadcast yields back to the event loop every NOTIFY_BATCH_SIZE (256)
+			// audit records during a drain. A subscription receiving a burst larger than that must
+			// still see every event with no duplicates.
+			const T = table({
+				table: 'BurstNotify',
+				database: 'test',
+				attributes: [{ name: 'id', isPrimaryKey: true }, { name: 'name' }],
+				audit: true,
+			});
+			const startTime = Date.now();
+			const subscription = await T.subscribe({ startTime: startTime - 100, isCollection: true });
+			// give the live-listener wiring a microtask to attach before we start writing
+			await delay(10);
+			// queue a burst of writes large enough to span multiple notify batches
+			const N = 600;
+			for (let i = 0; i < N; i++) {
+				await T.put(20000 + i, { name: 'burst' + i });
+			}
+			const events = await collect(subscription, 300);
+			subscription.return?.();
+
+			const ids = new Set(events.map((e) => e.id));
+			let missing = 0;
+			for (let i = 0; i < N; i++) {
+				if (!ids.has(20000 + i)) missing++;
+			}
+			assert.equal(missing, 0, `missing ${missing} of ${N} burst ids`);
+			const pairs = events.map((e) => `${e.id}:${e.version}`);
+			assert.equal(new Set(pairs).size, pairs.length, 'duplicate (id,version) emitted during burst');
+		});
+
+		it('whenNextTransaction resolves on commit even when no per-key subscribers exist', async () => {
+			// Regression for the activeCount short-circuit: whenNextTransaction sets up a
+			// scope: 'full-database' subscription that intentionally does not increment activeCount.
+			// The 'committed' listener must still rotate the nextTransaction promise so the waiter
+			// wakes — otherwise outbound replication hangs whenever a database has no local
+			// per-key subscriptions.
+			const { whenNextTransaction } = require('#src/resources/transactionBroadcast');
+			const T = table({
+				table: 'WhenNextTxnIdle',
+				database: 'test',
+				attributes: [{ name: 'id', isPrimaryKey: true }, { name: 'name' }],
+				audit: true,
+			});
+			// no Table.subscribe() — only the full-database waiter
+			const wake = whenNextTransaction(T.auditStore);
+			let resolved = false;
+			wake.then(() => {
+				resolved = true;
+			});
+			await T.put(40000, { name: 'wake_me' });
+			// give the committed listener + microtask a tick to resolve
+			await delay(50);
+			assert.equal(
+				resolved,
+				true,
+				'whenNextTransaction should resolve when a commit lands with no per-key subscribers'
+			);
+		});
+
+		it('resumes delivery after a subscribe/end/subscribe cycle with writes in between', async () => {
+			// regression for the activeCount short-circuit: when no subscribers exist, the audit
+			// notify loop skips iteration. A new subscription after a quiescent period must still
+			// pick up subsequent commits.
+			const T = table({
+				table: 'ResubscribeAfterIdle',
+				database: 'test',
+				attributes: [{ name: 'id', isPrimaryKey: true }, { name: 'name' }],
+				audit: true,
+			});
+			const startTime = Date.now();
+			const s1 = await T.subscribe({ startTime: startTime - 1, isCollection: true });
+			await T.put(30000, { name: 'first' });
+			await delay(50);
+			s1.return?.();
+			// commits land while no subscriber is attached
+			await T.put(30001, { name: 'orphan_a' });
+			await T.put(30002, { name: 'orphan_b' });
+
+			const reSubStart = Date.now();
+			const s2 = await T.subscribe({ startTime: reSubStart - 1, isCollection: true });
+			await T.put(30003, { name: 'after_resub' });
+			const events = await collect(s2, 150);
+			s2.return?.();
+
+			const ids = new Set(events.map((e) => e.id));
+			assert.ok(ids.has(30003), 'event after re-subscribe was not delivered');
 		});
 
 		it('audit records of types not in ACTIONS_OF_INTEREST are still delivered by cursor', async () => {

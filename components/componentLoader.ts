@@ -12,7 +12,7 @@ import {
 import { join, basename, dirname } from 'node:path';
 import { isMainThread } from 'node:worker_threads';
 import { parseDocument } from 'yaml';
-import * as env from '../utility/environment/environmentManager.js';
+import * as env from '../utility/environment/environmentManager.ts';
 import { PACKAGE_ROOT } from '../utility/packageUtils.js';
 import { CONFIG_PARAMS, HDB_ROOT_DIR_NAME, ITC_EVENT_TYPES } from '../utility/hdbTerms.ts';
 import * as graphqlHandler from '../resources/graphql.ts';
@@ -23,7 +23,7 @@ import * as login from '../resources/login.ts';
 import * as REST from '../server/REST.ts';
 import * as staticFiles from '../server/static.ts';
 import * as loadEnv from '../resources/loadEnv.ts';
-import harperLogger from '../utility/logging/harper_logger.js';
+import harperLogger from '../utility/logging/harper_logger.ts';
 import * as dataLoader from '../resources/dataLoader.ts';
 import { restartWorkers, getWorkerIndex } from '../server/threads/manageThreads.js';
 import { resetRestartNeeded, subscribeToRestartRequests } from './requestRestart.ts';
@@ -31,12 +31,11 @@ import { scopedImport } from '../security/jsLoader.ts';
 import { server } from '../server/Server.ts';
 import { Resources } from '../resources/Resources.ts';
 import { table } from '../resources/databases.ts';
-import { startSocketServer } from '../server/threads/socketRouter.ts';
-import { getHdbBasePath } from '../utility/environment/environmentManager.js';
+import { getHdbBasePath } from '../utility/environment/environmentManager.ts';
 import * as auth from '../security/auth.ts';
 import * as mqtt from '../server/mqtt.ts';
 import { getConfigObj, getConfigPath } from '../config/configUtils.js';
-import { createReuseportFd } from '../server/serverHelpers/Request.ts';
+import { bootstrapModels } from '../resources/models/bootstrap.ts';
 import { ErrorResource } from '../resources/ErrorResource.ts';
 import { Scope } from './Scope.ts';
 import { ApplicationScope } from './ApplicationScope.ts';
@@ -90,7 +89,7 @@ export function loadComponentDirectories(loadedPluginModules?: Map<any, any>, lo
 	});
 }
 
-export const TRUSTED_RESOURCE_PLUGINS = {
+export const TRUSTED_RESOURCE_PLUGINS: any = {
 	REST, // for backwards compatibility with older configs
 	rest: REST,
 	graphql: graphqlQueryHandler,
@@ -116,6 +115,16 @@ export const TRUSTED_RESOURCE_PLUGINS = {
 };
 if (isMainThread) {
 	TRUSTED_RESOURCE_PLUGINS.operationsApi = require('../server/operationsServer');
+} else {
+	// The HTTP operations API itself only binds in the main thread, but worker threads still
+	// dispatch operations — most notably, the replication WebSocket handler in workers receives
+	// inter-node operations like `add_node_back` and calls `server.operation(...)`. That requires
+	// `server.operation` / `server.registerOperation` to be wired up here too, and the operation
+	// function map to be initialized, BEFORE component plugins (replication, etc.) load and call
+	// `server.registerOperation?.({...})` at their module top level. Requiring serverUtilities
+	// directly (rather than the full operationsServer) avoids binding the fastify HTTP layer in
+	// workers while still installing the dispatch machinery.
+	require('../server/serverHelpers/serverUtilities');
 }
 
 for (const { name, packageIdentifier } of getEnvBuiltInComponents()) {
@@ -124,7 +133,6 @@ for (const { name, packageIdentifier } of getEnvBuiltInComponents()) {
 
 const BUILT_INS = Object.keys(TRUSTED_RESOURCE_PLUGINS);
 
-const portsStarted = [];
 export const loadedPaths = new Map();
 let errorReporter;
 export function setErrorReporter(reporter) {
@@ -307,6 +315,12 @@ export async function loadComponent(
 		}
 		applicationScope.config ??= config;
 
+		// #629 (Phase 2 of #510): populate the model-backend registry from the root
+		// config's `models:` block before any user `handleApplication(scope)` runs,
+		// so `scope.models.embed(...)` works from app-init code as well as Resource
+		// methods. Per-entry errors are logged and skipped by `bootstrapModels`.
+		if (isRoot) bootstrapModels(config);
+
 		if (!isRoot) {
 			try {
 				await symlinkHarperModule(componentDirectory);
@@ -468,22 +482,8 @@ export async function loadComponent(
 							...componentConfig,
 						})) || extensionModule;
 					if (isRoot && network) {
-						for (const possiblePort of [port, securePort]) {
-							try {
-								if (+possiblePort && !portsStarted.includes(possiblePort)) {
-									const sessionAffinity = env.get(CONFIG_PARAMS.HTTP_SESSIONAFFINITY);
-									if (sessionAffinity)
-										harperLogger.warn('Session affinity is not recommended and may cause memory leaks');
-									if (sessionAffinity || !createReuseportFd) {
-										// if there is a TCP port associated with the plugin, we set up the routing on the main thread for it
-										portsStarted.push(possiblePort);
-										startSocketServer(possiblePort, sessionAffinity);
-									}
-								}
-							} catch (error) {
-								console.error('Error listening on socket', possiblePort, error, componentName);
-							}
-						}
+						if (env.get(CONFIG_PARAMS.HTTP_SESSIONAFFINITY))
+							harperLogger.warn('Session affinity is not supported and will be ignored');
 					}
 				}
 				if (resources.isWorker)

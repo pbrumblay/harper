@@ -2,18 +2,19 @@ import { Resource } from '../resources/Resource.ts';
 import { contextStorage, transaction } from '../resources/transaction.ts';
 import { RequestTarget } from '../resources/RequestTarget.ts';
 import { tables, databases } from '../resources/databases.ts';
+import { Models } from '../resources/models/Models.ts';
 import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { SourceTextModule, SyntheticModule, createContext, runInContext, runInThisContext } from 'node:vm';
 import { ApplicationScope } from '../components/ApplicationScope.ts';
-import logger from '../utility/logging/harper_logger.js';
+import logger from '../utility/logging/harper_logger.ts';
 import { createRequire } from 'node:module';
 import * as env from '../utility/environment/environmentManager';
 import * as child_process from 'node:child_process';
 import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
 import { contentTypes } from '../server/serverHelpers/contentTypes.ts';
-import type { CompartmentOptions } from 'ses';
+import type {} from 'ses';
 import {
 	mkdirSync,
 	readFileSync,
@@ -38,6 +39,18 @@ const HARPER_MODULE_IDS = new Set([
 	'@harperfast/harper',
 	'@harperfast/harper-pro',
 ]);
+
+// #629 (Phase 2 of #510): module-singleton `Models` facade used by
+// `getHarperExports` to populate `harper.models`. The Models class has no
+// per-Scope or per-ApplicationScope state (registry + analytics writer are
+// process-singletons), so a single shared instance is equivalent to the
+// per-Scope instance Phase 1 wired in `components/Scope.ts` while keeping
+// that wiring untouched.
+let _harperModels: Models | undefined;
+function harperModels(): Models {
+	if (!_harperModels) _harperModels = new Models();
+	return _harperModels;
+}
 
 let lockedDown = false;
 /**
@@ -95,6 +108,7 @@ export async function scopedImport(filePath: string | URL, scope?: ApplicationSc
 			// is hidden behind a private symbol (arrowMessagePrivateSymbol)
 			// on the error object and the only way to access it is to use the
 			// internal util.decorateErrorStack() function
+			// @ts-ignore
 			const util = await import('internal/util');
 			util.default.decorateErrorStack(err);
 		} catch {
@@ -549,7 +563,7 @@ async function loadModuleWithVM(moduleUrl: string, scope: ApplicationScope, useC
 async function getCompartment(scope: ApplicationScope, globals) {
 	const { StaticModuleRecord } = await import('@endo/static-module-record');
 	require('ses');
-	const compartment: CompartmentOptions = new (Compartment as typeof CompartmentOptions)(
+	const compartment: any = new (Compartment as any)(
 		globals,
 		{
 			//harperdb: { Resource, tables, databases }
@@ -683,6 +697,13 @@ function getHarperExports(scope: ApplicationScope) {
 		Resource,
 		tables,
 		databases,
+		// #629 (Phase 2 of #510): expose `harper.models` so user code can call
+		// `harper.models.embed(...)`. Uses a shared module-singleton — the
+		// `Models` facade reads ALS for per-request context and a process-wide
+		// backend registry, so per-Scope instances would carry no extra state.
+		// The registry it reads from is populated at boot by
+		// `resources/models/bootstrap.ts`.
+		models: harperModels(),
 		createBlob,
 		RequestTarget,
 		getContext,
@@ -722,7 +743,7 @@ const ALLOWED_NODE_BUILTIN_MODULES = env.get(CONFIG_PARAMS.APPLICATIONS_ALLOWEDB
 			},
 		};
 const ALLOWED_COMMANDS = new Set(env.get(CONFIG_PARAMS.APPLICATIONS_ALLOWEDSPAWNCOMMANDS) ?? []);
-const child_processConstrained = {
+const child_processConstrained: any = {
 	exec: createSpawn(child_process.exec),
 	execFile: createSpawn(child_process.execFile),
 	fork: createSpawn(child_process.fork, true), // this is launching node, so deemed safe
@@ -945,14 +966,14 @@ function createSpawn(spawnFunction: (...args: any) => child_process.ChildProcess
  */
 function checkAllowedModulePath(moduleUrl: string, allowedPath?: string): boolean {
 	if (moduleUrl.startsWith('file:')) {
-		let path = moduleUrl.slice(7);
+		let path = fileURLToPath(moduleUrl);
 		try {
 			path = realpathSync(path);
 		} catch {}
 		if (!allowedPath || path.startsWith(allowedPath)) {
 			return;
 		}
-		throw new Error(`Can not load module outside of allowed path`);
+		throw new Error(`Can not load module at ${path} outside of allowed path ${allowedPath}`);
 	}
 	let simpleName = moduleUrl.startsWith('node:') ? moduleUrl.slice(5) : moduleUrl;
 	simpleName = simpleName.split('/')[0];
@@ -967,7 +988,7 @@ export function getUser() {
 	return contextStorage.getStore()?.user;
 }
 export function getResponse() {
-	return contextStorage.getStore()?.response;
+	return (contextStorage.getStore() as any)?.response;
 }
 
 export function preventFunctionConstructor() {
@@ -1008,7 +1029,7 @@ function freezeIntrinsics() {
 		FinalizationRegistry,
 	]) {
 		Object.freeze(Intrinsic);
-		Object.freeze(Intrinsic.prototype);
+		Object.freeze((Intrinsic as any).prototype);
 	}
 	Object.freeze(Function);
 }
