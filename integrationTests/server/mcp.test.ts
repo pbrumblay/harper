@@ -126,15 +126,17 @@ suite('MCP Streamable HTTP transport (operations profile)', (ctx: ContextWithHar
 		const sessionId = initRes.headers.get('mcp-session-id')!;
 		await initRes.body?.cancel();
 
+		// `resources/list` is intentionally not implemented in #615 (lands in #616).
+		// `tools/list` would be a poor choice here — it's a real handler in this PR.
 		const res = await jsonRpcPost(
 			ctx,
-			{ jsonrpc: '2.0', id: 2, method: 'tools/list' },
+			{ jsonrpc: '2.0', id: 2, method: 'resources/list' },
 			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
 		);
 		strictEqual(res.status, 200);
 		const body = (await res.json()) as { jsonrpc: string; id: number; error: { code: number; message: string } };
 		strictEqual(body.error.code, -32601);
-		match(body.error.message, /tools\/list/);
+		match(body.error.message, /resources\/list/);
 	});
 
 	test('request without Mcp-Session-Id returns 400', async () => {
