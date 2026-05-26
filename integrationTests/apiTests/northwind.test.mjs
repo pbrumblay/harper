@@ -2160,7 +2160,7 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 		// Use awaitJob + manual assertions so we can return job.message as a raw
 		// object — awaitJobCompleted would stringify it, breaking callers that
 		// access errorMsg.unauthorized_access / errorMsg.invalid_schema_items.
-		const jobResp = await awaitJob(client, getJobId(r.body), 30);
+		const jobResp = await awaitJob(client, getJobId(r.body), isBunRuntime ? 60 : 30);
 		const job = jobResp.body[0];
 		assert.ok(job, `No job found in response: ${jobResp.text}`);
 		if (_expectedError) {
@@ -2249,10 +2249,15 @@ suite('Northwind operations', { skip: skipSuite }, (ctx) => {
 		return val;
 	}
 
+	// Harper runs the test process in Node.js but sets HARPER_RUNTIME=bun when the
+	// server itself uses Bun. process.versions.bun is therefore undefined; use the
+	// env var to detect the Bun runtime.
+	const isBunRuntime = process.env.HARPER_RUNTIME === 'bun';
+
 	// Some HarperDB wildcard-string-search operations fail on Bun with
 	// "finishUtf8 is not defined" — a V8-internal API Bun does not expose.
 	// Skip those tests on Bun rather than failing CI.
-	const bunSkip = process.versions.bun ? 'finishUtf8 is not available in Bun' : false;
+	const bunSkip = isBunRuntime ? 'finishUtf8 is not available in Bun' : false;
 
 	suite('2. Data Load', () => {
 		//CSV Folder
