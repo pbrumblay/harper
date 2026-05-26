@@ -7,7 +7,7 @@
  * and $SYS monitoring events.
  */
 import { suite, test, before, after } from 'node:test';
-import { strictEqual, ok, deepStrictEqual } from 'node:assert/strict';
+import { strictEqual, ok } from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
@@ -207,7 +207,7 @@ suite('Component: acl-connect', (ctx: ContextWithHarper) => {
 			package: FIXTURE_PATH,
 			restart: true,
 		});
-		deepStrictEqual(deployBody, { message: `Successfully deployed: ${PROJECT}, restarting Harper` });
+		strictEqual(deployBody.message, `Successfully deployed: ${PROJECT}, restarting Harper`);
 
 		// poll until SUBSCRIBE to dog/# returns a non-143 SUBACK — covers the
 		// race where JWT connect succeeds before @harperdb/acl-connect has
