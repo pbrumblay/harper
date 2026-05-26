@@ -198,7 +198,12 @@ function assertReasonIn(err: any, allowed: readonly number[], label: string): vo
 	);
 }
 
-suite('Component: acl-connect', (ctx: ContextWithHarper) => {
+// mqtt.js's WebSocket transport doesn't complete CONNACK on Bun, so the
+// suite setup times out. Match the skip pattern used by other apiTests that
+// hit MQTT/WS surfaces.
+const skipSuite = process.env.HARPER_RUNTIME === 'bun';
+
+suite('Component: acl-connect', { skip: skipSuite }, (ctx: ContextWithHarper) => {
 	before(async () => {
 		await startHarper(ctx);
 
