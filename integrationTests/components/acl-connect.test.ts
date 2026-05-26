@@ -84,7 +84,12 @@ function connect(url: string, opts: IClientOptions): Promise<MqttClient> {
 function subscribe(client: MqttClient, topic: string, opts: { qos: 0 | 1 | 2 } = { qos: 1 }): Promise<any[]> {
 	return new Promise((resolve, reject) => {
 		client.subscribe(topic, opts, (err, granted) => {
-			if (err) reject(err);
+			// mqtt v5 surfaces a failure SUBACK as ErrorWithSubackPacket; the
+			// denial codes (e.g. 135 Not authorized, 143 Topic Filter invalid)
+			// live on err.packet.granted and are what callers want to inspect.
+			const subackGranted = (err as any)?.packet?.granted;
+			if (Array.isArray(subackGranted)) resolve(subackGranted);
+			else if (err) reject(err);
 			else resolve(granted ?? []);
 		});
 	});
