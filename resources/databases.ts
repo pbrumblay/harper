@@ -1111,7 +1111,12 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 				attributeDescriptor.version !== attribute.version ||
 				attributeDescriptor.enumerable !== attribute.enumerable ||
 				JSON.stringify(attributeDescriptor.properties) !== JSON.stringify(attribute.properties) ||
-				JSON.stringify(attributeDescriptor.elements) !== JSON.stringify(attribute.elements);
+				JSON.stringify(attributeDescriptor.elements) !== JSON.stringify(attribute.elements) ||
+				// `@embed` directive change must trigger refresh — the parser sets
+				// `attribute.version = "embed:<model>"` so a model-only change is already
+				// picked up via the `version` check above, but a `source:` change with the
+				// same model would otherwise leave `embedAttributes` / `userEmbedders` stale.
+				JSON.stringify(attributeDescriptor.embed) !== JSON.stringify(attribute.embed);
 			if (attribute.indexed) {
 				const dbi = openIndex(dbiKey, rootStore, attribute);
 				if (

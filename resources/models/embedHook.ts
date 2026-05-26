@@ -162,9 +162,10 @@ export function createDefaultEmbedder(embedConfig: EmbedConfig): Embedder {
  * `source: null`, we clear the embedding to `null` to preserve consistency
  * between the source and its derived vector.
  *
- * The returned callback awaits each embedder serially. Multi-`@embed`-per-
- * table is rare; parallelism here would complicate error reporting without a
- * meaningful latency win in the common case (one embed attribute per table).
+ * The returned callback runs registered embedders in parallel via `Promise.all`.
+ * Each embedder mutates a distinct attribute on the same record, so there's no
+ * ordering hazard; parallelizing avoids serializing HTTP roundtrips on the rare
+ * multi-`@embed`-per-table case at no cost for the common single-embed case.
  */
 export function buildEmbedBefore(
 	record: any,
@@ -204,6 +205,13 @@ export function buildEmbedBefore(
 					record[attr.name] = null;
 					return;
 				}
+				// CRDT operation payloads (`{__op__, value}`) are unwrapped at validate-time
+				// (see `Table.validate`). Harper today only supports the numeric `add` op
+				// (`resources/crdt.ts`), which isn't a meaningful `@embed` source — and the
+				// raw op object would stringify to "[object Object]" if passed to the
+				// embedder. Skip the embed call; the validate-time unwrap of `value` is
+				// what gets stored, and any future write on the resolved value re-embeds.
+				if (sourceValue && typeof sourceValue === 'object' && (sourceValue as any).__op__) return;
 				const embedder = userEmbedders[attr.name];
 				if (!embedder) return;
 				let vector;
@@ -219,8 +227,34 @@ export function buildEmbedBefore(
 					getLogger().error?.(`Embedder for attribute "${attr.name}" failed:`, err);
 					throw new Error(`Failed to compute embedding for attribute "${attr.name}"`);
 				}
-				record[attr.name] = vector == null ? null : vector;
+				record[attr.name] = normalizeVector(vector);
 			})
 		);
 	};
+}
+
+/**
+ * Normalize an embedder's output to a plain `Array<number>` for storage. The default
+ * embedder already returns `Array<number>` (see `createDefaultEmbedder`), but custom
+ * embedders registered via `Table.setEmbedAttribute` are free to return any of the
+ * `Embedder` return shapes — `Float32Array`, `Float64Array`, plain arrays, etc. We
+ * unify here for two reasons:
+ *
+ *   1. The record encoder mangles typed arrays via `updateAndFreeze` into `{0,1,2,...}`
+ *      maps; only plain `Array<number>` round-trips cleanly.
+ *   2. `Table.validate()` has no `Vector` case, and `coerceType` is only called on
+ *      query/PK values, not write payloads — so an unsanitized embedder result would
+ *      reach the encoder as-is.
+ *
+ * Returns `null` for `null`/`undefined`/non-array-like input; lets through anything
+ * the encoder will handle correctly. A finite-check on the values is *not* performed —
+ * HNSW will reject NaN at index time, and a noisy embedder is the component author's
+ * bug to fix, not Harper's to silently mask.
+ */
+function normalizeVector(vector: any): number[] | null {
+	if (vector == null) return null;
+	if (Array.isArray(vector)) return vector;
+	if (vector instanceof Float32Array) return Array.from(vector);
+	if (ArrayBuffer.isView(vector)) return Array.from(vector as any);
+	return vector;
 }

@@ -3,7 +3,12 @@
 const assert = require('node:assert/strict');
 const { buildEmbedBefore, createDefaultEmbedder, __setEmbedFnForTest } = require('#src/resources/models/embedHook');
 
-const VECTOR = new Float32Array([0.1, 0.2, 0.3]);
+const VECTOR_F32 = new Float32Array([0.1, 0.2, 0.3]);
+// Embedders can return any of the `Embedder` shapes (Float32Array, Array<number>, etc.).
+// `buildEmbedBefore` normalizes the output to `Array<number>` for storage — the record
+// encoder mangles typed arrays via `updateAndFreeze`, so we flatten at the boundary.
+// `VECTOR` is what's STORED; `VECTOR_F32` is what the embedder may RETURN.
+const VECTOR = Array.from(VECTOR_F32);
 
 function fakeEmbedCapturing() {
 	const calls = [];
@@ -179,6 +184,42 @@ describe('embedHook', () => {
 			assert.ok(before);
 			await before();
 			assert.equal(record.embedding, null);
+		});
+
+		it('normalizes custom-embedder typed-array output to Array<number> for storage', async () => {
+			// Custom embedders set via `setEmbedAttribute` may return Float32Array (or any
+			// `Embedder` return shape). The hook normalizes at the boundary so the record
+			// encoder's typed-array mangling can't bite us — see `normalizeVector` in
+			// `embedHook.ts`. `Table.validate()` has no Vector case and `coerceType` is
+			// only called on PK/query paths, so this is the only normalization point on
+			// the write hot path.
+			const record = { content: 'hello' };
+			const before = buildEmbedBefore(record, {}, {}, attrs, {
+				embedding: async () => VECTOR_F32, // typed-array return from a custom embedder
+			});
+			assert.ok(before);
+			await before();
+			assert.ok(Array.isArray(record.embedding), `expected Array, got ${record.embedding?.constructor?.name}`);
+			assert.deepEqual(record.embedding, VECTOR);
+		});
+
+		it('skips the embed call when the source payload is a CRDT operation', async () => {
+			// CRDT ops (`{__op__, value}`) get unwrapped at validate-time (`Table.validate`).
+			// Harper today only supports numeric `add` (`resources/crdt.ts`), which isn't a
+			// meaningful @embed source. Sending the raw op object to the embedder would
+			// stringify to "[object Object]" and waste an embedder API call.
+			const record = { content: { __op__: 'add', value: 5 } };
+			let called = false;
+			const before = buildEmbedBefore(record, {}, {}, attrs, {
+				embedding: async () => {
+					called = true;
+					return VECTOR;
+				},
+			});
+			assert.ok(before);
+			await before();
+			assert.equal(called, false, 'embedder should not run when source value is a CRDT op');
+			assert.equal(record.embedding, undefined, 'no vector should be written for CRDT-op source');
 		});
 
 		it('propagates a sanitized error when the embedder throws', async () => {

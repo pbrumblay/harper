@@ -1692,10 +1692,36 @@ export function makeTable(options) {
 								// ensure that the primary key is correct, if there is supposed to be one
 								recordUpdate[primaryKey] = id;
 							}
-							if (fullUpdate) {
-								recordUpdate = updateAndFreeze(recordUpdate); // this flatten and freeze the record
+							// `@embed` write-time hook (Phase 5 of #510). Runs at validate-time, not
+							// _writeUpdate-time, so that post-update instance mutations (the
+							// `await Table.update(id, {}); row.content = '...'; row.save()` pattern
+							// in transaction tests) are visible to the embedder. The hook is no-op
+							// when the source field isn't present in `recordUpdate`, on replication
+							// receivers, or when the table has no `@embed` attributes — see
+							// `buildEmbedBefore` predicates. The hook mutates `recordUpdate` in
+							// place (`recordUpdate[attr.name] = vector`); we must run it BEFORE the
+							// `updateAndFreeze` flatten below for fullUpdate (PUT), or the mutation
+							// would hit a frozen target. Returning the embedder promise from
+							// `validate` propagates through `DatabaseTransaction.save` /
+							// `LMDBTransaction.commit` which now await async validate before
+							// calling `commit(...)`.
+							const embedBefore = buildEmbedBefore(
+								recordUpdate,
+								context,
+								options,
+								TableResource.embedAttributes,
+								TableResource.userEmbedders
+							);
+							const finalizeFullUpdate = () => {
+								if (fullUpdate) {
+									recordUpdate = updateAndFreeze(recordUpdate); // flatten and freeze
+								}
+								// TODO: else freeze after we have applied the changes
+							};
+							if (embedBefore) {
+								return embedBefore().then(finalizeFullUpdate);
 							}
-							// TODO: else freeze after we have applied the changes
+							finalizeFullUpdate();
 						}
 					} else {
 						(transaction as any).removeWrite?.(write);
@@ -1979,28 +2005,15 @@ export function makeTable(options) {
 				},
 			};
 			this.#savingOperation = write;
-			// `@embed` write-time hook (Phase 5 of #510). Must run BEFORE `addWrite`
-			// so the embedder's mutation of `recordUpdate` reaches the per-write
-			// `commit(...)` closure. The transaction's pre-commit `before` slot
-			// fires AFTER `commit(...)` for record mutations (the slot is awaited
-			// at `Promise.all(completions)` at txn-commit time, not before each
-			// write's commit closure) — which is fine for blob byte-writes that
-			// reference pre-allocated IDs, but not for embed where the vector
-			// itself must be on the record at commit time. Skipped on replicated
-			// writes — the originating node already computed the embedding and
-			// the receiver should preserve it.
-			const embedBefore = buildEmbedBefore(
-				recordUpdate,
-				context,
-				options,
-				TableResource.embedAttributes,
-				TableResource.userEmbedders
-			);
-			const proceed = (): any => {
-				write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
-				return transaction.addWrite(write as any);
-			};
-			return embedBefore ? embedBefore().then(proceed) : proceed();
+			// The `@embed` write-time hook used to live here, but it has moved into the
+			// `validate` closure above so it runs against the FINAL `recordUpdate` —
+			// including any post-update instance mutations (the
+			// `await Table.update(id, {}); row.content = '...'; row.save()` pattern).
+			// `validate` is now async-aware: `DatabaseTransaction.save` and
+			// `LMDBTransaction.commit` await an async validate before invoking
+			// `before` / `beforeIntermediate` / `commit`.
+			write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
+			return transaction.addWrite(write as any);
 		}
 
 		async delete(target: RequestTargetOrId): Promise<boolean> {

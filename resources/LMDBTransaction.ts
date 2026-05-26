@@ -124,9 +124,20 @@ export class LMDBTransaction extends DatabaseTransaction {
 				// record the number of writes that have been validated so if we re-execute
 				// and the number is increased we can validate the new entries
 				this.validated = this.writes.length;
+				// `validate` may be async (e.g., `@embed` mutates recordUpdate with the
+				// computed vector before `commit(...)` reads it). Collect any returned
+				// promises and await them inside the same async block as before/
+				// beforeIntermediate below.
+				let validateCompletions: any;
 				for (let i = start; i < this.validated; i++) {
 					const write = this.writes[i];
-					write?.validate?.(this.timestamp);
+					const validateResult: any = write?.validate?.(this.timestamp);
+					if (validateResult?.then) {
+						if (validateCompletions) {
+							if (Array.isArray(validateCompletions)) validateCompletions.push(validateResult);
+							else validateCompletions = [validateCompletions, validateResult];
+						} else validateCompletions = validateResult;
+					}
 				}
 				let hasBefore;
 				for (let i = start; i < this.validated; i++) {
@@ -139,10 +150,14 @@ export class LMDBTransaction extends DatabaseTransaction {
 				// Now we need to let any "before" actions execute. These are calls to the sources,
 				// and we want to follow the order of the source sequence so that later, more canonical
 				// source writes will finish (with right to refuse/abort) before proceeeding to less
-				// canonical sources.
-				if (hasBefore) {
+				// canonical sources. If any validate returned a promise (async @embed hook), await
+				// those first so the commit reads the mutated recordUpdate.
+				if (validateCompletions || hasBefore) {
 					return (async () => {
 						try {
+							if (validateCompletions) {
+								await (Array.isArray(validateCompletions) ? Promise.all(validateCompletions) : validateCompletions);
+							}
 							for (let phase = 0; phase < 2; phase++) {
 								let completion;
 								for (let i = start; i < this.validated; i++) {

@@ -202,21 +202,46 @@ export class DatabaseTransaction implements Transaction {
 		if (reloadEntry || operation.entry === undefined) {
 			operation.entry = operation.store.getEntry(operation.key, { transaction });
 		}
-		if (!operation.saved) {
-			operation.saved = true;
-			// immediately execute in this transaction
-			if ((operation.validate?.(txnTime) as any) === false) {
-				operation.commit = () => {}; // noop if we try again
-				return;
-			}
+		// Run `before` / `beforeIntermediate` only on the first save (the original code
+		// scoped them inside the `if (!operation.saved)` block); on retry, only `commit`
+		// re-fires. `runCommit` is always called.
+		const runBeforeAndCommit = () => {
 			let result: Promise<void> = operation.before?.() as Promise<void>;
 			if (result?.then) this.completions.push(result);
 			result = operation.beforeIntermediate?.() as Promise<void>;
 			if (result?.then) this.completions.push(result);
+			operation.commit(txnTime, operation.entry, this.retries > 0, transaction);
+			if (immediateCommit) {
+				return this.commit({ transaction }); // immediately commit if the harper transaction is closed
+			}
+		};
+		if (!operation.saved) {
+			operation.saved = true;
+			// `validate` may be async (e.g., the `@embed` write-time hook needs to mutate
+			// `recordUpdate` with the computed vector before `commit(...)` reads it). If it
+			// returns a promise, defer `before` / `beforeIntermediate` / `commit` until it
+			// settles — callers (`addWrite`, `commit` iteration) push our return value into
+			// the txn completions so the whole txn waits.
+			const validateResult: any = operation.validate?.(txnTime);
+			if (validateResult?.then) {
+				return validateResult.then((res: any) => {
+					if (res === false) {
+						operation.commit = () => {}; // noop if we try again
+						return;
+					}
+					return runBeforeAndCommit();
+				});
+			}
+			if (validateResult === false) {
+				operation.commit = () => {}; // noop if we try again
+				return;
+			}
+			return runBeforeAndCommit();
 		}
+		// re-save (retry): only commit, do not re-fire before/beforeIntermediate
 		operation.commit(txnTime, operation.entry, this.retries > 0, transaction);
 		if (immediateCommit) {
-			return this.commit({ transaction }); // immediately commit if the harper transaction is closed
+			return this.commit({ transaction });
 		}
 	}
 
@@ -228,7 +253,10 @@ export class DatabaseTransaction implements Transaction {
 		for (let i = 0; i < this.writes.length; i++) {
 			let operation = this.writes[i];
 			if (!operation || (this.retries === 0 && operation.saved)) continue;
-			this.save(operation, transaction, i < this.validated);
+			const saveResult: any = this.save(operation, transaction, i < this.validated);
+			// If `save` returned a promise (async validate, e.g., the `@embed` hook),
+			// fold it into the txn completions so the commit awaits before closing.
+			if (saveResult?.then) this.completions.push(saveResult);
 		}
 		this.validated = this.writes.length;
 		const completions = this.completions;

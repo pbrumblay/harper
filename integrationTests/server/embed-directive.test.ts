@@ -2,7 +2,7 @@
  * `@embed` directive integration test (#632 / Phase 5 of #510).
  *
  * Spins up a fake Ollama HTTP server inside the test, points Harper's models
- * config at it, deploys a schema with `@embed`, and exercises six paths
+ * config at it, deploys a schema with `@embed`, and exercises seven paths
  * end-to-end:
  *
  *   1. **Happy path** — POST a record → fake-ollama returns a deterministic
@@ -29,7 +29,14 @@
  *      covered by the `options.isNotification === true` branch in
  *      `embedHook.test.js`.)
  *
- *   6. **Caching-table `@embed`** — a table with `sourcedFrom(SourceResource)`
+ *   6. **Instance-mutation** — a custom resource (`EmbedMutator`) runs the
+ *      `await EmbedDoc.update(id, {}); row.content = '...'; row.save()` pattern
+ *      seen in `unitTests/resources/transaction.test.js`. Verifies the embed
+ *      fires against the FINAL `recordUpdate` (post-mutation), not against the
+ *      initial empty `{}`. Before the validate-time hook refactor, this path
+ *      committed the row without a vector.
+ *
+ *   7. **Caching-table `@embed`** — a table with `sourcedFrom(SourceResource)`
  *      and `@embed` declared on a derived field. GET fires `getFromSource`,
  *      the cache write goes through the `Table.ts:~4520` embed wiring (which
  *      bypasses `_writeUpdate`), and the cached row ends up with a populated
@@ -71,10 +78,11 @@ const SCHEMA_GRAPHQL = [
 	'',
 ].join('\n');
 
-// resources.js wiring for the caching-table @embed path. The Resource base class
-// and the `databases` global are provided by Harper's component loader at boot.
+// resources.js wiring for the caching-table @embed path AND the instance-mutation
+// custom resource. The Resource base class and the `databases` global are provided
+// by Harper's component loader at boot.
 const RESOURCES_JS = [
-	'const { CachedEmbedDoc } = databases.embedtest;',
+	'const { EmbedDoc, CachedEmbedDoc } = databases.embedtest;',
 	'',
 	'export class CachedEmbedSource extends Resource {',
 	'\tasync get() {',
@@ -84,6 +92,20 @@ const RESOURCES_JS = [
 	'}',
 	'',
 	'CachedEmbedDoc.sourcedFrom(CachedEmbedSource);',
+	'',
+	// Exercise the instance-mutation pattern (`await update(id, {}); row.x = ...; row.save()`).
+	// Before the @embed validate-time refactor, the embedder ran at _writeUpdate-time on
+	// the empty `{}` payload, saw no source field, and never fired — so the stored row
+	// committed without a vector. With validate-time embed, this pattern works correctly.
+	'export class EmbedMutator extends Resource {',
+	'\tasync post(data) {',
+	'\t\tconst { id, content } = data;',
+	'\t\tconst row = await EmbedDoc.update(id, {});',
+	'\t\trow.content = content;',
+	'\t\tawait row.save();',
+	'\t\treturn { ok: true, id };',
+	'\t}',
+	'}',
 	'',
 ].join('\n');
 
@@ -495,5 +517,63 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		const callsAfterFirst = fake.embedCallCount();
 		await client.reqRest(`/CachedEmbedDoc/${id}`).expect(200);
 		strictEqual(fake.embedCallCount(), callsAfterFirst, 'cache-hit GET should not re-run the embedder');
+	});
+
+	test('instance-mutation: update(id, {}) → row.content = ... → row.save() runs embedder', async () => {
+		// `EmbedMutator` (declared in RESOURCES_JS) runs the canonical instance-mutation
+		// pattern: load via `update(id, {})`, mutate `row.content`, then `row.save()`.
+		// Before the @embed validate-time refactor, `buildEmbedBefore` ran at
+		// _writeUpdate-time with the empty `{}` payload — saw no source field — and the
+		// stored record committed without a vector. After the refactor, the embedder
+		// runs inside the write's `validate` closure (which sees the final `recordUpdate`
+		// after all instance mutations), so the source-field-was-mutated-post-update
+		// case is closed.
+		const id = 'instance-mutation-1';
+		const content = 'mutated via instance pattern';
+		const expected = deterministicVector(content);
+		const baselineEmbedCalls = fake.embedCallCount();
+
+		await request(ctx.harper.httpURL)
+			.post('/EmbedMutator/')
+			.set(client.headers)
+			.send({ id, content })
+			.expect((r: any) => ok([200, 201, 204].includes(r.status), `EmbedMutator POST status ${r.status}: ${r.text}`));
+
+		strictEqual(
+			fake.embedCallCount(),
+			baselineEmbedCalls + 1,
+			'embed should fire once for the instance-mutation pattern (closes the codex blocker)'
+		);
+		const inputs = fake.lastEmbedInputs().at(-1)!;
+		ok(
+			inputs.some((s) => s.includes(content)),
+			`embed input ${JSON.stringify(inputs)} should reflect the mutated content`
+		);
+
+		// Verify the stored row has the new vector.
+		const search = await client
+			.req()
+			.send({
+				operation: 'search_by_hash',
+				database: 'embedtest',
+				table: 'EmbedDoc',
+				hash_values: [id],
+				get_attributes: ['*'],
+			})
+			.expect(200);
+		ok(Array.isArray(search.body) && search.body.length === 1, `search_by_hash body: ${JSON.stringify(search.body)}`);
+		strictEqual(search.body[0].content, content);
+		const stored = decodeVector(search.body[0].embedding);
+		ok(
+			stored,
+			`embedding should be populated after instance-mutation save, got: ${JSON.stringify(search.body[0].embedding)}`
+		);
+		strictEqual(stored.length, 3);
+		for (let i = 0; i < 3; i++) {
+			ok(
+				Math.abs(stored[i] - expected[i]) < 1e-5,
+				`instance-mutation vector[${i}] mismatch: stored=${stored[i]} expected=${expected[i]}`
+			);
+		}
 	});
 });
