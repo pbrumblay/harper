@@ -1556,6 +1556,16 @@ export function makeTable(options) {
 						// commit in embedder-resolution order, not submission order. Sequence the
 						// elements via a Promise chain to preserve payload-order semantics
 						// (last-write-wins by submission). Non-`@embed` tables stay parallel.
+						//
+						// Test-coverage note: this `Array.isArray(record)` branch is hard to reach
+						// from typical Harper usage — REST PUT with an array body routes through
+						// `Resource.put`'s collection-array branch (the same fix lives there) and
+						// splits the array BEFORE the instance `Table.put` sees it. So the
+						// `bulk PUT with duplicate ids` integration test exercises
+						// `Resource.put`'s sequencing path, not this one. Both implementations
+						// follow the same `Promise`-chain pattern; the path here is reached only
+						// from programmatic callers that pass `put(target, [array])` directly
+						// (e.g. tables with `loadAsInstance: false`).
 						if (TableResource.embedAttributes?.length) {
 							let chain: Promise<any> = Promise.resolve();
 							for (const element of record) {
