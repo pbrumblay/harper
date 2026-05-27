@@ -154,7 +154,8 @@ describe('validateGetAnalytics', function () {
 		assert.ok(error.message.includes('conditions'), `expected "conditions" in: ${error.message}`);
 	});
 
-	it('should accept a condition that is an empty object (directConditionSchema has all-optional fields)', function () {
-		assert.strictEqual(validateGetAnalytics({ metric: 'cpu-usage', conditions: [{}] }), undefined);
+	it('should reject a direct condition with no attribute, comparator, or value', function () {
+		const error = validateGetAnalytics({ metric: 'cpu-usage', conditions: [{}] });
+		assert.ok(error instanceof Error);
 	});
 });

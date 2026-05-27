@@ -13,7 +13,7 @@ const directConditionSchema = Joi.object({
 	search_type: Joi.string().valid(...COMPARATORS),
 	value: Joi.any(),
 	search_value: Joi.any(),
-});
+}).or('attribute', 'search_attribute');
 
 // A condition group. The nested `conditions` array is left unconstrained for
 // the same reason searchByConditionsSchema leaves it unconstrained: shallow
