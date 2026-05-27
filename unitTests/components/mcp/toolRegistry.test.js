@@ -6,7 +6,6 @@ const {
 	listTools,
 	isSuperUser,
 	hasClassLevelVerbs,
-	userTablePermissions,
 	canRoleInvokeOperation,
 	_resetRegistryForTest,
 } = require('#src/components/mcp/toolRegistry');
@@ -249,53 +248,6 @@ describe('mcp/toolRegistry', () => {
 		});
 	});
 
-	describe('userTablePermissions', () => {
-		it('returns all-true for super_user', () => {
-			const p = userTablePermissions({ role: { permission: { super_user: true } } }, 'db', 't');
-			assert.deepEqual(p, { read: true, insert: true, update: true, delete: true, describe: true });
-		});
-
-		it('returns null when the database is not in the permission tree', () => {
-			const p = userTablePermissions({ role: { permission: { other_db: { tables: {} } } } }, 'data', 't');
-			assert.equal(p, null);
-		});
-
-		it('returns null when the table is not in the database tree', () => {
-			const p = userTablePermissions({ role: { permission: { data: { tables: {} } } } }, 'data', 'missing');
-			assert.equal(p, null);
-		});
-
-		it('maps each verb flag through', () => {
-			const user = {
-				role: {
-					permission: {
-						data: {
-							tables: { product: { read: true, insert: false, update: true, delete: false, describe: true } },
-						},
-					},
-				},
-			};
-			const p = userTablePermissions(user, 'data', 'product');
-			assert.deepEqual(p, {
-				read: true,
-				insert: false,
-				update: true,
-				delete: false,
-				describe: true,
-				attribute_permissions: undefined,
-			});
-		});
-
-		it('forwards attribute_permissions when present', () => {
-			const ap = { restricted: ['ssn'] };
-			const user = {
-				role: { permission: { data: { tables: { product: { read: true, attribute_permissions: ap } } } } },
-			};
-			const p = userTablePermissions(user, 'data', 'product');
-			assert.equal(p.attribute_permissions, ap);
-		});
-	});
-
 	describe('canRoleInvokeOperation', () => {
 		it('true for super_user regardless of operation', () => {
 			assert.equal(canRoleInvokeOperation({ role: { permission: { super_user: true } } }, 'drop_schema'), true);
@@ -307,10 +259,6 @@ describe('mcp/toolRegistry', () => {
 
 		it('false for structure_user on non-structure operations', () => {
 			assert.equal(canRoleInvokeOperation({ role: { permission: { structure_user: true } } }, 'add_node'), false);
-		});
-
-		it('true for cluster_user on cluster operations', () => {
-			assert.equal(canRoleInvokeOperation({ role: { permission: { cluster_user: true } } }, 'add_node'), true);
 		});
 
 		it('honors a role-level operations allowlist', () => {

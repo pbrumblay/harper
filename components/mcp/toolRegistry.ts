@@ -1,12 +1,10 @@
 /**
- * MCP tool registry (#615).
- *
- * Holds the framework for `tools/list` and `tools/call` per MCP §server/tools.
- * No real tools register here yet — the operations profile (#617) walks
- * `OPERATION_FUNCTION_MAP`, and the application profile (#618) walks the
+ * MCP tool registry — framework for `tools/list` and `tools/call` per MCP
+ * §server/tools. No real tools register here yet — the operations profile
+ * walks `OPERATION_FUNCTION_MAP`, and the application profile walks the
  * `Resources` registry. Both call `addTool(def)` to publish.
  *
- * Filtering follows the two-step pattern documented in #465:
+ * Filtering follows a two-step pattern:
  *   1. Class-level verb introspection (which tools are *publishable*)
  *      reuses the prototype-comparison helper from `resources/openApi.ts:149-153`.
  *   2. User-level RBAC walk (which publishable tools are *visible*) reuses
@@ -20,12 +18,10 @@
  *     explicitly NOT a security boundary.
  *   - **Enforcement runs in the tool handler at call time**, via Harper's
  *     existing `transactional()` + per-record `allow{Read,Create,Update,
- *     Delete}` predicates (#617 wraps `OPERATION_FUNCTION_MAP`, #618 wraps
- *     `Resources` — both inherit the existing ACL path). The framework
- *     intentionally passes a known-but-filtered-out tool through to its
- *     handler so an LLM that hallucinates a name gets a clean `isError`
- *     result from the runtime predicate (mirroring the verification test
- *     in #465). See the `tools/call` pass-through test in
+ *     Delete}` predicates. The framework intentionally passes a
+ *     known-but-filtered-out tool through to its handler so an LLM that
+ *     hallucinates a name gets a clean `isError` result from the runtime
+ *     predicate. See the `tools/call` pass-through test in
  *     `transport.test.js`.
  */
 import type { McpProfile } from './transport.ts';
@@ -67,7 +63,6 @@ export interface AuthedUser {
 		permission?: {
 			super_user?: boolean;
 			structure_user?: boolean;
-			cluster_user?: boolean;
 			operations?: string[];
 			[database: string]:
 				| boolean
@@ -260,44 +255,11 @@ export function hasClassLevelVerbs(
 	};
 }
 
-export interface TablePermissions {
-	read: boolean;
-	insert: boolean;
-	update: boolean;
-	delete: boolean;
-	describe: boolean;
-	attribute_permissions?: unknown;
-}
-
-/**
- * Walk `user.role.permission[database].tables[table]`. Mirrors the pattern
- * at `dataLayer/schemaDescribe.ts:29-49`. Returns `null` when the user has
- * no entry at this scope (treat all verbs as denied). Super-user short-
- * circuits to all-true.
- */
-export function userTablePermissions(user: AuthedUser, db: string, table: string): TablePermissions | null {
-	if (isSuperUser(user)) {
-		return { read: true, insert: true, update: true, delete: true, describe: true };
-	}
-	const dbPerm = user?.role?.permission?.[db];
-	if (!dbPerm || typeof dbPerm !== 'object' || Array.isArray(dbPerm)) return null;
-	const tablePerm = dbPerm.tables?.[table];
-	if (!tablePerm) return null;
-	return {
-		read: tablePerm.read === true,
-		insert: tablePerm.insert === true,
-		update: tablePerm.update === true,
-		delete: tablePerm.delete === true,
-		describe: tablePerm.describe === true,
-		attribute_permissions: tablePerm.attribute_permissions,
-	};
-}
-
 /**
  * Role-level operations check for the operations profile. Returns true if
  * the user has the role-level privilege required to invoke `operation`,
  * regardless of any per-call schema/table predicate (those run at tool-call
- * time). Used by #617 to filter `OPERATION_FUNCTION_MAP` for `tools/list`.
+ * time).
  *
  * The implementation here is intentionally conservative — only flags that
  * grant operations globally short-circuit. Per-operation per-target checks
@@ -308,15 +270,13 @@ export function canRoleInvokeOperation(user: AuthedUser, operation: string): boo
 	const perm = user?.role?.permission;
 	if (!perm) return false;
 	if (perm.structure_user && SCHEMA_STRUCTURE_OPERATIONS.has(operation)) return true;
-	if (perm.cluster_user && CLUSTER_OPERATIONS.has(operation)) return true;
 	if (Array.isArray(perm.operations) && perm.operations.includes(operation)) return true;
 	return false;
 }
 
 /**
- * Operations that `structure_user` is permitted to invoke. Not exhaustive —
- * filled out by #617 against `OPERATION_FUNCTION_MAP`. Pre-seeded with the
- * canonical structure ops so the helper is functional and tests have
+ * Operations that `structure_user` is permitted to invoke. Pre-seeded with
+ * the canonical structure ops so the helper is functional and tests have
  * something to assert against. Adding entries here is the right shape;
  * removing them is not (would silently lock users out).
  */
@@ -330,6 +290,3 @@ const SCHEMA_STRUCTURE_OPERATIONS = new Set([
 	'create_attribute',
 	'drop_attribute',
 ]);
-
-/** Operations that `cluster_user` is permitted to invoke. Seeded similarly. */
-const CLUSTER_OPERATIONS = new Set(['add_node', 'remove_node', 'update_node', 'set_node_replication']);
