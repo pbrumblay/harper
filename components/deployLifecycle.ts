@@ -102,17 +102,28 @@ export async function broadcastDeployStart(componentName: string): Promise<void>
 	ensureReceiver();
 	const event: DeployLifecycleEvent = { name: componentName, phase: 'start' };
 	deployLifecycle._handle(event); // local thread first
+	let timer: ReturnType<typeof setTimeout> | undefined;
 	try {
 		// broadcastWithAcknowledgement only resolves once every peer has processed
 		// the message, which is what we want before we start touching files. From
 		// a worker, this still reaches main + sibling workers; from main it reaches
 		// all workers.
-		await broadcastWithAcknowledgement({ type: DEPLOY_LIFECYCLE_MSG, event });
+		//
+		// Race against a 5s timeout so an unresponsive worker can't hang the
+		// deploy indefinitely — the deploy is meant to be best-effort coordinated,
+		// not gated on every worker acknowledging.
+		const timeout = new Promise<void>((_resolve, reject) => {
+			timer = setTimeout(() => reject(new Error('Broadcast acknowledgement timed out')), 5000);
+			timer.unref?.();
+		});
+		await Promise.race([broadcastWithAcknowledgement({ type: DEPLOY_LIFECYCLE_MSG, event }), timeout]);
 	} catch (error) {
 		// A broadcast failure here is non-fatal: the deploy can still proceed,
 		// the worst case is a transient restart storm. Don't block the deploy.
 		// (Errors are already surfaced through the existing logger by manageThreads.)
 		void error;
+	} finally {
+		if (timer) clearTimeout(timer);
 	}
 }
 
@@ -135,11 +146,13 @@ export function broadcastDeployEnd(componentName: string): void {
 	}
 }
 
-// Tests need to reset module state between cases.
+// Tests need to reset module state between cases. We deliberately do NOT reset
+// `receiverInstalled`: manageThreads.onMessageByType has no deregistration API,
+// so flipping the flag would let a subsequent ensureReceiver() pile a second
+// listener and double-increment the refcount on every broadcast.
 export function _resetForTests(): void {
 	deployLifecycle.removeAllListeners();
 	deployLifecycle._clearForTests();
-	receiverInstalled = false;
 }
 
 // Marker so callers (e.g. Application.ts) can tell whether they're running in

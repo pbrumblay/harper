@@ -267,6 +267,11 @@ export class EntryHandler extends EventEmitter<EntryHandlerEventMap> {
 	 */
 	pause(): void {
 		this.#paused = true;
+		// Reset `ready` to a fresh pending promise so the documented "awaiting
+		// ready while paused will not resolve until resume()" contract holds even
+		// when the watcher had already become ready before pause(). The next
+		// 'ready' emit will come from the chokidar instance installed by resume().
+		this.ready = once(this, 'ready');
 		if (this.#watcher) {
 			// Retain the close promise so resume()→#watch() can await full
 			// teardown before opening a new watcher.
@@ -289,7 +294,8 @@ export class EntryHandler extends EventEmitter<EntryHandlerEventMap> {
 	resume(): Promise<any[]> {
 		if (!this.#paused) return this.ready;
 		this.#paused = false;
-		this.ready = once(this, 'ready');
+		// `this.ready` was already reset to a pending promise in pause(); just
+		// trigger the watcher recreation and let its 'ready' emit resolve it.
 		return this.#watch();
 	}
 

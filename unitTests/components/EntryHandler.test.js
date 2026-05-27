@@ -556,5 +556,32 @@ describe('EntryHandler', () => {
 			entryHandler.close();
 			rmSync(directory, { recursive: true, force: true });
 		});
+
+		it('awaiting `ready` after pause() does not resolve until resume()', async () => {
+			// Contract: per pause()'s docstring, awaiting `ready` while paused must
+			// wait for resume(). Naive impl (only resetting `ready` in resume) lets
+			// an already-resolved `ready` linger across pause and resolve early.
+			const { directory } = createFixture(['a']);
+			const entryHandler = new EntryHandler(basename(directory), directory, '**/*');
+			await entryHandler.ready; // initial ready resolves
+
+			entryHandler.pause();
+
+			let readyResolved = false;
+			const readyPromise = entryHandler.ready.then(() => {
+				readyResolved = true;
+			});
+
+			// Give the microtask queue a chance to settle a stale resolved promise.
+			await new Promise((r) => setTimeout(r, 100));
+			assert.equal(readyResolved, false, '`ready` must not resolve while paused');
+
+			await entryHandler.resume();
+			await readyPromise;
+			assert.equal(readyResolved, true, '`ready` resolves after resume()');
+
+			entryHandler.close();
+			rmSync(directory, { recursive: true, force: true });
+		});
 	});
 });
