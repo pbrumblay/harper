@@ -95,6 +95,18 @@ describe('validateGetAnalytics', function () {
 		);
 	});
 
+	it('should reject a zero start_time', function () {
+		const error = validateGetAnalytics({ metric: 'cpu-usage', start_time: 0 });
+		assert.ok(error instanceof Error);
+		assert.ok(error.message.includes('start_time'), `expected "start_time" in: ${error.message}`);
+	});
+
+	it('should reject a negative end_time', function () {
+		const error = validateGetAnalytics({ metric: 'cpu-usage', end_time: -1 });
+		assert.ok(error instanceof Error);
+		assert.ok(error.message.includes('end_time'), `expected "end_time" in: ${error.message}`);
+	});
+
 	// ── get_attributes ───────────────────────────────────────────────────────
 
 	it('should reject get_attributes as a plain string instead of an array', function () {

@@ -31,8 +31,8 @@ const groupConditionSchema = Joi.object({
 // silently converted. Strictness propagates to child schemas.
 const getAnalyticsSchema = Joi.object({
 	metric: Joi.string().required(),
-	start_time: Joi.number().min(0),
-	end_time: Joi.number().min(0),
+	start_time: Joi.number().greater(0),
+	end_time: Joi.number().greater(0),
 	get_attributes: Joi.array().items(Joi.string()),
 	coalesce_time: Joi.boolean(),
 	conditions: Joi.array().items(Joi.alternatives(groupConditionSchema, directConditionSchema)),
