@@ -41,7 +41,7 @@ type GetAnalyticsResponse = Metric[];
  * @param req
  * @returns
  */
-export function getOp(req: GetAnalyticsRequest): Promise<GetAnalyticsResponse> {
+export async function getOp(req: GetAnalyticsRequest): Promise<GetAnalyticsResponse> {
 	log.trace?.('get_analytics request:', req);
 	const validationError = validateGetAnalytics(req);
 	if (validationError) {
