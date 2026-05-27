@@ -496,7 +496,7 @@ export function handleLocalTimeForGets(store, rootStore) {
 	return store;
 }
 const trackedTxns: WeakRef<any>[] = [];
-const configValue = envMngr.get(CONFIG_PARAMS.STORAGE_MAXREADTRANSACTIONOPENTIME) ?? 300000;
+const configValue = envMngr.get(CONFIG_PARAMS.STORAGE_MAX_READ_TRANSACTION_OPEN_TIME) ?? 300000;
 let READ_TXN_TIMEOUT_TICKS = Math.round(configValue / 15000);
 export function checkReadTxnTimeouts() {
 	for (let i = 0; i < trackedTxns.length; i++) {
@@ -532,6 +532,7 @@ export function checkReadTxnTimeouts() {
 setInterval(checkReadTxnTimeouts, 15000).unref();
 export function setReadTxnExpiration(ms: number) {
 	READ_TXN_TIMEOUT_TICKS = Math.round(ms / 15000);
+	return trackedTxns;
 }
 export function setNextEncoding(timestamp: number, metadata: number, expiresAt = -1, nodeId = -1, residencyId = 0) {
 	timestampNextEncoding = timestamp;

@@ -87,15 +87,22 @@ describe('Read Txn Expiration', () => {
 		await SlowReadResource.put(1, { name: 'one' });
 
 		// set timeout to minimum, 15s = 1 tick, openTimer > 1 means txn is expired
-		setReadTxnExpiration(15000);
+		const trackedTxns = setReadTxnExpiration(15000);
 
 		const readPromise = SlowReadResource.get(1);
 		await delay(20);
 
-		// simulate timer ticks
+		const before = trackedTxns.length;
+		checkReadTxnTimeouts();
+		checkReadTxnTimeouts();
+		checkReadTxnTimeouts();
 		checkReadTxnTimeouts();
 		checkReadTxnTimeouts();
 
+		assert.ok(
+			trackedTxns.length < before,
+			`expected a txn to be removed; trackedTxns went ${before} -> ${trackedTxns.length}`
+		);
 		await readPromise;
 	});
 
