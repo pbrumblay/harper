@@ -20,7 +20,7 @@ const directConditionSchema = Joi.object({
 // validation here is enough to reject scalar/wrong-type inputs at the boundary.
 const groupConditionSchema = Joi.object({
 	operator: Joi.string().valid('and', 'or'),
-	conditions: Joi.array(),
+	conditions: Joi.array().required(),
 });
 
 // `.strict()` disables Joi's default type coercion so a numeric string like
