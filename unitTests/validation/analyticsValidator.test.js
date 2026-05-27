@@ -142,4 +142,19 @@ describe('validateGetAnalytics', function () {
 	it('should accept an empty conditions array', function () {
 		assert.strictEqual(validateGetAnalytics({ metric: 'cpu-usage', conditions: [] }), undefined);
 	});
+
+	it('should reject a condition with an invalid comparator', function () {
+		const error = validateGetAnalytics({
+			metric: 'cpu-usage',
+			conditions: [{ attribute: 'path', comparator: 'not_a_real_op', value: '/api' }],
+		});
+		assert.ok(error instanceof Error);
+		// Joi.alternatives() surfaces a top-level "doesn't match any type" error rather than
+		// the sub-schema field error, so we assert on the array path rather than the field name.
+		assert.ok(error.message.includes('conditions'), `expected "conditions" in: ${error.message}`);
+	});
+
+	it('should accept a condition that is an empty object (directConditionSchema has all-optional fields)', function () {
+		assert.strictEqual(validateGetAnalytics({ metric: 'cpu-usage', conditions: [{}] }), undefined);
+	});
 });
