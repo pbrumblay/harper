@@ -5,6 +5,7 @@ import { getWorkerIndex } from '../server/threads/manageThreads.js';
 import { Resources } from './Resources.ts';
 import type { NamedTypeNode, StringValueNode } from 'graphql';
 import { once } from 'node:events';
+import { ClientError } from '../utility/errors/hdbError.ts';
 
 const PRIMITIVE_TYPES = [
 	'ID',
@@ -190,9 +191,13 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 								// missing primary key.
 								const loc = directive.loc;
 								console.error(`@embed on "${property.name}" requires both "source" and "model" arguments, at`, loc);
-								throw new Error(
+								// Schema-install errors caused by malformed user input should return 400,
+								// not 500. `ClientError` is Harper's contract for "user error, not server
+								// fault" — matches kriszyp's CHANGES_REQUESTED item from the prior review.
+								throw new ClientError(
 									`@embed on "${property.name}" requires both "source" and "model" arguments` +
-										(loc ? ` (line ${loc.startToken?.line ?? '?'}, column ${loc.startToken?.column ?? '?'})` : '')
+										(loc ? ` (line ${loc.startToken?.line ?? '?'}, column ${loc.startToken?.column ?? '?'})` : ''),
+									400
 								);
 							} else {
 								property.embed = embedDefinition;

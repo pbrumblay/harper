@@ -3661,10 +3661,17 @@ export function makeTable(options) {
 		 * Override the embedder that fires on writes to an `@embed`-decorated
 		 * attribute (Phase 5 of #510). The default embedder calls
 		 * `Models.embed(record[source], { model, inputType: 'document' })`. Pass a
-		 * custom function when you need multi-field concatenation, custom
-		 * preprocessing, or a different inputType — the embedder receives the
-		 * full record (post-merge with the existing entry for PATCH) and returns
-		 * the vector to store at `attribute_name`.
+		 * custom function when you need custom preprocessing or a different
+		 * inputType, and return the vector to store at `attribute_name`.
+		 *
+		 * NOTE — the embedder receives the WRITE PAYLOAD (the fields present in
+		 * the PUT or PATCH body), NOT the post-merge record. For PATCH writes
+		 * that omit fields, those fields will be absent from the embedder's
+		 * argument. Multi-field concatenation is therefore only reliable when
+		 * all source fields appear in the same write payload — see the
+		 * "known limitation" section in `resources/models/embedHook.ts` for
+		 * the wider context (instance-mutation pattern, etc.) and the planned
+		 * resource-layer fix.
 		 */
 		static setEmbedAttribute(attribute_name: string, embedder: Embedder): void {
 			const attribute = findAttribute(attributes, attribute_name);
