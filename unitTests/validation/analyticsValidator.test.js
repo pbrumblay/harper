@@ -158,4 +158,9 @@ describe('validateGetAnalytics', function () {
 		const error = validateGetAnalytics({ metric: 'cpu-usage', conditions: [{}] });
 		assert.ok(error instanceof Error);
 	});
+
+	it('should reject a condition with attribute but no comparator or value', function () {
+		const error = validateGetAnalytics({ metric: 'cpu-usage', conditions: [{ attribute: 'path' }] });
+		assert.ok(error instanceof Error);
+	});
 });
