@@ -478,6 +478,7 @@ export function handleLocalTimeForGets(store, rootStore) {
 				use.call(this);
 			};
 			Txn.prototype.done = function () {
+				if (this.isDone) return;
 				done.call(this);
 				this.openTimer = 0; // reset so idle pool time doesn't accumulate toward the stale-open threshold
 				if (this.isDone) {
