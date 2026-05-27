@@ -137,11 +137,15 @@ export function createDefaultEmbedder(embedConfig: EmbedConfig): Embedder {
 		});
 		const v = vectors?.[0];
 		if (v == null) return undefined;
-		// Convert Float32Array → plain Array<number> for storage. Harper's record
-		// encoder doesn't round-trip typed arrays cleanly through msgpack/CRDT
-		// merge (`updateAndFreeze` enumerates them as `{0,1,2,...}` maps), so we
-		// store as a plain numeric array. HNSW's `propertyResolver` and
-		// `customIndex.index` both accept `number[]` and `Float32Array`.
+		// Convert Float32Array → plain Array<number> for storage. msgpackr's default
+		// Encoder (which Harper's `RecordEncoder` extends without `structuredClone`)
+		// does NOT round-trip typed arrays: a `Float32Array(3)` encodes to msgpack
+		// `bin8` of length 12 with zeroed bytes and decodes as a `Buffer` of zeros.
+		// Flattening to `Array<number>` at the boundary keeps the values intact.
+		// HNSW's `propertyResolver` / `customIndex.index` accept `number[]` (and the
+		// HNSW indexStore is a separate msgpackr instance configured with
+		// `useFloat32 = ALWAYS` for compact F32 storage — see
+		// `HierarchicalNavigableSmallWorld.ts:106-108`).
 		return v instanceof Float32Array ? Array.from(v) : Array.from(v as any);
 	};
 }
@@ -240,8 +244,10 @@ export function buildEmbedBefore(
  * `Embedder` return shapes — `Float32Array`, `Float64Array`, plain arrays, etc. We
  * unify here for two reasons:
  *
- *   1. The record encoder mangles typed arrays via `updateAndFreeze` into `{0,1,2,...}`
- *      maps; only plain `Array<number>` round-trips cleanly.
+ *   1. msgpackr's default Encoder (which Harper's `RecordEncoder` extends without
+ *      `structuredClone`) does NOT round-trip typed arrays: a `Float32Array(N)`
+ *      encodes to msgpack `bin8` with zeroed bytes and decodes as a `Buffer`.
+ *      Only plain `Array<number>` round-trips cleanly.
  *   2. `Table.validate()` has no `Vector` case, and `coerceType` is only called on
  *      query/PK values, not write payloads — so an unsanitized embedder result would
  *      reach the encoder as-is.
