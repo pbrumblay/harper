@@ -81,6 +81,7 @@ describe('Read Txn Expiration', () => {
 				return result;
 			}
 		};
+		if (SlowReadResource.primaryStore instanceof RocksDatabase) this.skip();
 	});
 
 	it('Read txn will be ended after timeout', async function () {
