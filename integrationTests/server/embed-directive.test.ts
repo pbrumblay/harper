@@ -2,7 +2,7 @@
  * `@embed` directive integration test (#632 / Phase 5 of #510).
  *
  * Spins up a fake Ollama HTTP server inside the test, points Harper's models
- * config at it, deploys a schema with `@embed`, and exercises seven paths
+ * config at it, deploys a schema with `@embed`, and exercises eight paths
  * end-to-end:
  *
  *   1. **Happy path** — POST a record → fake-ollama returns a deterministic
@@ -36,7 +36,13 @@
  *      initial empty `{}`. Before the validate-time hook refactor, this path
  *      committed the row without a vector.
  *
- *   7. **Caching-table `@embed`** — a table with `sourcedFrom(SourceResource)`
+ *   7. **Multi-write @embed in one txn** — two PUTs on the same id, each `@embed`-
+ *      decorated (async validate). The SECOND must win deterministically — `writes[]`
+ *      submission order, not embedder-resolution order. Locks in the codex-blocker
+ *      fix that defers the per-write commit phase to `DatabaseTransaction.commit()`'s
+ *      Phase 3 (in-order pass) rather than chaining inside each validate's `.then`.
+ *
+ *   8. **Caching-table `@embed`** — a table with `sourcedFrom(SourceResource)`
  *      and `@embed` declared on a derived field. GET fires `getFromSource`,
  *      the cache write goes through the `Table.ts:~4520` embed wiring (which
  *      bypasses `_writeUpdate`), and the cached row ends up with a populated
@@ -104,6 +110,19 @@ const RESOURCES_JS = [
 	'\t\trow.content = content;',
 	'\t\tawait row.save();',
 	'\t\treturn { ok: true, id };',
+	'\t}',
+	'}',
+	'',
+	// Multi-write @embed in a single txn — exercises the codex-blocker fix that runs the
+	// per-write commit phase in `writes[]` order rather than embedder-resolution order.
+	// Both writes target the same id; the SECOND PUT must win deterministically regardless
+	// of which embedder roundtrip resolves first.
+	'export class MultiEmbedMutator extends Resource {',
+	'\tasync post(data) {',
+	'\t\tconst { id, first, second } = data;',
+	'\t\tawait EmbedDoc.put({ id, content: first });',
+	'\t\tawait EmbedDoc.put({ id, content: second });',
+	'\t\treturn { ok: true };',
 	'\t}',
 	'}',
 	'',
@@ -582,6 +601,56 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 			ok(
 				Math.abs(stored[i] - expected[i]) < 1e-5,
 				`instance-mutation vector[${i}] mismatch: stored=${stored[i]} expected=${expected[i]}`
+			);
+		}
+	});
+
+	test('multi-write @embed in one txn: writes[] order is preserved (last-write-wins by submission, not by embedder timing)', async () => {
+		// Codex flagged that an earlier draft of the validate-time refactor chained the
+		// per-write commit phase inside each validate's `.then` — meaning when two @embed
+		// writes shared a txn, whichever embedder finished first committed first, breaking
+		// same-key last-write-wins. The fix runs Phase 3 (before/beforeIntermediate/commit
+		// for all deferredCommit writes) in writes[] order after Phase 2 awaits all
+		// validates. This test exercises the path: two PUTs on the same id, each goes
+		// through @embed (async validate); the SECOND must win.
+		const id = 'multi-write-1';
+		const first = 'first content (should be overwritten)';
+		const second = 'second content (the winner)';
+		const expectedSecond = deterministicVector(second);
+		const baselineEmbedCalls = fake.embedCallCount();
+
+		await request(ctx.harper.httpURL)
+			.post('/MultiEmbedMutator/')
+			.set(client.headers)
+			.send({ id, first, second })
+			.expect((r: any) =>
+				ok([200, 201, 204].includes(r.status), `MultiEmbedMutator POST status ${r.status}: ${r.text}`)
+			);
+
+		// Two embedder calls — one per PUT.
+		strictEqual(fake.embedCallCount(), baselineEmbedCalls + 2, 'both PUTs should fire the embedder exactly once each');
+
+		// Stored row content + vector must be the SECOND write's, regardless of which
+		// embedder roundtrip resolved first.
+		const search = await client
+			.req()
+			.send({
+				operation: 'search_by_hash',
+				database: 'embedtest',
+				table: 'EmbedDoc',
+				hash_values: [id],
+				get_attributes: ['*'],
+			})
+			.expect(200);
+		ok(Array.isArray(search.body) && search.body.length === 1, `search_by_hash body: ${JSON.stringify(search.body)}`);
+		strictEqual(search.body[0].content, second, 'second PUT must win — writes[] order is the source of truth');
+		const stored = decodeVector(search.body[0].embedding);
+		ok(stored, `embedding should be populated, got: ${JSON.stringify(search.body[0].embedding)}`);
+		strictEqual(stored.length, 3);
+		for (let i = 0; i < 3; i++) {
+			ok(
+				Math.abs(stored[i] - expectedSecond[i]) < 1e-5,
+				`multi-write vector[${i}] mismatch: stored=${stored[i]} expected (second)=${expectedSecond[i]}`
 			);
 		}
 	});
