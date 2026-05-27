@@ -1692,36 +1692,10 @@ export function makeTable(options) {
 								// ensure that the primary key is correct, if there is supposed to be one
 								recordUpdate[primaryKey] = id;
 							}
-							// `@embed` write-time hook (Phase 5 of #510). Runs at validate-time, not
-							// _writeUpdate-time, so that post-update instance mutations (the
-							// `await Table.update(id, {}); row.content = '...'; row.save()` pattern
-							// in transaction tests) are visible to the embedder. The hook is no-op
-							// when the source field isn't present in `recordUpdate`, on replication
-							// receivers, or when the table has no `@embed` attributes — see
-							// `buildEmbedBefore` predicates. The hook mutates `recordUpdate` in
-							// place (`recordUpdate[attr.name] = vector`); we must run it BEFORE the
-							// `updateAndFreeze` flatten below for fullUpdate (PUT), or the mutation
-							// would hit a frozen target. Returning the embedder promise from
-							// `validate` propagates through `DatabaseTransaction.save` /
-							// `LMDBTransaction.commit` which now await async validate before
-							// calling `commit(...)`.
-							const embedBefore = buildEmbedBefore(
-								recordUpdate,
-								context,
-								options,
-								TableResource.embedAttributes,
-								TableResource.userEmbedders
-							);
-							const finalizeFullUpdate = () => {
-								if (fullUpdate) {
-									recordUpdate = updateAndFreeze(recordUpdate); // flatten and freeze
-								}
-								// TODO: else freeze after we have applied the changes
-							};
-							if (embedBefore) {
-								return embedBefore().then(finalizeFullUpdate);
+							if (fullUpdate) {
+								recordUpdate = updateAndFreeze(recordUpdate); // this flatten and freeze the record
 							}
-							finalizeFullUpdate();
+							// TODO: else freeze after we have applied the changes
 						}
 					} else {
 						(transaction as any).removeWrite?.(write);
@@ -2005,15 +1979,28 @@ export function makeTable(options) {
 				},
 			};
 			this.#savingOperation = write;
-			// The `@embed` write-time hook used to live here, but it has moved into the
-			// `validate` closure above so it runs against the FINAL `recordUpdate` —
-			// including any post-update instance mutations (the
-			// `await Table.update(id, {}); row.content = '...'; row.save()` pattern).
-			// `validate` is now async-aware: `DatabaseTransaction.save` and
-			// `LMDBTransaction.commit` await an async validate before invoking
-			// `before` / `beforeIntermediate` / `commit`.
-			write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
-			return transaction.addWrite(write as any);
+			// `@embed` write-time hook (Phase 5 of #510). Must run BEFORE `addWrite`
+			// so the embedder's mutation of `recordUpdate` reaches the per-write
+			// `commit(...)` closure. The transaction's pre-commit `before` slot
+			// fires AFTER `commit(...)` for record mutations (the slot is awaited
+			// at `Promise.all(completions)` at txn-commit time, not before each
+			// write's commit closure) — which is fine for blob byte-writes that
+			// reference pre-allocated IDs, but not for embed where the vector
+			// itself must be on the record at commit time. Skipped on replicated
+			// writes — the originating node already computed the embedding and
+			// the receiver should preserve it.
+			const embedBefore = buildEmbedBefore(
+				recordUpdate,
+				context,
+				options,
+				TableResource.embedAttributes,
+				TableResource.userEmbedders
+			);
+			const proceed = (): any => {
+				write.beforeIntermediate = preCommitBlobsForRecordBefore(write, recordUpdate);
+				return transaction.addWrite(write as any);
+			};
+			return embedBefore ? embedBefore().then(proceed) : proceed();
 		}
 
 		async delete(target: RequestTargetOrId): Promise<boolean> {
@@ -3841,31 +3828,30 @@ export function makeTable(options) {
 	function checkValidId(id) {
 		switch (typeof id) {
 			case 'number':
-				if (isNaN(id)) throw new ClientError('Invalid primary key of NaN', 400);
 				return true;
 			case 'string':
 				if (id.length < 659) return true; // max number of characters that can't expand our key size limit
 				if (id.length > MAX_KEY_BYTES) {
 					// we can quickly determine this is too big
-					throw new ClientError('Primary key size is too large: ' + id.length, 400);
+					throw new Error('Primary key size is too large: ' + id.length);
 				}
 				// TODO: We could potentially have a faster test here, Buffer.byteLength is close, but we have to handle characters < 4 that are escaped in ordered-binary
 				break; // otherwise we have to test it, in this range, unicode characters could put it over the limit
 			case 'object':
 				if (id === null) {
-					throw new ClientError('Invalid primary key of null', 400);
+					throw new Error('Invalid primary key of null');
 				}
 				break; // otherwise we have to test it
 			case 'bigint':
 				if (id < 2n ** 64n && id > -(2n ** 64n)) return true;
 				break; // otherwise we have to test it
 			default:
-				throw new ClientError('Invalid primary key type: ' + typeof id, 400);
+				throw new Error('Invalid primary key type: ' + typeof id);
 		}
 		// otherwise it is difficult to determine if the key size is too large
 		// without actually attempting to serialize it
 		const length = writeKey(id, TEST_WRITE_KEY_BUFFER, 0);
-		if (length > MAX_KEY_BYTES) throw new ClientError('Primary key size is too large: ' + id.length, 400);
+		if (length > MAX_KEY_BYTES) throw new Error('Primary key size is too large: ' + id.length);
 		return true;
 	}
 	function requestTargetToId(target: RequestTargetOrId): Id {

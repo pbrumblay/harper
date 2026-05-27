@@ -43,6 +43,25 @@
  * commit the record without the vector, then back-fill via the existing job
  * infrastructure at `server/jobs/`.
  *
+ * KNOWN LIMITATION — instance-mutation pattern: `buildEmbedBefore` is invoked
+ * from `_writeUpdate` against `recordUpdate` AT THAT MOMENT, not against the
+ * final write payload. The programmatic pattern
+ *
+ *     const row = await Table.update(id, {});
+ *     row.content = 'new content';
+ *     await row.save();
+ *
+ * (seen in `unitTests/resources/transaction.test.js`) passes `{}` to
+ * `_writeUpdate`, so `buildEmbedBefore` sees no source field and returns
+ * `undefined` — the row commits without a vector. The next write that
+ * includes the source field will fire the embedder normally. A spike at
+ * closing this gap by moving the hook to validate-time (where `recordUpdate`
+ * is final) introduced ordering inversion bugs for mixed sync/async writes in
+ * one txn that two cross-model reviewers independently flagged — the
+ * txn-machinery has implicit ordering invariants that don't admit async
+ * mutation cleanly. Tracking the proper fix at the resource-layer (above the
+ * txn) in a follow-up issue.
+ *
  * Model-change invalidation: the parser sets `property.version = "embed:<model>"`
  * so the schema-load path at `databases.ts:1111` detects a model change between
  * deploys (same pattern `@computed` uses). Today the version-change pathway
