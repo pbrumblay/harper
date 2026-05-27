@@ -2,7 +2,7 @@
  * `@embed` directive integration test (#632 / Phase 5 of #510).
  *
  * Spins up a fake Ollama HTTP server inside the test, points Harper's models
- * config at it, deploys a schema with `@embed`, and exercises six paths
+ * config at it, deploys a schema with `@embed`, and exercises seven paths
  * end-to-end:
  *
  *   1. **Happy path** — POST a record → fake-ollama returns a deterministic
@@ -29,7 +29,12 @@
  *      covered by the `options.isNotification === true` branch in
  *      `embedHook.test.js`.)
  *
- *   6. **Caching-table `@embed`** — a table with `sourcedFrom(SourceResource)`
+ *   6. **Bulk PUT with duplicate ids** — array payload with two records sharing
+ *      the same id. The SECOND must win deterministically — submission order is the
+ *      source of truth, not embedder-roundtrip timing. Locks in the sequencing fix
+ *      in `Table.put` array branch and `Resource.put` collection-array branch.
+ *
+ *   7. **Caching-table `@embed`** — a table with `sourcedFrom(SourceResource)`
  *      and `@embed` declared on a derived field. GET fires `getFromSource`,
  *      the cache write goes through the `Table.ts:~4520` embed wiring (which
  *      bypasses `_writeUpdate`), and the cached row ends up with a populated
@@ -504,5 +509,49 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		const callsAfterFirst = fake.embedCallCount();
 		await client.reqRest(`/CachedEmbedDoc/${id}`).expect(200);
 		strictEqual(fake.embedCallCount(), callsAfterFirst, 'cache-hit GET should not re-run the embedder');
+	});
+
+	test('bulk PUT with duplicate ids: writes commit in payload order (last-write-wins by submission, not by embedder timing)', async () => {
+		// Codex round-4 finding: bulk PUT on a collection processes elements via
+		// `Promise.all` over `record.map`. With `@embed`, each element's `_writeUpdate` is
+		// async (embedder roundtrip) — so duplicate ids in one payload would race and the
+		// element with the FASTER embedder would commit LAST (and lose to a slower one
+		// earlier in the payload). The fix in `Table.ts` and `Resource.ts` sequences
+		// the elements when `@embed` is on the table, preserving submission order.
+		const id = 'bulk-dup-1';
+		const first = 'bulk first (should be overwritten)';
+		const second = 'bulk second (the winner)';
+		const expectedSecond = deterministicVector(second);
+
+		await request(ctx.harper.httpURL)
+			.put('/EmbedDoc/')
+			.set(client.headers)
+			.send([
+				{ id, content: first },
+				{ id, content: second },
+			])
+			.expect((r: any) => ok([200, 201, 204].includes(r.status), `bulk PUT status ${r.status}: ${r.text}`));
+
+		const search = await client
+			.req()
+			.send({
+				operation: 'search_by_hash',
+				database: 'embedtest',
+				table: 'EmbedDoc',
+				hash_values: [id],
+				get_attributes: ['*'],
+			})
+			.expect(200);
+		ok(Array.isArray(search.body) && search.body.length === 1, `search_by_hash body: ${JSON.stringify(search.body)}`);
+		strictEqual(search.body[0].content, second, 'second element in the bulk payload must win');
+		const stored = decodeVector(search.body[0].embedding);
+		ok(stored, `embedding should be populated, got: ${JSON.stringify(search.body[0].embedding)}`);
+		strictEqual(stored.length, 3);
+		for (let i = 0; i < 3; i++) {
+			ok(
+				Math.abs(stored[i] - expectedSecond[i]) < 1e-5,
+				`bulk-dup vector[${i}] mismatch: stored=${stored[i]} expected (second)=${expectedSecond[i]}`
+			);
+		}
 	});
 });

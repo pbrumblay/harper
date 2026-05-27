@@ -279,7 +279,8 @@ export function buildEmbedBefore(
 function normalizeVector(vector: any): number[] | null {
 	if (vector == null) return null;
 	if (Array.isArray(vector)) return vector;
-	if (vector instanceof Float32Array) return Array.from(vector);
+	// `ArrayBuffer.isView` covers all TypedArrays (Float32Array, Float64Array, Int*Array,
+	// Uint*Array, etc.) and DataView. `Array.from` iterates element values for typed arrays.
 	if (ArrayBuffer.isView(vector)) return Array.from(vector as any);
 	return vector;
 }

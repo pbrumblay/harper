@@ -1546,13 +1546,27 @@ export function makeTable(options) {
 					}
 					// standard path, handle arrays as multiple updates, and otherwise do a direct update
 					if (Array.isArray(record)) {
+						// `_writeUpdate` may return a promise when an `@embed` directive requires
+						// running an embedder before the per-write `commit(...)` closure. For
+						// tables WITHOUT `@embed`, `_writeUpdate` is synchronous and `Promise.all`
+						// over `record.map` preserves submission order because each map iteration
+						// completes synchronously before the next begins. For tables WITH `@embed`,
+						// `_writeUpdate` returns a promise (embedder roundtrip) — `Promise.all`
+						// then lets elements race, and a payload containing DUPLICATE ids would
+						// commit in embedder-resolution order, not submission order. Sequence the
+						// elements via a Promise chain to preserve payload-order semantics
+						// (last-write-wins by submission). Non-`@embed` tables stay parallel.
+						if (TableResource.embedAttributes?.length) {
+							let chain: Promise<any> = Promise.resolve();
+							for (const element of record) {
+								const id = element[primaryKey];
+								chain = chain.then(() => when(this._writeUpdate(id, element, true), () => this.save() as any));
+							}
+							return chain.then(() => undefined) as any;
+						}
 						return Promise.all(
 							record.map((element) => {
 								const id = element[primaryKey];
-								// `_writeUpdate` may return a promise when an `@embed` directive
-								// requires running an embedder before the per-write `commit(...)`
-								// closure. Threading via `when()` so synchronous-return callers
-								// (no embed) and async-return callers (embed pending) both work.
 								return when(this._writeUpdate(id, element, true), () => this.save() as any);
 							})
 						) as any;
