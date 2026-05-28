@@ -1,37 +1,33 @@
 /**
- * MCP resources capability (#616).
+ * MCP resources capability — implements `resources/list`, `resources/read`,
+ * and `resources/templates/list` per MCP §server/resources (rev 2025-06-18).
  *
- * Implements `resources/list`, `resources/read`, and
- * `resources/templates/list` per MCP §server/resources (rev 2025-06-18).
- *
- * Two URI schemes (intentionally — see #465 "URI schemes" section):
- *   - `https://<host>:<port>/<path>` for app-exported Resources. The same
+ * Two URI schemes:
+ *   - `https://<host>[:<port>]/<path>` for app-exported Resources. The same
  *     URL the REST API uses. Resolved **in-process** via
  *     `Resources.getMatch(path)` — never makes an outbound HTTP request.
  *   - `harper://...` for synthetic / metadata resources that don't have a
  *     real HTTP endpoint:
  *       harper://about              — server version, profile, capabilities
- *       harper://schema/{database}/{table} — Table.attributes (RBAC-filtered)
+ *       harper://schema/{database}/{table} — Table.attributes (RBAC-filtered at read time)
  *       harper://openapi             — OpenAPI 3.0.3 document
  *       harper://operations          — ops-profile only; canonical ops list
  *
- * Unlike the tool registry (#615), resources aren't *registered* — they're
+ * Unlike the tool registry, resources aren't *registered* — they're
  * *discovered* at request time. Apps register their `Resource` classes
  * through Harper's normal flow; this module enumerates the global
  * `resources` registry and adds the synthetic URIs that v1 exposes.
  *
- * Security model: every read is re-checked against current RBAC. A URI
- * returned in `resources/list` is NOT a capability token; revoking a role
- * mid-session causes subsequent reads to fail (returned as a JSON-RPC error
- * for resources/read so the transport's `isError` mapping doesn't kick in
- * — `isError` is a tool-call concept). The RBAC walks here mirror the
- * patterns at `dataLayer/schemaDescribe.ts:29-49` (table read/describe
- * perms) and `resources/openApi.ts:149-153` (class-level verb intro).
+ * Security model: list time only checks REST-method presence on the
+ * Resource class. Resource access is determined programmatically (per-
+ * record `allow{Read,Create,Update,Delete}` predicates), so list-time
+ * RBAC walks would be both incomplete and misleading. Every read goes
+ * through the corresponding read path's permission enforcement.
  *
- * Inlined RBAC: keeping the small walk here rather than importing from
- * `toolRegistry.ts` (#615). #615 and #616 ship as parallel PRs; after both
- * merge to main, refactoring the common helpers into a shared module is
- * straightforward.
+ * For `harper://schema/{database}/{table}`, read enforcement uses the
+ * static `user.role.permission[db].tables[table].{read,describe}` walk —
+ * that's the same path Harper's describe permission uses
+ * (`dataLayer/schemaDescribe.ts:29-49`).
  */
 import * as env from '../../utility/environment/environmentManager.ts';
 import { CONFIG_PARAMS, OPERATIONS_ENUM } from '../../utility/hdbTerms.ts';
@@ -58,7 +54,6 @@ export interface AuthedUser {
 		permission?: {
 			super_user?: boolean;
 			structure_user?: boolean;
-			cluster_user?: boolean;
 			operations?: string[];
 			[database: string]:
 				| boolean
@@ -160,7 +155,7 @@ export interface ListResourcesResult {
 }
 
 export function listResources(args: ListResourcesArgs): ListResourcesResult {
-	const all = enumerate(args.user, args.profile);
+	const all = enumerate(args.profile);
 	const offset = args.cursor ? decodeCursor(args.cursor) : 0;
 	const limit = args.limit && args.limit > 0 ? args.limit : DEFAULT_LIMIT;
 	const slice = all.slice(offset, offset + limit);
@@ -226,14 +221,14 @@ export async function readResource(args: ReadResourceArgs): Promise<ReadResource
 		if (profile !== 'application') {
 			return { ok: false, reason: 'https:// resources are only available on the application profile' };
 		}
-		return readAppResource(parsed, user);
+		return readAppResource(parsed);
 	}
 	return { ok: false, reason: `unsupported uri scheme: ${parsed.protocol}` };
 }
 
 // ─── Enumeration ───────────────────────────────────────────────────────
 
-function enumerate(user: AuthedUser, profile: McpProfile): ResourceDescriptor[] {
+function enumerate(profile: McpProfile): ResourceDescriptor[] {
 	const out: ResourceDescriptor[] = [];
 
 	// `harper://about` is available on both profiles.
@@ -261,29 +256,28 @@ function enumerate(user: AuthedUser, profile: McpProfile): ResourceDescriptor[] 
 			mimeType: 'application/json',
 		});
 
-		// harper://schema/{database}/{table} — one entry per user-visible table backing a Resource.
-		const tables = enumerateUserVisibleTables(user);
-		for (const { db, table } of tables) {
+		// harper://schema/{database}/{table} — one entry per table backing a Resource.
+		// No list-time RBAC filter; readTableSchema enforces describe/read perms.
+		for (const { db, table } of enumerateTableBackedResources()) {
 			out.push({
 				uri: `harper://schema/${db}/${table}`,
 				name: `${db}.${table} schema`,
-				description: `Attribute definitions for ${db}.${table}, filtered by your role's attribute_permissions.`,
+				description: `Attribute definitions for ${db}.${table}, filtered at read time by your role's attribute_permissions.`,
 				mimeType: 'application/json',
 			});
 		}
 
-		// https://... — one per exported Resource the user can read. The URI is the
-		// canonical REST URL; LLMs that already know the REST URL space can re-use it
-		// directly instead of round-tripping a harper:// translation.
-		const httpEntries = enumerateAppHttpResources(user);
-		for (const entry of httpEntries) out.push(entry);
+		// https://... — one per exported Resource that has class-level REST methods.
+		// Per-record access is decided by each Resource's `allow{Read,...}` predicate
+		// at read time, so the list filter only checks method presence.
+		for (const entry of enumerateAppHttpResources()) out.push(entry);
 	}
 
 	out.sort((a, b) => (a.uri < b.uri ? -1 : a.uri > b.uri ? 1 : 0));
 	return out;
 }
 
-function enumerateUserVisibleTables(user: AuthedUser): Array<{ db: string; table: string }> {
+function enumerateTableBackedResources(): Array<{ db: string; table: string }> {
 	const seen = new Set<string>();
 	const result: Array<{ db: string; table: string }> = [];
 	for (const entry of getResources().values()) {
@@ -293,32 +287,19 @@ function enumerateUserVisibleTables(user: AuthedUser): Array<{ db: string; table
 		if (!db || !table) continue;
 		const key = `${db}/${table}`;
 		if (seen.has(key)) continue;
-		const perm = userTablePermissions(user, db, table);
-		if (!perm?.read && !perm?.describe) continue;
 		seen.add(key);
 		result.push({ db, table });
 	}
 	return result;
 }
 
-function enumerateAppHttpResources(user: AuthedUser): ResourceDescriptor[] {
+function enumerateAppHttpResources(): ResourceDescriptor[] {
 	const prefix = guessAppHttpUrlPrefix();
 	if (!prefix) return [];
 	const out: ResourceDescriptor[] = [];
 	for (const [path, entry] of getResources()) {
-		const ResourceClass = entry.Resource;
-		// RBAC: if the Resource backs a table, gate on table-read perms. For
-		// non-table Resources (custom classes), default-deny when there's no
-		// way to evaluate access — matches the "default-allow tightening"
-		// principle in MCP §security_best_practices.
-		const db = (ResourceClass as { databaseName?: string })?.databaseName;
-		const table = (ResourceClass as { tableName?: string })?.tableName;
-		if (db && table) {
-			const perm = userTablePermissions(user, db, table);
-			if (!perm?.read) continue;
-		} else if (!isSuperUser(user)) {
-			continue;
-		}
+		const ResourceClass = entry.Resource as { prototype?: unknown } | undefined;
+		if (!hasRestVerbs(ResourceClass?.prototype)) continue;
 		out.push({
 			uri: `${prefix}/${path}`,
 			name: path,
@@ -327,6 +308,25 @@ function enumerateAppHttpResources(user: AuthedUser): ResourceDescriptor[] {
 		});
 	}
 	return out;
+}
+
+/**
+ * Mirrors the verb-presence check at `resources/openApi.ts:149-153`.
+ * Returns true if the Resource subclass defines any REST verb on its
+ * prototype, which is what makes it visible over HTTP. `update()` is
+ * counted because openApi treats it as an implicit POST override.
+ */
+function hasRestVerbs(prototype: unknown): boolean {
+	if (!prototype || typeof prototype !== 'object') return false;
+	const p = prototype as Record<string, unknown>;
+	return (
+		typeof p.get === 'function' ||
+		typeof p.put === 'function' ||
+		typeof p.post === 'function' ||
+		typeof p.patch === 'function' ||
+		typeof p.delete === 'function' ||
+		typeof p.update === 'function'
+	);
 }
 
 // ─── Read dispatchers ──────────────────────────────────────────────────
@@ -362,7 +362,7 @@ async function readHarperUri(
 
 function readAbout(profile: McpProfile, href: string): ReadResourceOk {
 	// Reuse the lifecycle module's constants so this resource and the
-	// `initialize` handshake never drift. Per gemini review on #781.
+	// `initialize` handshake never drift.
 	const body = {
 		serverInfo: SERVER_INFO,
 		profile,
@@ -425,34 +425,26 @@ function readOperationsCatalog(user: AuthedUser, href: string): ReadResourceOk {
 	return jsonContent(href, { operations: out });
 }
 
-async function readAppResource(uri: URL, user: AuthedUser): Promise<ReadResourceOk | ReadResourceFail> {
+async function readAppResource(uri: URL): Promise<ReadResourceOk | ReadResourceFail> {
 	// Strip the host:port and leading slash to get the path that
 	// Resources.getMatch expects.
 	const path = uri.pathname.replace(/^\/+/, '');
 	const entry = getResources().getMatch(path);
 	if (!entry) return { ok: false, reason: `no resource matches: ${uri.href}` };
 
-	const ResourceClass = entry.Resource;
-	const db = (ResourceClass as { databaseName?: string })?.databaseName;
-	const table = (ResourceClass as { tableName?: string })?.tableName;
-	if (db && table) {
-		const perm = userTablePermissions(user, db, table);
-		if (!perm?.read) return { ok: false, reason: `permission denied: cannot read ${db}.${table}` };
-	} else if (!isSuperUser(user)) {
-		return { ok: false, reason: 'permission denied: only super_user may read non-table app resources in v1' };
-	}
-
+	const ResourceClass = entry.Resource as { databaseName?: string; tableName?: string } | undefined;
 	// v1 returns a descriptor of the Resource class — enough for an LLM to
 	// understand what's available. Full content reads (a record fetch, a
-	// search result) go through the tools surface (#618 generates
-	// `get_*`/`search_*` tools that wrap the Resource methods with their
-	// existing transactional + allow* checks). This keeps `resources/read`
-	// a fast, side-effect-free metadata view.
+	// search result) go through the tools surface, where each Resource's
+	// existing `transactional()` + `allow{Read,Create,Update,Delete}`
+	// predicates run per-record. This keeps `resources/read` a fast,
+	// side-effect-free metadata view; the descriptor itself isn't a
+	// capability token, just a hint that this URI exists in the registry.
 	const body = {
 		uri: uri.href,
 		path: entry.path,
-		database: db,
-		table,
+		database: ResourceClass?.databaseName,
+		table: ResourceClass?.tableName,
 		hint: 'Use the corresponding `get_*` or `search_*` tool from `tools/list` to fetch records.',
 	};
 	return jsonContent(uri.href, body);
@@ -495,14 +487,12 @@ const SCHEMA_STRUCTURE_OPERATIONS = new Set([
 	'create_attribute',
 	'drop_attribute',
 ]);
-const CLUSTER_OPERATIONS = new Set(['add_node', 'remove_node', 'update_node', 'set_node_replication']);
 
 function canRoleInvokeOperation(user: AuthedUser, operation: string): boolean {
 	if (isSuperUser(user)) return true;
 	const perm = user?.role?.permission;
 	if (!perm) return false;
 	if (perm.structure_user && SCHEMA_STRUCTURE_OPERATIONS.has(operation)) return true;
-	if (perm.cluster_user && CLUSTER_OPERATIONS.has(operation)) return true;
 	if (Array.isArray(perm.operations) && perm.operations.includes(operation)) return true;
 	return false;
 }
@@ -524,9 +514,9 @@ function filterAttributesByPermissions(attributes: any[], attributePermissions: 
 }
 
 function guessAppHttpUrlPrefix(): string | undefined {
-	// Best-effort URL prefix construction. The server module exposes a host
-	// name post-boot; the port comes from config. In tests where neither is
-	// available we return undefined and skip the https:// enumeration —
+	// Best-effort URL prefix construction. Hostname comes from the server
+	// module post-boot; the port comes from config. In tests where neither
+	// is available we return undefined and skip the https:// enumeration —
 	// callers handle the absence gracefully.
 	if (_httpUrlPrefixOverride !== undefined) return _httpUrlPrefixOverride || undefined;
 	let hostname: string | undefined;
@@ -536,9 +526,22 @@ function guessAppHttpUrlPrefix(): string | undefined {
 	} catch {
 		return undefined;
 	}
-	const port = env.get(CONFIG_PARAMS.HTTP_PORT);
-	if (!hostname || !port) return undefined;
-	return `https://${hostname}:${port}`;
+	if (!hostname) return undefined;
+
+	// On Fabric, secure ports are shadowed through Unix domain sockets and
+	// the published surface lives behind a load balancer (9926 → 443). Drop
+	// the port so the URL points at the public surface, not the internal one.
+	if (env.get(CONFIG_PARAMS.TLS_UNIXDOMAINSOCKETS)) {
+		return `https://${hostname}`;
+	}
+
+	// Standard deployment: prefer the HTTPS port. Fall back to the plain
+	// HTTP port for dev setups that don't configure TLS.
+	const securePort = env.get(CONFIG_PARAMS.HTTP_SECUREPORT);
+	if (securePort) return `https://${hostname}:${securePort}`;
+	const httpPort = env.get(CONFIG_PARAMS.HTTP_PORT);
+	if (httpPort) return `http://${hostname}:${httpPort}`;
+	return undefined;
 }
 
 function jsonContent(uri: string, body: unknown): ReadResourceOk {

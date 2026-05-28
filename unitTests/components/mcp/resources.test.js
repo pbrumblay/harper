@@ -5,6 +5,7 @@ const {
 	readResource,
 	_setResourcesForTest,
 	_setOpenApiGeneratorForTest,
+	_setHttpUrlPrefixForTest,
 } = require('#src/components/mcp/resources');
 
 function makeFakeResources(entries) {
@@ -32,8 +33,26 @@ function makeFakeResources(entries) {
 	return map;
 }
 
-function makeTableResource({ databaseName, tableName, primaryKey = 'id', attributes = [] } = {}) {
-	return { databaseName, tableName, primaryKey, attributes };
+// Returns a class with REST verbs on its prototype (so the hasRestVerbs filter
+// matches the way Harper's TableResource auto-binds verbs for table-backed
+// Resources). `verbs: []` makes a fixture that has no REST surface — useful
+// for testing the verb-presence filter.
+function makeTableResource({
+	databaseName,
+	tableName,
+	primaryKey = 'id',
+	attributes = [],
+	verbs = ['get', 'put', 'patch', 'delete'],
+} = {}) {
+	class Cls {}
+	Cls.databaseName = databaseName;
+	Cls.tableName = tableName;
+	Cls.primaryKey = primaryKey;
+	Cls.attributes = attributes;
+	for (const v of verbs) {
+		Cls.prototype[v] = function () {};
+	}
+	return Cls;
 }
 
 const SUPER = { username: 'admin', role: { permission: { super_user: true } } };
@@ -96,22 +115,17 @@ describe('mcp/resources', () => {
 	});
 
 	describe('listResources — table schemas (harper://schema/...)', () => {
-		it('lists schemas for tables the user can read or describe', () => {
-			const result = listResources({ user: ALICE_READ_ONLY, profile: 'application' });
-			const schemaUris = result.resources.filter((r) => r.uri.startsWith('harper://schema/')).map((r) => r.uri);
-			assert.deepEqual(schemaUris, ['harper://schema/data/product']);
-		});
-
-		it('lists all schemas for super_user', () => {
-			const result = listResources({ user: SUPER, profile: 'application' });
-			const schemaUris = result.resources.filter((r) => r.uri.startsWith('harper://schema/')).map((r) => r.uri);
-			assert.deepEqual(schemaUris.sort(), ['harper://schema/data/customer', 'harper://schema/data/product']);
-		});
-
-		it('returns no table schemas for a user with no permissions', () => {
-			const result = listResources({ user: NOBODY, profile: 'application' });
-			const schemaUris = result.resources.filter((r) => r.uri.startsWith('harper://schema/'));
-			assert.equal(schemaUris.length, 0);
+		it('lists every table backed by a Resource, regardless of caller perms', () => {
+			// Per kriszyp review on #788: list-time RBAC walks are misleading —
+			// Resource access is programmatic, so the list is everything and the
+			// read predicate enforces. Verified for both an unprivileged user
+			// and super_user — same list.
+			const alice = listResources({ user: ALICE_READ_ONLY, profile: 'application' });
+			const nobody = listResources({ user: NOBODY, profile: 'application' });
+			const aliceUris = alice.resources.filter((r) => r.uri.startsWith('harper://schema/')).map((r) => r.uri);
+			const nobodyUris = nobody.resources.filter((r) => r.uri.startsWith('harper://schema/')).map((r) => r.uri);
+			assert.deepEqual(aliceUris.sort(), ['harper://schema/data/customer', 'harper://schema/data/product']);
+			assert.deepEqual(nobodyUris, aliceUris);
 		});
 
 		it('produces deterministic order via URI sort', () => {
@@ -305,10 +319,14 @@ describe('mcp/resources', () => {
 	});
 
 	describe('readResource — https://... (app profile)', () => {
-		it('returns the Resource descriptor for a matched path with read perms', async () => {
+		it('returns the Resource descriptor for a matched path (metadata only)', async () => {
+			// Per kriszyp review on #788: the descriptor is a hint, not a
+			// capability — actual data fetches go through tools where each
+			// Resource's allow* predicates run per-record. Any authenticated
+			// user can resolve an existing path; unknown paths still 404.
 			const res = await readResource({
 				uri: 'https://harper.example.com:9926/Product',
-				user: ALICE_READ_ONLY,
+				user: NOBODY,
 				profile: 'application',
 			});
 			assert.equal(res.ok, true);
@@ -316,16 +334,6 @@ describe('mcp/resources', () => {
 			assert.equal(body.path, 'Product');
 			assert.equal(body.database, 'data');
 			assert.equal(body.table, 'product');
-		});
-
-		it('rejects when the user lacks read perms on the underlying table', async () => {
-			const res = await readResource({
-				uri: 'https://harper.example.com:9926/Customer',
-				user: ALICE_READ_ONLY,
-				profile: 'application',
-			});
-			assert.equal(res.ok, false);
-			assert.match(res.reason, /permission denied/);
 		});
 
 		it('returns ok:false when no resource matches', async () => {
@@ -346,6 +354,56 @@ describe('mcp/resources', () => {
 			});
 			assert.equal(res.ok, false);
 			assert.match(res.reason, /application profile/);
+		});
+	});
+
+	describe('listResources — https:// app Resources (verb-presence gating)', () => {
+		beforeEach(() => {
+			// Override the URL prefix so enumerateAppHttpResources actually
+			// emits entries (otherwise it returns [] and the verb filter is
+			// untested in isolation).
+			_setHttpUrlPrefixForTest('https://app.test:9926');
+			_setResourcesForTest(
+				makeFakeResources([
+					['HasVerbs', makeTableResource({ databaseName: 'data', tableName: 'product' })],
+					[
+						'NoVerbs',
+						makeTableResource({
+							databaseName: 'data',
+							tableName: 'silent',
+							verbs: [], // bare class, no REST methods
+						}),
+					],
+				])
+			);
+		});
+		afterEach(() => {
+			_setHttpUrlPrefixForTest(undefined);
+		});
+
+		it('includes Resources whose prototype defines REST verbs', () => {
+			const result = listResources({ user: SUPER, profile: 'application' });
+			const httpUris = result.resources.filter((r) => r.uri.startsWith('https://')).map((r) => r.uri);
+			assert.ok(httpUris.includes('https://app.test:9926/HasVerbs'));
+		});
+
+		it('excludes Resources with no REST verbs on the prototype', () => {
+			const result = listResources({ user: SUPER, profile: 'application' });
+			const httpUris = result.resources.filter((r) => r.uri.startsWith('https://')).map((r) => r.uri);
+			assert.ok(!httpUris.includes('https://app.test:9926/NoVerbs'));
+		});
+
+		it('lists the same https:// surface for any caller (no list-time RBAC)', () => {
+			const sup = listResources({ user: SUPER, profile: 'application' }).resources.filter((r) =>
+				r.uri.startsWith('https://')
+			);
+			const nob = listResources({ user: NOBODY, profile: 'application' }).resources.filter((r) =>
+				r.uri.startsWith('https://')
+			);
+			assert.deepEqual(
+				sup.map((r) => r.uri),
+				nob.map((r) => r.uri)
+			);
 		});
 	});
 
