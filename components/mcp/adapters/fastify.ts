@@ -17,7 +17,12 @@ interface FastifyLikeRequest {
 	method: string;
 	headers: Record<string, string | string[] | undefined>;
 	body: unknown;
-	hdb_user?: { username?: string } | null;
+	/**
+	 * authAndEnsureUserOnRequest sets the full user (incl. role + permission
+	 * tree) on `req.hdb_user`. Used for session binding (`username`) and
+	 * forwarded as the `userObject` to the transport for tool RBAC.
+	 */
+	hdb_user?: { username?: string; role?: unknown } | null;
 }
 
 interface FastifyLikeReply {
@@ -37,6 +42,7 @@ export function createFastifyHandler(profile: McpProfile) {
 			// avoid an unnecessary stringify/re-parse round trip on the hot path.
 			body: request.body,
 			user: request.hdb_user?.username ?? '',
+			userObject: (request.hdb_user ?? undefined) as NormRequest['userObject'],
 			profile,
 		};
 

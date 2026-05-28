@@ -16,6 +16,7 @@ import { table, type Table } from '../../resources/databases.ts';
 import * as env from '../../utility/environment/environmentManager.ts';
 import { CONFIG_PARAMS } from '../../utility/hdbTerms.ts';
 import harperLogger from '../../utility/logging/harper_logger.ts';
+import { clearSessionCache } from './toolRegistry.ts';
 
 const TABLE_NAME = 'mcp_session';
 const DATABASE_NAME = 'system';
@@ -128,6 +129,11 @@ export async function saveSession(record: McpSessionRecord): Promise<void> {
 
 export async function deleteSession(id: string): Promise<void> {
 	await (getTable() as any).delete(id);
+	// Tear down ancillary per-session in-memory state (e.g., the
+	// `tools/list` pagination cache). Without this, every paged session
+	// leaves an orphan entry in toolRegistry's sessionListCache until the
+	// process restarts.
+	clearSessionCache(id);
 }
 
 /**

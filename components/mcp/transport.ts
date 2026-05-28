@@ -31,7 +31,8 @@ import {
 	PROTOCOL_VERSION_BACKCOMPAT,
 	SUPPORTED_PROTOCOL_VERSIONS,
 } from './lifecycle.ts';
-import { deleteSession, loadSession, touchSession } from './session.ts';
+import { deleteSession, loadSession, touchSession, type McpSessionRecord } from './session.ts';
+import { getTool, listTools, type AuthedUser, type ToolResult } from './toolRegistry.ts';
 
 export type McpProfile = 'operations' | 'application';
 
@@ -46,8 +47,16 @@ export interface NormRequest {
 	 * both — no JSON round-trip needed.
 	 */
 	body: string | unknown;
-	/** Authenticated username from upstream auth pipeline. */
+	/** Authenticated username from upstream auth pipeline. Used for session binding. */
 	user: string;
+	/**
+	 * Full authenticated user object from upstream auth — includes role +
+	 * permission tree. Required for tool RBAC filtering (#615) and
+	 * subsequent profiles (#617/#618). Optional in the transport's shape so
+	 * adapters can populate or omit; tools that gate on role will return no
+	 * matches when the object is absent.
+	 */
+	userObject?: AuthedUser;
 	profile: McpProfile;
 }
 
@@ -166,9 +175,12 @@ async function handlePost(request: NormRequest): Promise<NormResponse> {
 		return { status: 202, headers: {} };
 	}
 
-	// Request (has id + method, not 'initialize') — stub responder for v1.
-	// Tools/resources lands in #615/#616/#617/#618; until then, every method
-	// other than initialize gets a spec-conformant Method-not-found error.
+	// Request with id + method (and not 'initialize'): route to the
+	// known method handlers below. Tools came online in #615; resources
+	// land in #616. Anything we don't handle yet returns a
+	// spec-conformant Method-not-found error.
+	if (method === 'tools/list') return dispatchToolsList(request, session, message, messageId);
+	if (method === 'tools/call') return dispatchToolsCall(request, session, message, messageId);
 	return jsonResponse(
 		200,
 		buildError(messageId, ERROR_CODES.METHOD_NOT_FOUND, `Method not found: ${method ?? '<missing>'}`)
@@ -199,6 +211,79 @@ function handleGet(): NormResponse {
 	// v1 does not offer a GET SSE channel. #619 will replace this with a
 	// real server-push stream for `listChanged` notifications.
 	return { status: 405, headers: { Allow: currentlyAllowedMethods() } };
+}
+
+const DEFAULT_MAX_TOOLS = 200;
+
+function profileMaxTools(profile: McpProfile): number {
+	const key = profile === 'operations' ? CONFIG_PARAMS.MCP_OPERATIONS_MAXTOOLS : CONFIG_PARAMS.MCP_APPLICATION_MAXTOOLS;
+	const value = env.get(key);
+	return typeof value === 'number' && value > 0 ? value : DEFAULT_MAX_TOOLS;
+}
+
+function dispatchToolsList(
+	request: NormRequest,
+	session: McpSessionRecord,
+	message: JsonRpcMessage,
+	messageId: JsonRpcId
+): NormResponse {
+	const params = 'params' in message ? (message.params as { cursor?: unknown } | undefined) : undefined;
+	const cursor = typeof params?.cursor === 'string' ? params.cursor : undefined;
+	const limit = profileMaxTools(request.profile);
+	const userObject: AuthedUser = request.userObject ?? { username: request.user };
+	const { tools, nextCursor } = listTools({
+		user: userObject,
+		profile: request.profile,
+		sessionId: session.id,
+		cursor,
+		limit,
+	});
+	const result: { tools: unknown[]; nextCursor?: string } = { tools };
+	if (nextCursor) result.nextCursor = nextCursor;
+	return jsonResponse(200, buildSuccess(messageId, result));
+}
+
+async function dispatchToolsCall(
+	request: NormRequest,
+	session: McpSessionRecord,
+	message: JsonRpcMessage,
+	messageId: JsonRpcId
+): Promise<NormResponse> {
+	const params =
+		'params' in message ? (message.params as { name?: unknown; arguments?: unknown } | undefined) : undefined;
+	const name = typeof params?.name === 'string' ? params.name : undefined;
+	if (!name) {
+		return jsonResponse(200, buildError(messageId, ERROR_CODES.INVALID_PARAMS, 'tools/call requires params.name'));
+	}
+	const tool = getTool(name);
+	if (!tool || tool.profile !== request.profile) {
+		return jsonResponse(200, buildError(messageId, ERROR_CODES.METHOD_NOT_FOUND, `Unknown tool: ${name}`));
+	}
+
+	const args = params?.arguments ?? {};
+	const userObject: AuthedUser = request.userObject ?? { username: request.user };
+
+	let toolResult: ToolResult;
+	try {
+		toolResult = await tool.handler(args, { user: userObject, profile: request.profile, sessionId: session.id });
+	} catch (err) {
+		// Per MCP §server/tools → Error Handling: tool-execution errors come
+		// back as a successful JSON-RPC result with isError:true so the LLM
+		// can see and adapt. Stack traces stay in the server log; only the
+		// message goes to the wire (Harper-style hygiene).
+		const errMsg = (err as Error).message ?? 'tool execution failed';
+		harperLogger.warn(`MCP tools/call ${name} threw: ${(err as Error).stack ?? errMsg}`);
+		toolResult = {
+			isError: true,
+			content: [
+				{
+					type: 'text',
+					text: JSON.stringify({ kind: 'harper_error', message: errMsg }),
+				},
+			],
+		};
+	}
+	return jsonResponse(200, buildSuccess(messageId, toolResult));
 }
 
 async function handleDelete(request: NormRequest): Promise<NormResponse> {

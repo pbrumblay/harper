@@ -3,6 +3,7 @@ const rewire = require('rewire');
 const transport_mod = rewire('#src/components/mcp/transport');
 const { handleMcpRequest } = transport_mod;
 const { _setSessionTableForTest, createSession, loadSession } = require('#src/components/mcp/session');
+const { addTool, _resetRegistryForTest } = require('#src/components/mcp/toolRegistry');
 
 function makeFakeTable() {
 	const store = new Map();
@@ -51,10 +52,12 @@ describe('mcp/transport', () => {
 		envOverrides = {};
 		transport_mod.__set__('env', envStub);
 		_setSessionTableForTest(makeFakeTable());
+		_resetRegistryForTest();
 	});
 
 	afterEach(() => {
 		_setSessionTableForTest(undefined);
+		_resetRegistryForTest();
 	});
 
 	describe('POST initialize', () => {
@@ -166,13 +169,13 @@ describe('mcp/transport', () => {
 		it('accepts a matching MCP-Protocol-Version and returns Method-not-found for unknown methods', async () => {
 			const res = await handleMcpRequest(
 				makeReq({
-					body: jsonRpc(2, 'tools/list'),
+					body: jsonRpc(2, 'resources/list'),
 					headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
 				})
 			);
 			assert.equal(res.status, 200);
 			assert.equal(res.jsonBody.error.code, -32601);
-			assert.match(res.jsonBody.error.message, /tools\/list/);
+			assert.match(res.jsonBody.error.message, /resources\/list/);
 		});
 
 		it('returns 202 on notifications/initialized and flips session.initialized', async () => {
@@ -216,6 +219,274 @@ describe('mcp/transport', () => {
 			);
 			assert.equal(res.status, 400);
 			assert.equal(res.jsonBody.error.code, -32700);
+		});
+
+		describe('tools/list', () => {
+			it('returns an empty list when no tools are registered', async () => {
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(7, 'tools/list'),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(res.status, 200);
+				assert.deepEqual(res.jsonBody.result, { tools: [] });
+			});
+
+			it('returns registered tools for the matching profile only', async () => {
+				addTool({
+					name: 'app_tool',
+					description: 'app',
+					inputSchema: { type: 'object' },
+					profile: 'application',
+					visibleTo: () => true,
+					handler: async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+				});
+				addTool({
+					name: 'ops_tool',
+					description: 'ops',
+					inputSchema: { type: 'object' },
+					profile: 'operations',
+					visibleTo: () => true,
+					handler: async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+				});
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(7, 'tools/list'),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.deepEqual(
+					res.jsonBody.result.tools.map((t) => t.name),
+					['app_tool']
+				);
+			});
+
+			it('filters via visibleTo using the request user object', async () => {
+				addTool({
+					name: 'super_only',
+					description: 'requires super_user',
+					inputSchema: { type: 'object' },
+					profile: 'application',
+					visibleTo: (u) => u?.role?.permission?.super_user === true,
+					handler: async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+				});
+				const resNonSuper = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(8, 'tools/list'),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+						userObject: { username: 'alice', role: { permission: {} } },
+					})
+				);
+				assert.equal(resNonSuper.jsonBody.result.tools.length, 0);
+
+				const resSuper = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(9, 'tools/list'),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+						userObject: { username: 'alice', role: { permission: { super_user: true } } },
+					})
+				);
+				assert.deepEqual(
+					resSuper.jsonBody.result.tools.map((t) => t.name),
+					['super_only']
+				);
+			});
+
+			it('paginates via opaque nextCursor capped at the profile maxTools', async () => {
+				envOverrides.mcp_application_maxTools = 2;
+				for (let i = 0; i < 5; i++) {
+					addTool({
+						name: `tool_${i.toString().padStart(2, '0')}`,
+						description: 't',
+						inputSchema: { type: 'object' },
+						profile: 'application',
+						visibleTo: () => true,
+						handler: async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+					});
+				}
+				const page1 = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(10, 'tools/list'),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(page1.jsonBody.result.tools.length, 2);
+				assert.ok(page1.jsonBody.result.nextCursor);
+				const page2 = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(11, 'tools/list', { cursor: page1.jsonBody.result.nextCursor }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(page2.jsonBody.result.tools.length, 2);
+				assert.notEqual(page1.jsonBody.result.tools[0].name, page2.jsonBody.result.tools[0].name);
+			});
+
+			it('omits nextCursor when the page completes the list', async () => {
+				addTool({
+					name: 'only',
+					description: 'x',
+					inputSchema: { type: 'object' },
+					profile: 'application',
+					visibleTo: () => true,
+					handler: async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+				});
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(12, 'tools/list'),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(res.jsonBody.result.nextCursor, undefined);
+			});
+		});
+
+		describe('tools/call', () => {
+			beforeEach(() => {
+				addTool({
+					name: 'echo',
+					description: 'echoes args back',
+					inputSchema: { type: 'object', properties: { msg: { type: 'string' } } },
+					profile: 'application',
+					visibleTo: () => true,
+					handler: async (args) => ({ content: [{ type: 'text', text: `you sent ${JSON.stringify(args)}` }] }),
+				});
+			});
+
+			it('dispatches to the registered handler and returns the tool result', async () => {
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(20, 'tools/call', { name: 'echo', arguments: { msg: 'hi' } }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(res.status, 200);
+				assert.equal(res.jsonBody.id, 20);
+				assert.equal(res.jsonBody.result.content[0].text, 'you sent {"msg":"hi"}');
+			});
+
+			it('returns -32601 when the tool is unknown', async () => {
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(21, 'tools/call', { name: 'no_such_tool' }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(res.status, 200);
+				assert.equal(res.jsonBody.error.code, -32601);
+			});
+
+			it('returns -32601 when the tool belongs to a different profile', async () => {
+				addTool({
+					name: 'ops_only',
+					description: 'x',
+					inputSchema: { type: 'object' },
+					profile: 'operations',
+					visibleTo: () => true,
+					handler: async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+				});
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(22, 'tools/call', { name: 'ops_only' }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(res.jsonBody.error.code, -32601);
+			});
+
+			it('returns -32602 when params.name is missing or non-string', async () => {
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(23, 'tools/call', { arguments: {} }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(res.jsonBody.error.code, -32602);
+			});
+
+			it('maps handler exceptions to result.isError=true (not a JSON-RPC error)', async () => {
+				addTool({
+					name: 'boom',
+					description: 'always throws',
+					inputSchema: { type: 'object' },
+					profile: 'application',
+					visibleTo: () => true,
+					handler: async () => {
+						throw new Error('something broke inside the handler');
+					},
+				});
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(24, 'tools/call', { name: 'boom' }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(res.status, 200);
+				assert.equal(res.jsonBody.error, undefined);
+				assert.equal(res.jsonBody.result.isError, true);
+				const payload = JSON.parse(res.jsonBody.result.content[0].text);
+				assert.equal(payload.kind, 'harper_error');
+				assert.match(payload.message, /something broke/);
+			});
+
+			it('passes through to the handler even when visibleTo would return false (security boundary is in the handler, not the filter)', async () => {
+				// Per the design doc (#465 "Tool-list filtering"), `visibleTo`
+				// controls UX (what shows up in tools/list) but is NOT a
+				// security boundary. Real enforcement is `transactional()` +
+				// `allow{Read,Create,Update,Delete}` in the handler. This test
+				// documents the intentional pass-through so a future change
+				// that adds visibleTo to the call path is caught.
+				let handlerCalled = false;
+				addTool({
+					name: 'hidden_from_list',
+					description:
+						'visible-to=false; the LLM should never see this in list, but a hallucinated call still reaches the handler',
+					inputSchema: { type: 'object' },
+					profile: 'application',
+					visibleTo: () => false,
+					handler: async () => {
+						handlerCalled = true;
+						return { content: [{ type: 'text', text: 'handler was reached' }] };
+					},
+				});
+				const res = await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(26, 'tools/call', { name: 'hidden_from_list' }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+					})
+				);
+				assert.equal(handlerCalled, true);
+				assert.equal(res.status, 200);
+				assert.equal(res.jsonBody.result.content[0].text, 'handler was reached');
+			});
+
+			it('passes args and context (user, profile, sessionId) to the handler', async () => {
+				let received;
+				addTool({
+					name: 'spy',
+					description: 'spies on context',
+					inputSchema: { type: 'object' },
+					profile: 'application',
+					visibleTo: () => true,
+					handler: async (args, ctx) => {
+						received = { args, ctx };
+						return { content: [{ type: 'text', text: 'ok' }] };
+					},
+				});
+				await handleMcpRequest(
+					makeReq({
+						body: jsonRpc(25, 'tools/call', { name: 'spy', arguments: { x: 1 } }),
+						headers: { 'mcp-session-id': sessionId, 'mcp-protocol-version': '2025-06-18' },
+						userObject: { username: 'alice', role: { permission: { super_user: true } } },
+					})
+				);
+				assert.deepEqual(received.args, { x: 1 });
+				assert.equal(received.ctx.profile, 'application');
+				assert.equal(received.ctx.sessionId, sessionId);
+				assert.equal(received.ctx.user.username, 'alice');
+				assert.equal(received.ctx.user.role.permission.super_user, true);
+			});
 		});
 	});
 
