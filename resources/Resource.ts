@@ -107,29 +107,9 @@ export class Resource<Record extends object = any> implements ResourceInterface<
 	static put = transactional(
 		function (resource: any, query: RequestTarget, request: Context, data: any) {
 			if (Array.isArray(data) && resource.#isCollection && resource.constructor.loadAsInstance !== false) {
-				const resourceClass = resource.constructor;
-				// For tables with `@embed` attributes, sequence per-element resource.put() calls
-				// so a payload with duplicate ids commits in submission order rather than
-				// embedder-resolution order. Each `resource.put` triggers the embedder hook in
-				// `_writeUpdate`; `Promise.all` over independent resources would otherwise let
-				// embedder timing decide the winner. Non-`@embed` tables stay parallel.
-				if (resourceClass.embedAttributes?.length) {
-					let chain: Promise<any> = Promise.resolve();
-					for (const element of data) {
-						chain = chain.then(() => {
-							const id = element[resourceClass.primaryKey];
-							const target = new RequestTarget();
-							target.id = id;
-							const elementResource = resourceClass.getResource(target, request, { async: true });
-							return elementResource.then
-								? elementResource.then((r: any) => r.put(element, request))
-								: elementResource.put(element, query);
-						});
-					}
-					return chain;
-				}
 				const results = [];
 				for (const element of data) {
+					const resourceClass = resource.constructor;
 					const id = element[resourceClass.primaryKey];
 					let target = new RequestTarget();
 					target.id = id;

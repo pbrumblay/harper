@@ -187,12 +187,8 @@ describe('embedHook', () => {
 		});
 
 		it('normalizes custom-embedder typed-array output to Array<number> for storage', async () => {
-			// Custom embedders set via `setEmbedAttribute` may return Float32Array (or any
-			// `Embedder` return shape). The hook normalizes at the boundary so the record
-			// encoder's typed-array mangling can't bite us — see `normalizeVector` in
-			// `embedHook.ts`. `Table.validate()` has no Vector case and `coerceType` is
-			// only called on PK/query paths, so this is the only normalization point on
-			// the write hot path.
+			// Custom embedders may return a typed array; the hook flattens it to a plain
+			// array so it round-trips through the record encoder.
 			const record = { content: 'hello' };
 			const before = buildEmbedBefore(record, {}, {}, attrs, {
 				embedding: async () => VECTOR_F32, // typed-array return from a custom embedder

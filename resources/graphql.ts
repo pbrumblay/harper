@@ -7,20 +7,7 @@ import type { NamedTypeNode, StringValueNode } from 'graphql';
 import { once } from 'node:events';
 import { ClientError } from '../utility/errors/hdbError.ts';
 
-const PRIMITIVE_TYPES = [
-	'ID',
-	'Int',
-	'Float',
-	'Long',
-	'String',
-	'Boolean',
-	'Date',
-	'Bytes',
-	'Any',
-	'BigInt',
-	'Blob',
-	'Vector',
-];
+const PRIMITIVE_TYPES = ['ID', 'Int', 'Float', 'Long', 'String', 'Boolean', 'Date', 'Bytes', 'Any', 'BigInt', 'Blob'];
 
 if (!server.knownGraphQLDirectives) {
 	server.knownGraphQLDirectives = [];
@@ -159,17 +146,10 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 							}
 							property.computed = property.computed || true;
 						} else if (directiveName === 'embed') {
-							// `@embed(source: "<field>", model: "<logical-name>")`: schema-level RAG.
-							// On write, the embedder reads `record[source]` and writes a vector to this
-							// attribute (Phase 5 of #510). Auto-attaches HNSW indexing on the same field
-							// when no explicit `@indexed` is present, and tracks the model name as the
-							// attribute version — a model change between deploys triggers reindex the
-							// same way a `@computed` expression change does (see version-driven reindex
-							// below).
+							// `@embed(source, model)`: on write, embed `record[source]` into this
+							// attribute and auto-index it with HNSW.
 							const embedDefinition: { source?: string; model?: string } = {};
 							for (const arg of directive.arguments || []) {
-								// Only accept string-literal values; reject variables / non-string nodes
-								// so a typoed schema fails loudly instead of silently producing undefined.
 								if (arg.value.kind !== 'StringValue') {
 									console.error(
 										`@embed(${arg.name.value}: ...) on "${property.name}" expects a string literal, at`,
@@ -180,20 +160,7 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 								embedDefinition[arg.name.value] = (arg.value as StringValueNode).value;
 							}
 							if (!embedDefinition.source || !embedDefinition.model) {
-								// Missing required args would silently degrade the embedder to a
-								// no-op at write time, leaving the vector column empty with no
-								// operator signal. Halt schema processing so the component install
-								// surfaces the error instead of returning 200 OK on a broken
-								// schema. Other directive validations in this parser (e.g. dup
-								// primary key at line ~119) only log and continue — the difference
-								// here is that the failure mode is "looks-correct schema that
-								// never embeds anything," which is harder to diagnose than a
-								// missing primary key.
 								const loc = directive.loc;
-								console.error(`@embed on "${property.name}" requires both "source" and "model" arguments, at`, loc);
-								// Schema-install errors caused by malformed user input should return 400,
-								// not 500. `ClientError` is Harper's contract for "user error, not server
-								// fault" — matches kriszyp's CHANGES_REQUESTED item from the prior review.
 								throw new ClientError(
 									`@embed on "${property.name}" requires both "source" and "model" arguments` +
 										(loc ? ` (line ${loc.startToken?.line ?? '?'}, column ${loc.startToken?.column ?? '?'})` : ''),
@@ -201,14 +168,10 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 								);
 							} else {
 								property.embed = embedDefinition;
-								// Use the model name as the version so changing `model:` in the schema
-								// triggers reindex/re-embed, matching `@computed`'s version semantics.
+								// Model name as version, so changing `model:` triggers reindex (as `@computed` does).
 								if (property.version == undefined) {
 									property.version = `embed:${embedDefinition.model}`;
 								}
-								// Auto-attach HNSW indexing if no explicit `@indexed` is present on this
-								// field. The issue's "indexed via HNSW. No app code needed." statement
-								// only holds if `@embed` alone wires the index.
 								if (!property.indexed) {
 									property.indexed = { type: 'HNSW' };
 								}

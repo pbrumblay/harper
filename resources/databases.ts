@@ -1126,10 +1126,7 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 
 			// note that non-indexed attributes do not need a dbi
 			if (attributeDescriptor?.attribute && !attributeDescriptor.name) attributeDescriptor.indexed = true; // legacy descriptor
-			// `attribute.embed` is included in the change check so a `@embed(source: ...)`
-			// swap (same model, same attribute.version) still triggers a refresh of
-			// `embedAttributes` / `userEmbedders`. Model-only changes are already caught
-			// by the `version` check (parser sets `version = "embed:<model>"`).
+			// Include `embed` so a source/model change refreshes the embed registry.
 			const changed =
 				!attributeDescriptor ||
 				attributeDescriptor.type !== attribute.type ||

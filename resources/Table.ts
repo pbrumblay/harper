@@ -259,14 +259,8 @@ export function makeTable(options) {
 		static updatedTimeProperty = updatedTimeProperty;
 		static propertyResolvers;
 		static userResolvers = {};
-		// `@embed` write-time hook registry (Phase 5 of #510). `userEmbedders` is the per-
-		// attribute embedder map populated by `setEmbedAttribute` — defaulted at schema
-		// load from the directive's `(source, model)` and overridable by component authors.
-		// `userSetEmbedders` tracks which names were explicitly set by `setEmbedAttribute`
-		// vs. auto-populated as defaults — on a schema reload with a changed `model:`, we
-		// must refresh defaults while preserving user-author overrides. `embedAttributes`
-		// is the filtered list scanned on every write so we don't pay an
-		// `attributes.filter(...)` per put/patch.
+		// `@embed` hook registry. `userSetEmbedders` records names set explicitly via
+		// `setEmbedAttribute` so a schema reload refreshes defaults without clobbering them.
 		static userEmbedders: { [name: string]: Embedder } = {};
 		static userSetEmbedders: Set<string> = new Set();
 		static embedAttributes: EmbedAttribute[] = (attributes as any[]).filter((a) => a?.embed);
@@ -1248,10 +1242,8 @@ export function makeTable(options) {
 						}
 						return when(loading, () => {
 							this.#changes = updates;
-							// Thread `_writeUpdate`'s return through `when()` so the embed-hook
-							// promise (when `@embed` is active) is awaited before this method
-							// resolves — otherwise the caller proceeds to `save()` with the
-							// write not yet registered on the txn.
+							// `when` awaits the embed hook (when `@embed` is active) before resolving,
+							// so the caller's `save()` doesn't run before the write is staged.
 							return when(this._writeUpdate(id, this.#changes, false), () => this);
 						});
 					});
@@ -1526,11 +1518,7 @@ export function makeTable(options) {
 		): void | (Record & Partial<RecordObject>) | Promise<void | (Record & Partial<RecordObject>)> {
 			if (record === undefined || record instanceof URLSearchParams) {
 				// legacy argument position, shift the arguments and go through the update method for back-compat.
-				// Await `update()` through `when(...)` so an `@embed` hook's pending promise is settled before
-				// `save()` runs — same hazard as the patch() legacy path: `_writeUpdate` returns a pending
-				// promise and a synchronous `save()` would commit with the write not yet staged on the txn.
-				// REST PUT dispatches as `resource.put(data, query)` where `query` is a URLSearchParams,
-				// so this is the canonical PUT path — not the `else` branch below.
+				// `when` settles the embed hook before `save()` so the write is staged first.
 				return when((this as any).update(target, true), () => this.save() as any) as any;
 			} else {
 				let allowed = true;
@@ -1546,34 +1534,7 @@ export function makeTable(options) {
 					}
 					// standard path, handle arrays as multiple updates, and otherwise do a direct update
 					if (Array.isArray(record)) {
-						// `_writeUpdate` may return a promise when an `@embed` directive requires
-						// running an embedder before the per-write `commit(...)` closure. For
-						// tables WITHOUT `@embed`, `_writeUpdate` is synchronous and `Promise.all`
-						// over `record.map` preserves submission order because each map iteration
-						// completes synchronously before the next begins. For tables WITH `@embed`,
-						// `_writeUpdate` returns a promise (embedder roundtrip) — `Promise.all`
-						// then lets elements race, and a payload containing DUPLICATE ids would
-						// commit in embedder-resolution order, not submission order. Sequence the
-						// elements via a Promise chain to preserve payload-order semantics
-						// (last-write-wins by submission). Non-`@embed` tables stay parallel.
-						//
-						// Test-coverage note: this `Array.isArray(record)` branch is hard to reach
-						// from typical Harper usage — REST PUT with an array body routes through
-						// `Resource.put`'s collection-array branch (the same fix lives there) and
-						// splits the array BEFORE the instance `Table.put` sees it. So the
-						// `bulk PUT with duplicate ids` integration test exercises
-						// `Resource.put`'s sequencing path, not this one. Both implementations
-						// follow the same `Promise`-chain pattern; the path here is reached only
-						// from programmatic callers that pass `put(target, [array])` directly
-						// (e.g. tables with `loadAsInstance: false`).
-						if (TableResource.embedAttributes?.length) {
-							let chain: Promise<any> = Promise.resolve();
-							for (const element of record) {
-								const id = element[primaryKey];
-								chain = chain.then(() => when(this._writeUpdate(id, element, true), () => this.save() as any));
-							}
-							return chain.then(() => undefined) as any;
-						}
+						// `when` is used because `_writeUpdate` returns a promise when `@embed` is active.
 						return Promise.all(
 							record.map((element) => {
 								const id = element[primaryKey];
@@ -1635,11 +1596,7 @@ export function makeTable(options) {
 		): void | (Record & Partial<RecordObject>) | Promise<void | (Record & Partial<RecordObject>)> {
 			if (recordUpdate === undefined || recordUpdate instanceof URLSearchParams) {
 				// legacy argument position, shift the arguments and go through the update method for back-compat.
-				// Await `update()` through `when(...)` so an `@embed` hook's pending promise is settled before
-				// `save()` runs — without this, `_writeUpdate` returns a pending promise and `save()` runs
-				// while the write is not yet staged on the txn (silent data loss / "transaction already closed").
-				// REST PATCH dispatches as `resource.patch(data, query)` where `query` is a URLSearchParams,
-				// so this is the canonical PATCH path — not the `else` branch below.
+				// `when` settles the embed hook before `save()` so the write is staged first.
 				return when(this.update(target, false), () => this.save() as any) as any;
 			} else {
 				// standard path, ensure there is no return object
@@ -2003,16 +1960,9 @@ export function makeTable(options) {
 				},
 			};
 			this.#savingOperation = write;
-			// `@embed` write-time hook (Phase 5 of #510). Must run BEFORE `addWrite`
-			// so the embedder's mutation of `recordUpdate` reaches the per-write
-			// `commit(...)` closure. The transaction's pre-commit `before` slot
-			// fires AFTER `commit(...)` for record mutations (the slot is awaited
-			// at `Promise.all(completions)` at txn-commit time, not before each
-			// write's commit closure) — which is fine for blob byte-writes that
-			// reference pre-allocated IDs, but not for embed where the vector
-			// itself must be on the record at commit time. Skipped on replicated
-			// writes — the originating node already computed the embedding and
-			// the receiver should preserve it.
+			// `@embed` hook must run before `addWrite` so the embedder's vector is on the
+			// record when `commit` runs. (The txn `before` slot runs after commit, which
+			// suits blob writes but not embedding, where the vector must be present at commit.)
 			const embedBefore = buildEmbedBefore(
 				recordUpdate,
 				context,
@@ -3439,12 +3389,8 @@ export function makeTable(options) {
 		 * When attributes have been changed, we update the accessors that are assigned to this table
 		 */
 		static updatedAttributes() {
-			// `@embed` attributes are tracked by a separate filtered list to avoid
-			// re-scanning every attribute on every write. The list must be refreshed
-			// here because `databases.ts` does an in-place `Table.attributes.splice(...)`
-			// on schema reload and then calls `Table.updatedAttributes()` — the
-			// initializer at class-construction would otherwise hold a stale snapshot
-			// from the first schema deployment.
+			// Refresh on every call: schema reload mutates `attributes` in place, so the
+			// class-construction snapshot would otherwise go stale.
 			this.embedAttributes = (this.attributes as any[]).filter((a) => a?.embed);
 			propertyResolvers = this.propertyResolvers = {
 				$id: (object, context, entry) => ({ value: entry.key }),
@@ -3461,16 +3407,8 @@ export function makeTable(options) {
 				attribute.resolve = null; // reset this
 				const relationship = attribute.relationship;
 				const computed = attribute.computed;
-				// `@embed` directive: register the default embedder. This is one-time
-				// setup (populating userEmbedders), not a runtime resolver, so it lives
-				// outside the if/else-if chain below — `@embed` fields ALSO get
-				// auto-HNSW indexing, and the chain's `customIndex.propertyResolver`
-				// branch needs to fire for them. Component authors override the default
-				// via `Table.setEmbedAttribute(name, customEmbedder)` after schema load.
-				// `userSetEmbedders` tracks the override names so we can refresh defaults
-				// on an in-place `Table.attributes.splice()` schema reload at
-				// `databases.ts:940` (which calls `updatedAttributes()` again on the
-				// existing class) without clobbering an author's custom embedder.
+				// Register the default embedder unless an author override is set. Sits outside
+				// the resolver chain below so `@embed` fields still flow through auto-HNSW indexing.
 				if (attribute.embed && !TableResource.userSetEmbedders.has(attribute.name)) {
 					this.userEmbedders[attribute.name] = createDefaultEmbedder(attribute.embed);
 				}
@@ -3658,20 +3596,10 @@ export function makeTable(options) {
 			this.userResolvers[attribute_name] = resolver;
 		}
 		/**
-		 * Override the embedder that fires on writes to an `@embed`-decorated
-		 * attribute (Phase 5 of #510). The default embedder calls
-		 * `Models.embed(record[source], { model, inputType: 'document' })`. Pass a
-		 * custom function when you need custom preprocessing or a different
-		 * inputType, and return the vector to store at `attribute_name`.
-		 *
-		 * NOTE — the embedder receives the WRITE PAYLOAD (the fields present in
-		 * the PUT or PATCH body), NOT the post-merge record. For PATCH writes
-		 * that omit fields, those fields will be absent from the embedder's
-		 * argument. Multi-field concatenation is therefore only reliable when
-		 * all source fields appear in the same write payload — see the
-		 * "known limitation" section in `resources/models/embedHook.ts` for
-		 * the wider context (instance-mutation pattern, etc.) and the planned
-		 * resource-layer fix.
+		 * Override the default embedder for an `@embed` attribute. Return the vector to
+		 * store at `attribute_name`. The embedder receives the write payload (the fields
+		 * present in the PUT/PATCH body), not the post-merge record, so multi-field
+		 * concatenation only works when all source fields are in the same write.
 		 */
 		static setEmbedAttribute(attribute_name: string, embedder: Embedder): void {
 			const attribute = findAttribute(attributes, attribute_name);
@@ -4548,15 +4476,8 @@ export function makeTable(options) {
 							}
 						},
 					};
-					// `@embed` write-time hook on the cache-from-source path. The
-					// `getFromSource` write builds its own write op and addWrite-s it
-					// directly here — bypassing `_writeUpdate` — so we have to wire the
-					// embedder here too. Caching tables that declare `@embed` are a
-					// canonical use case (see #750): the source resource returns the
-					// record's content fields, and this table derives the vector.
-					// Receivers do not run the embedder; this path is on the originating
-					// node by definition (no `replicateFrom` / `alreadyLogged` / cluster-
-					// subscribe context here).
+					// The cache-from-source write bypasses `_writeUpdate`, so wire the embed
+					// hook here too. This path is always on the originating node.
 					const embedBefore = buildEmbedBefore(
 						updatedRecord,
 						sourceContext,
@@ -4878,20 +4799,6 @@ export function coerceType(value: any, attribute: any): any {
 					return date;
 				}
 				return new Date(+value); // epoch ms number
-			case 'Vector':
-				// Coerce to plain `Array<number>`. Typed arrays are stored unchanged by
-				// `updateAndFreeze` only if we hand them off as plain arrays — handing a
-				// `Float32Array` through gets enumerated as `{0,1,2,...}` map keys and
-				// loses the typed-array shape on read. HNSW's `propertyResolver` and
-				// `customIndex.index` both accept `number[]`. (Open Q in PR review:
-				// should Vector preserve Float64 / Float16 precision? Today everything
-				// flattens to `number[]` and is re-narrowed when the HNSW index needs
-				// Float32 for distance computation.)
-				if (value === null || value === 'null') return null;
-				if (value instanceof Float32Array) return Array.from(value);
-				if (Array.isArray(value)) return value.map(Number);
-				if (ArrayBuffer.isView(value)) return Array.from(value as any);
-				throw new SyntaxError();
 			case undefined:
 			case 'Any':
 				return autoCast(value);

@@ -1,8 +1,8 @@
 /**
- * `@embed` directive integration test (#632 / Phase 5 of #510).
+ * `@embed` directive integration test.
  *
  * Spins up a fake Ollama HTTP server inside the test, points Harper's models
- * config at it, deploys a schema with `@embed`, and exercises seven paths
+ * config at it, deploys a schema with `@embed`, and exercises these paths
  * end-to-end:
  *
  *   1. **Happy path** — POST a record → fake-ollama returns a deterministic
@@ -13,40 +13,18 @@
  *      existing embedding survives via patch-merge.
  *
  *   3. **Source-changing PATCH** — PATCH a record with the source field →
- *      embed fires once, the stored vector matches the NEW content. Covers
- *      the async branch of `update()` that 47bd103c wrapped in `when(...)` —
- *      the production path that produced "transaction already closed" /
- *      silent data loss before the fix.
+ *      embed fires once, the stored vector matches the NEW content.
  *
- *   4. **PUT (full-record update)** — PUT a record on an existing id with the
- *      source field present → embed fires once, the stored vector reflects the
- *      new content. Exercises the parallel legacy-URLSearchParams branch in
- *      `Table.put()` (same when() fix as PATCH).
+ *   4. **PUT (full-record update)** — embed fires once, stored vector reflects new content.
  *
- *   5. **Replication-receiver skip** — POST with `x-replicate-from: none` and
- *      a pre-supplied vector → no embed call is made; the supplied vector is
- *      stored as-is. (The REST receiver path; the cluster-subscribe path is
- *      covered by the `options.isNotification === true` branch in
- *      `embedHook.test.js`.)
+ *   5. **Replication-receiver skip** — POST with `x-replicate-from: none` and a
+ *      pre-supplied vector → no embed call; the supplied vector is stored as-is.
  *
- *   6. **Bulk PUT with duplicate ids** — array payload with two records sharing
- *      the same id. The SECOND must win deterministically — submission order is the
- *      source of truth, not embedder-roundtrip timing. Locks in the sequencing fix
- *      in `Table.put` array branch and `Resource.put` collection-array branch.
+ *   6. **Caching-table `@embed`** — GET fires `getFromSource`; the cache write
+ *      (which bypasses `_writeUpdate`) ends up with a populated vector.
  *
- *   7. **Caching-table `@embed`** — a table with `sourcedFrom(SourceResource)`
- *      and `@embed` declared on a derived field. GET fires `getFromSource`,
- *      the cache write goes through the `Table.ts:~4520` embed wiring (which
- *      bypasses `_writeUpdate`), and the cached row ends up with a populated
- *      vector. Canonical use case Kris highlighted in review and the
- *      derived-cache-table follow-up (#750).
- *
- * Setup notes:
- *   - The fake-ollama server returns deterministic 3-element Float32 vectors
- *     derived from the input text so assertions can compare exact bytes.
- *   - Harper boots with `models.embedding.default` pointing at the fake host.
- *   - Schema/component installs follow the same pattern as
- *     `integrationTests/apiTests/blob.test.mjs`.
+ * The fake-ollama server returns deterministic 3-element vectors derived from the
+ * input text so assertions can compare exact values.
  */
 import { suite, test, before, after } from 'node:test';
 import { strictEqual, ok } from 'node:assert/strict';
@@ -65,13 +43,13 @@ const SCHEMA_GRAPHQL = [
 	'\tid: ID! @primaryKey',
 	'\tcontent: String',
 	'\ttag: String',
-	'\tembedding: Vector @embed(source: "content", model: "default")',
+	'\tembedding: [Float] @embed(source: "content", model: "default")',
 	'}',
 	'',
 	'type CachedEmbedDoc @table(database: "embedtest") @sealed @export {',
 	'\tid: ID! @primaryKey',
 	'\tcontent: String',
-	'\tembedding: Vector @embed(source: "content", model: "default")',
+	'\tembedding: [Float] @embed(source: "content", model: "default")',
 	'}',
 	'',
 ].join('\n');
@@ -248,7 +226,7 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		ok(embedDoc, 'EmbedDoc table not created');
 		const embeddingAttr = (embedDoc.attributes || []).find((a: any) => a.attribute === 'embedding');
 		ok(embeddingAttr, 'embedding attribute should be present');
-		strictEqual(embeddingAttr.type, 'Vector', 'embedding type should be Vector');
+		strictEqual(embeddingAttr.type, 'array', 'embedding type should be a [Float] array');
 		strictEqual(embeddingAttr.indexed?.type, 'HNSW', 'embedding should be auto-HNSW-indexed');
 	});
 
@@ -334,10 +312,8 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 
 		const baselineEmbedCalls = fake.embedCallCount();
 
-		// PATCH the source field. This exercises the async branch of TableResource.update()
-		// — the path that 47bd103c wrapped in `when(...)`. Before that fix, the embed promise
-		// was dropped, leading to a silent empty commit or a "transaction already closed"
-		// crash when the embedder finally resolved.
+		// PATCH the source field — exercises the async `update()` path where the embed
+		// promise must be awaited before commit.
 		const updatedContent = 'patch-source updated text';
 		await request(ctx.harper.httpURL)
 			.patch('/EmbedDoc/doc-source-patch')
@@ -444,11 +420,9 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 	});
 
 	test('caching table with @embed: GET fires source → cache write embeds → vector stored', async () => {
-		// GET on a caching-sourced table with no existing row triggers `getFromSource`.
-		// The source (CachedEmbedSource in RESOURCES_JS) returns { id, content }; Harper
-		// then writes that record into the cache via a path that bypasses `_writeUpdate`
-		// and instead builds its own write op + addWrite (Table.ts:~4520). The embed
-		// wiring on THAT path is what 47bd103c added, and what this test exercises.
+		// GET on a caching-sourced table triggers `getFromSource`; Harper writes the
+		// resolved record into the cache via a path that bypasses `_writeUpdate` but
+		// still runs the embed hook. This test exercises that path.
 		const id = 'cached-1';
 		const expectedContent = `derived content for ${id}`;
 		const expectedVector = deterministicVector(expectedContent);
@@ -509,49 +483,5 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		const callsAfterFirst = fake.embedCallCount();
 		await client.reqRest(`/CachedEmbedDoc/${id}`).expect(200);
 		strictEqual(fake.embedCallCount(), callsAfterFirst, 'cache-hit GET should not re-run the embedder');
-	});
-
-	test('bulk PUT with duplicate ids: writes commit in payload order (last-write-wins by submission, not by embedder timing)', async () => {
-		// Codex round-4 finding: bulk PUT on a collection processes elements via
-		// `Promise.all` over `record.map`. With `@embed`, each element's `_writeUpdate` is
-		// async (embedder roundtrip) — so duplicate ids in one payload would race and the
-		// element with the FASTER embedder would commit LAST (and lose to a slower one
-		// earlier in the payload). The fix in `Table.ts` and `Resource.ts` sequences
-		// the elements when `@embed` is on the table, preserving submission order.
-		const id = 'bulk-dup-1';
-		const first = 'bulk first (should be overwritten)';
-		const second = 'bulk second (the winner)';
-		const expectedSecond = deterministicVector(second);
-
-		await request(ctx.harper.httpURL)
-			.put('/EmbedDoc/')
-			.set(client.headers)
-			.send([
-				{ id, content: first },
-				{ id, content: second },
-			])
-			.expect((r: any) => ok([200, 201, 204].includes(r.status), `bulk PUT status ${r.status}: ${r.text}`));
-
-		const search = await client
-			.req()
-			.send({
-				operation: 'search_by_hash',
-				database: 'embedtest',
-				table: 'EmbedDoc',
-				hash_values: [id],
-				get_attributes: ['*'],
-			})
-			.expect(200);
-		ok(Array.isArray(search.body) && search.body.length === 1, `search_by_hash body: ${JSON.stringify(search.body)}`);
-		strictEqual(search.body[0].content, second, 'second element in the bulk payload must win');
-		const stored = decodeVector(search.body[0].embedding);
-		ok(stored, `embedding should be populated, got: ${JSON.stringify(search.body[0].embedding)}`);
-		strictEqual(stored.length, 3);
-		for (let i = 0; i < 3; i++) {
-			ok(
-				Math.abs(stored[i] - expectedSecond[i]) < 1e-5,
-				`bulk-dup vector[${i}] mismatch: stored=${stored[i]} expected (second)=${expectedSecond[i]}`
-			);
-		}
 	});
 });
