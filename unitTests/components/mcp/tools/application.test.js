@@ -236,6 +236,130 @@ describe('mcp/tools/application — registration', () => {
 	});
 });
 
+describe('mcp/tools/application — custom mcpTools opt-in (#622)', () => {
+	beforeEach(() => {
+		_resetRegistryForTest();
+		_setRequestTargetForTest(FakeRequestTarget);
+	});
+	afterEach(() => {
+		_resetRegistryForTest();
+		_setResourcesForTest(undefined);
+		_setRequestTargetForTest(undefined);
+	});
+
+	it('registers a tool from a static mcpTools declaration', () => {
+		class Recommendations {
+			async recommendSimilar() {
+				return { ok: true };
+			}
+		}
+		Recommendations.mcpTools = [
+			{
+				name: 'recommend_similar',
+				method: 'recommendSimilar',
+				description: 'Get N similar products',
+				inputSchema: { type: 'object', properties: { productId: { type: 'string' } }, required: ['productId'] },
+			},
+		];
+		_setResourcesForTest(makeRegistry([['Recommendations', { Resource: Recommendations }]]));
+		registerApplicationTools();
+		const tool = getTool('recommend_similar');
+		assert.ok(tool, 'tool registered');
+		assert.equal(tool.description, 'Get N similar products');
+		assert.equal(tool.inputSchema.required[0], 'productId');
+		assert.equal(tool.visibleTo(NOBODY), true, 'visibleTo always true (Resource enforces ACL itself)');
+	});
+
+	it('dispatches to the named instance method with parsed args', async () => {
+		let captured;
+		class Recommendations {
+			async recommendSimilar(args) {
+				captured = args;
+				return { results: ['a', 'b', 'c'].slice(0, args.limit) };
+			}
+		}
+		Recommendations.mcpTools = [{ name: 'recommend_similar', method: 'recommendSimilar' }];
+		_setResourcesForTest(makeRegistry([['Recommendations', { Resource: Recommendations }]]));
+		registerApplicationTools();
+		const res = await getTool('recommend_similar').handler(
+			{ productId: 'p1', limit: 2 },
+			{ user: SUPER, profile: 'application', sessionId: 's' }
+		);
+		assert.deepEqual(captured, { productId: 'p1', limit: 2 });
+		assert.deepEqual(res.structuredContent, { results: ['a', 'b'] });
+	});
+
+	it('handler errors from custom methods become isError=true', async () => {
+		class BlowsUp {
+			async kaboom() {
+				throw new Error('not allowed');
+			}
+		}
+		BlowsUp.mcpTools = [{ name: 'kaboom', method: 'kaboom' }];
+		_setResourcesForTest(makeRegistry([['BlowsUp', { Resource: BlowsUp }]]));
+		registerApplicationTools();
+		const res = await getTool('kaboom').handler({}, { user: SUPER, profile: 'application', sessionId: 's' });
+		assert.equal(res.isError, true);
+		const payload = JSON.parse(res.content[0].text);
+		assert.match(payload.message, /not allowed/);
+	});
+
+	it('skips invalid mcpTools entries (missing name or method)', () => {
+		class Sloppy {
+			async ok() {
+				return {};
+			}
+		}
+		Sloppy.mcpTools = [
+			{ name: 'good_tool', method: 'ok' },
+			{ name: 'no_method' }, // invalid — skipped
+			{ method: 'nameless' }, // invalid — skipped
+		];
+		_setResourcesForTest(makeRegistry([['Sloppy', { Resource: Sloppy }]]));
+		registerApplicationTools();
+		const names = listTools({ user: SUPER, profile: 'application', sessionId: 's', limit: 200 }).tools.map(
+			(t) => t.name
+		);
+		assert.ok(names.includes('good_tool'));
+		assert.equal(names.length, 1, 'invalid entries are skipped, only good_tool registers');
+	});
+
+	it('skips mcpTools entries pointing at a non-existent method on the prototype', () => {
+		class Mismatched {}
+		Mismatched.mcpTools = [{ name: 'phantom', method: 'doesNotExist' }];
+		_setResourcesForTest(makeRegistry([['Mismatched', { Resource: Mismatched }]]));
+		registerApplicationTools();
+		assert.equal(getTool('phantom'), undefined);
+	});
+
+	it('Resources with only mcpTools (no REST verbs) still register the custom tools', () => {
+		class CustomOnly {
+			async hello() {
+				return { greeting: 'hi' };
+			}
+		}
+		CustomOnly.mcpTools = [{ name: 'say_hello', method: 'hello' }];
+		_setResourcesForTest(makeRegistry([['CustomOnly', { Resource: CustomOnly }]]));
+		registerApplicationTools();
+		assert.ok(getTool('say_hello'), 'custom-only Resources still publish their mcpTools');
+	});
+
+	it('Resources can publish both verb tools AND custom tools', async () => {
+		const Product = makeTableResource({ databaseName: 'data', tableName: 'product', verbs: ['get'] });
+		Product.prototype.bulkDiscount = async function (args) {
+			return { applied: args.percent };
+		};
+		Product.mcpTools = [{ name: 'bulk_discount', method: 'bulkDiscount' }];
+		_setResourcesForTest(makeRegistry([['Product', { Resource: Product }]]));
+		registerApplicationTools();
+		const names = listTools({ user: SUPER, profile: 'application', sessionId: 's', limit: 200 }).tools.map(
+			(t) => t.name
+		);
+		assert.ok(names.includes('get_Product'), 'verb tool still emitted');
+		assert.ok(names.includes('bulk_discount'), 'custom tool also emitted');
+	});
+});
+
 describe('mcp/tools/application — leak invariants', () => {
 	beforeEach(() => {
 		_resetRegistryForTest();

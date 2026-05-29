@@ -54,6 +54,19 @@ interface ResourceClassLike {
 	delete?: (target: unknown, request: unknown, data?: unknown) => unknown;
 	search?: (target: unknown, request: unknown) => unknown;
 	loadAsInstance?: boolean;
+	/**
+	 * Component-author opt-in (#622): expose non-verb instance methods as MCP
+	 * tools. Each entry maps an instance-method name to an MCP tool descriptor.
+	 * RBAC stays as whatever the Resource's method itself enforces; the MCP
+	 * layer does not invent new ACLs for these.
+	 */
+	mcpTools?: ReadonlyArray<{
+		name: string;
+		method: string;
+		description?: string;
+		inputSchema?: object;
+		annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean };
+	}>;
 }
 
 type ResourcesRegistry = Map<string, ResourceRegistryEntry>;
@@ -480,6 +493,77 @@ function registerVerbTools(ctx: ResourceContext): number {
 }
 
 /**
+ * #622 — Component-author opt-in. Walk `ResourceClass.mcpTools` and register
+ * each entry as a standalone MCP tool that invokes the named instance method.
+ *
+ * Each invocation constructs an instance with `(undefined, context)` and
+ * calls `instance[method](args)`. This mirrors what a custom user-defined
+ * Harper Resource expects when its methods are reached outside of a REST
+ * request — they receive arguments and rely on internal Harper calls to
+ * enforce any RBAC they need.
+ *
+ * No `visibleTo` filter beyond "is the user authenticated" — per the design,
+ * the Resource is responsible for its own ACLs. An LLM that calls a tool
+ * it shouldn't gets the Resource's natural error back as `isError: true`.
+ */
+function registerCustomMcpTools(ResourceClass: ResourceClassLike, path: string): number {
+	const tools = ResourceClass.mcpTools;
+	if (!Array.isArray(tools) || tools.length === 0) return 0;
+	let count = 0;
+	for (const def of tools) {
+		if (!def?.name || !def?.method) {
+			harperLogger.warn(
+				`MCP application profile: skipping invalid mcpTools entry on '${path}' (missing name or method): ${JSON.stringify(def)}`
+			);
+			continue;
+		}
+		const methodName = def.method;
+		if (typeof (ResourceClass.prototype as Record<string, unknown>)?.[methodName] !== 'function') {
+			harperLogger.warn(
+				`MCP application profile: '${path}' declares mcpTool '${def.name}' for method '${methodName}', but no such instance method exists on the prototype`
+			);
+			continue;
+		}
+		addTool({
+			name: def.name,
+			description:
+				def.description ??
+				`Custom MCP tool exposed by Resource '${path}' (method '${methodName}'). RBAC is enforced by the Resource itself.`,
+			inputSchema: def.inputSchema ?? { type: 'object', additionalProperties: true },
+			profile: 'application',
+			...(def.annotations ? { annotations: def.annotations } : {}),
+			// Per the design: custom-tool RBAC is delegated to the Resource. No
+			// visibleTo filter beyond "the user is authenticated" — the runtime
+			// rejects unauthorized calls naturally.
+			visibleTo: () => true,
+			handler: makeCustomMethodHandler(def.name, ResourceClass, methodName),
+		});
+		count++;
+	}
+	return count;
+}
+
+function makeCustomMethodHandler(toolName: string, ResourceClass: ResourceClassLike, methodName: string) {
+	return async function (args: unknown, context: { user: AuthedUser }): Promise<ToolResult> {
+		try {
+			// Instantiate per call. Component authors define custom methods on
+			// the instance side; the Harper context carries the user so any
+			// internal Resource calls the method makes pick up RBAC naturally.
+			const Ctor = ResourceClass as unknown as new (id: unknown, ctx: unknown) => Record<string, unknown>;
+			const instance = new Ctor(undefined, buildContext(context.user));
+			const method = instance[methodName] as ((a: unknown) => unknown) | undefined;
+			if (typeof method !== 'function') {
+				throw new Error(`method '${methodName}' is not a function on the constructed Resource`);
+			}
+			const data = await method.call(instance, args ?? {});
+			return wrapResult(data ?? { ok: true });
+		} catch (err) {
+			return wrapError(toolName, err);
+		}
+	};
+}
+
+/**
  * Idempotent registration — walk the Resources Map, register verb tools
  * for each entry that passes the exportTypes + verb-presence filters.
  * Re-invocation overwrites prior tool entries (Map.set semantics).
@@ -498,23 +582,26 @@ export function registerApplicationTools(): void {
 		if (!shouldEnumerate(entry)) continue;
 		const ResourceClass = entry.Resource;
 		const verbs = detectVerbs(ResourceClass);
-		if (!verbs.get && !verbs.search && !verbs.create && !verbs.updatePut && !verbs.updatePatch && !verbs.delete) {
-			continue;
-		}
+		const hasVerbs = verbs.get || verbs.search || verbs.create || verbs.updatePut || verbs.updatePatch || verbs.delete;
+		const hasCustomTools = Array.isArray(ResourceClass?.mcpTools) && ResourceClass.mcpTools.length > 0;
+		if (!hasVerbs && !hasCustomTools) continue;
 		const databaseName = ResourceClass?.databaseName;
 		const tableName = ResourceClass?.tableName;
 		const suffix = uniqueSuffix(path, databaseName, claimedSuffixes);
 		claimedSuffixes.add(suffix);
 		const attributes = (ResourceClass?.attributes ?? []) as HarperAttribute[];
-		toolsRegistered += registerVerbTools({
-			path,
-			suffix,
-			ResourceClass,
-			databaseName,
-			tableName,
-			attributes,
-			verbs,
-		});
+		if (hasVerbs) {
+			toolsRegistered += registerVerbTools({
+				path,
+				suffix,
+				ResourceClass,
+				databaseName,
+				tableName,
+				attributes,
+				verbs,
+			});
+		}
+		toolsRegistered += registerCustomMcpTools(ResourceClass, path);
 	}
 	harperLogger.info(
 		`MCP application profile: considered ${resourcesConsidered} resource(s), registered ${toolsRegistered} tool(s)`
