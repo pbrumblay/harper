@@ -140,7 +140,7 @@ function findPrimaryKey(attributes: HarperAttribute[]): HarperAttribute | undefi
 
 export function deriveGetSchema(
 	attributes: HarperAttribute[],
-	permissions: AttributePermissionEntry[] | undefined
+	_permissions: AttributePermissionEntry[] | undefined
 ): object {
 	const pk = findPrimaryKey(attributes);
 	const pkSchema = pk ? attributeToProperty(pk) : { type: 'string' };

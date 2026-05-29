@@ -26,15 +26,18 @@ export interface AuditEntry {
 
 const REDACTION_PATTERN = /(secret|password|token|api[-_]?key|credentials?|auth)/i;
 const REDACTION_PLACEHOLDER = '[redacted]';
+const MAX_REDACTION_DEPTH = 10;
 
 /**
  * Recursively walk an object and replace values for keys matching the
  * redaction pattern. Bounded depth so a pathological cyclic input doesn't
- * stall the audit emit. Returns a shallow clone — the caller's payload is
- * never mutated.
+ * stall the audit emit; on overflow the entire sub-object is redacted so
+ * a credential buried below the depth limit cannot leak. Returns a shallow
+ * clone — the caller's payload is never mutated.
  */
 export function redactArgs(value: unknown, depth = 0): unknown {
-	if (depth > 5 || value === null || typeof value !== 'object') return value;
+	if (value === null || typeof value !== 'object') return value;
+	if (depth > MAX_REDACTION_DEPTH) return REDACTION_PLACEHOLDER;
 	if (Array.isArray(value)) {
 		return value.map((v) => redactArgs(v, depth + 1));
 	}

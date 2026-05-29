@@ -40,6 +40,26 @@ describe('mcp/audit', () => {
 			const out = redactArgs(a);
 			assert.ok(out);
 		});
+
+		it('redacts the entire sub-object when depth limit is exceeded (gemini #2)', () => {
+			// Build a nesting deeper than MAX_REDACTION_DEPTH (10) and embed a
+			// credential at the bottom. Naively the depth cap could leak it.
+			let leaf = { password: 'should-not-leak' };
+			let nest = leaf;
+			for (let i = 0; i < 12; i++) nest = { wrap: nest };
+			const out = redactArgs(nest);
+			// Walk back down: at some point we should hit [redacted] before reaching the password.
+			let cursor = out;
+			const seen = [];
+			while (cursor && typeof cursor === 'object') {
+				seen.push(cursor);
+				if (cursor === '[redacted]') break;
+				cursor = cursor.wrap;
+			}
+			const flat = JSON.stringify(out);
+			assert.ok(!flat.includes('should-not-leak'), 'credential below depth limit must not leak');
+			assert.ok(flat.includes('[redacted]'));
+		});
 	});
 
 	describe('maskSessionId', () => {

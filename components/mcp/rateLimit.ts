@@ -106,11 +106,35 @@ interface SessionState {
 	inFlight: number;
 	config: RateLimitConfig;
 	profile: 'operations' | 'application';
+	lastSeen: number;
 }
 
 const sessions = new Map<string, SessionState>();
 
+// Belt-and-braces against state leaks: sessions that get TTL-evicted from the
+// system.mcp_session table never reach deleteSession() in this process, so
+// `clearSessionRateState` is never called for them. Prune any session that
+// hasn't admitted a call in this many ms on every getOrCreate. The threshold
+// is generously above the default idle timeout (1800s) — well-behaved live
+// sessions never get pruned by accident.
+const IDLE_PRUNE_MS = 60 * 60 * 1000; // 1 hour
+const PRUNE_INTERVAL_MS = 5 * 60 * 1000; // run at most every 5 minutes
+let lastPruneAt = 0;
+
+function pruneIdleSessions(): void {
+	const t = now();
+	if (t - lastPruneAt < PRUNE_INTERVAL_MS) return;
+	lastPruneAt = t;
+	const cutoff = t - IDLE_PRUNE_MS;
+	for (const [id, s] of sessions) {
+		if (s.inFlight === 0 && s.lastSeen < cutoff) {
+			sessions.delete(id);
+		}
+	}
+}
+
 function getOrCreate(sessionId: string, profile: 'operations' | 'application'): SessionState {
+	pruneIdleSessions();
 	let s = sessions.get(sessionId);
 	if (!s) {
 		const config = configFor(profile);
@@ -120,8 +144,11 @@ function getOrCreate(sessionId: string, profile: 'operations' | 'application'): 
 			inFlight: 0,
 			config,
 			profile,
+			lastSeen: now(),
 		};
 		sessions.set(sessionId, s);
+	} else {
+		s.lastSeen = now();
 	}
 	return s;
 }

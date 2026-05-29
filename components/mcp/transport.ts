@@ -36,7 +36,7 @@ import { seedSessionSnapshot } from './listChanged.ts';
 import { tryAdmit } from './rateLimit.ts';
 import { deleteSession, loadSession, touchSession, type McpSessionRecord } from './session.ts';
 import { listResources, listResourceTemplates, readResource } from './resources.ts';
-import { registerSession, unregisterSession } from './sessionRegistry.ts';
+import { registerSession } from './sessionRegistry.ts';
 import { getTool, listTools, type AuthedUser, type ToolResult } from './toolRegistry.ts';
 
 export type McpProfile = 'operations' | 'application';

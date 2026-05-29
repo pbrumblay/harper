@@ -112,7 +112,7 @@ function loadRequestTarget(): RequestTargetCtor | undefined {
 const DEFAULT_SEARCH_LIMIT = 100;
 const MAX_SEARCH_LIMIT = 1000;
 
-function searchLimitFor(profile: 'application'): number {
+function searchLimitFor(_profile: 'application'): number {
 	const v = env.get(CONFIG_PARAMS.MCP_APPLICATION_MAXTOOLS); // existing knob; treat as a sane upper bound
 	if (typeof v === 'number' && v > 0) return Math.min(v, MAX_SEARCH_LIMIT);
 	return DEFAULT_SEARCH_LIMIT;

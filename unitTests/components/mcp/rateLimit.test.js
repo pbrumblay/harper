@@ -141,4 +141,39 @@ describe('mcp/rateLimit', () => {
 			assert.equal(r3.allowed, true, 'fresh bucket after clear');
 		});
 	});
+
+	describe('idle-session prune (gemini #6: belt-and-braces against TTL eviction)', () => {
+		it('drops sessions that have been idle past the prune window', () => {
+			envOverrides.mcp_application_rateLimit_perToolBurst = 1;
+			envOverrides.mcp_application_rateLimit_perToolPerSecond = 0.001;
+			// First admit creates the state for 's1'.
+			const r1 = tryAdmit('s1', 't', 'application');
+			r1.release();
+			const r2 = tryAdmit('s1', 't', 'application');
+			assert.equal(r2.allowed, false, 'bucket exhausted before prune window');
+			// Advance the clock past the prune interval AND past the idle window.
+			clock += 61 * 60 * 1000; // 61 minutes
+			// A different session triggers the prune; after pruning, 's1' is gone,
+			// so re-admitting yields a fresh full bucket.
+			const tickle = tryAdmit('s2', 't', 'application');
+			tickle.release();
+			const r3 = tryAdmit('s1', 't', 'application');
+			assert.equal(r3.allowed, true, 'fresh bucket after idle prune');
+		});
+
+		it('does not prune sessions that are still active', () => {
+			envOverrides.mcp_application_rateLimit_perToolBurst = 1;
+			envOverrides.mcp_application_rateLimit_perToolPerSecond = 0.0000001; // effectively never refills
+			const r1 = tryAdmit('s1', 't', 'application');
+			r1.release();
+			// 30 min elapsed — below the 60-min idle window. The next admit
+			// for s1 itself refreshes lastSeen so the prune (when it eventually
+			// fires) doesn't drop the session. s2 just triggers the prune call.
+			clock += 30 * 60 * 1000;
+			tryAdmit('s2', 't', 'application').release();
+			// Touching s1 again keeps it fresh.
+			const stillExhausted = tryAdmit('s1', 't', 'application');
+			assert.equal(stillExhausted.allowed, false, 'active session keeps its state');
+		});
+	});
 });
