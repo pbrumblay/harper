@@ -407,6 +407,108 @@ describe('mcp/resources', () => {
 		});
 	});
 
+	describe('exportTypes gating (Kris #788 review)', () => {
+		beforeEach(() => {
+			_setHttpUrlPrefixForTest('https://app.test:9926');
+		});
+		afterEach(() => {
+			_setHttpUrlPrefixForTest(undefined);
+		});
+
+		it('skips Resources with exportTypes.mcp === false from both harper:// schema and https:// enumeration', () => {
+			const Public = makeTableResource({ databaseName: 'data', tableName: 'public' });
+			const Hidden = makeTableResource({ databaseName: 'data', tableName: 'hidden' });
+			const map = new Map([
+				['Public', { Resource: Public, path: 'Public', exportTypes: undefined, hasSubPaths: false, relativeURL: '' }],
+				[
+					'Hidden',
+					{ Resource: Hidden, path: 'Hidden', exportTypes: { mcp: false }, hasSubPaths: false, relativeURL: '' },
+				],
+			]);
+			map.getMatch = (url, exportType) => {
+				const entry = map.get(url);
+				if (!entry) return undefined;
+				if (exportType && entry.exportTypes && entry.exportTypes[exportType] === false) return undefined;
+				return entry;
+			};
+			_setResourcesForTest(map);
+			const result = listResources({ user: SUPER, profile: 'application' });
+			const httpUris = result.resources.filter((r) => r.uri.startsWith('https://')).map((r) => r.uri);
+			const schemaUris = result.resources.filter((r) => r.uri.startsWith('harper://schema/')).map((r) => r.uri);
+			assert.ok(httpUris.includes('https://app.test:9926/Public'));
+			assert.ok(!httpUris.some((u) => u.endsWith('/Hidden')));
+			assert.ok(schemaUris.includes('harper://schema/data/public'));
+			assert.ok(!schemaUris.includes('harper://schema/data/hidden'));
+		});
+
+		it('skips Resources with exportTypes.http === false from the https:// enumeration only', () => {
+			const NoHttp = makeTableResource({ databaseName: 'data', tableName: 'nohttp' });
+			const map = new Map([
+				[
+					'NoHttp',
+					{ Resource: NoHttp, path: 'NoHttp', exportTypes: { http: false }, hasSubPaths: false, relativeURL: '' },
+				],
+			]);
+			map.getMatch = (url, exportType) => {
+				const entry = map.get(url);
+				if (!entry) return undefined;
+				if (exportType && entry.exportTypes && entry.exportTypes[exportType] === false) return undefined;
+				return entry;
+			};
+			_setResourcesForTest(map);
+			const result = listResources({ user: SUPER, profile: 'application' });
+			const httpUris = result.resources.filter((r) => r.uri.startsWith('https://')).map((r) => r.uri);
+			const schemaUris = result.resources.filter((r) => r.uri.startsWith('harper://schema/')).map((r) => r.uri);
+			assert.ok(!httpUris.some((u) => u.endsWith('/NoHttp')));
+			// Schema enumeration still includes it — exportTypes.http only gates https:// emission.
+			assert.ok(schemaUris.includes('harper://schema/data/nohttp'));
+		});
+
+		it('a resource registered with exportTypes.mcp === false cannot be read via https://...', async () => {
+			const Hidden = makeTableResource({ databaseName: 'data', tableName: 'hidden' });
+			const map = new Map([
+				[
+					'Hidden',
+					{ Resource: Hidden, path: 'Hidden', exportTypes: { mcp: false }, hasSubPaths: false, relativeURL: '' },
+				],
+			]);
+			map.getMatch = (url, exportType) => {
+				const entry = map.get(url);
+				if (!entry) return undefined;
+				if (exportType && entry.exportTypes && entry.exportTypes[exportType] === false) return undefined;
+				return entry;
+			};
+			_setResourcesForTest(map);
+			const res = await readResource({
+				uri: 'https://app.test:9926/Hidden',
+				user: SUPER,
+				profile: 'application',
+			});
+			assert.equal(res.ok, false);
+			assert.match(res.reason, /no resource matches/);
+		});
+
+		it('a resource not in the registry never enumerates (locks in the kris-#788 invariant)', () => {
+			// Build a class that's a *valid* Resource shape but is intentionally
+			// absent from the registry. It should not surface anywhere in the MCP
+			// list, even though it carries the right shape.
+			makeTableResource({ databaseName: 'data', tableName: 'orphan' });
+			const Visible = makeTableResource({ databaseName: 'data', tableName: 'visible' });
+			const map = new Map([
+				[
+					'Visible',
+					{ Resource: Visible, path: 'Visible', exportTypes: undefined, hasSubPaths: false, relativeURL: '' },
+				],
+			]);
+			map.getMatch = (url) => map.get(url);
+			_setResourcesForTest(map);
+			const result = listResources({ user: SUPER, profile: 'application' });
+			const allUris = result.resources.map((r) => r.uri);
+			assert.ok(!allUris.some((u) => u.includes('orphan')));
+			assert.ok(allUris.some((u) => u.includes('visible')));
+		});
+	});
+
 	describe('readResource — error cases', () => {
 		it('rejects an invalid URI', async () => {
 			const res = await readResource({ uri: 'not a uri', user: SUPER, profile: 'application' });

@@ -50,11 +50,13 @@ export function _setProcessLocalTransactionForTest(fn: ProcessLocalTransaction |
 	_processLocalTransactionOverride = fn;
 }
 
-function loadServerUtilities(): {
-	OPERATION_FUNCTION_MAP?: OperationFunctionMap;
-	chooseOperation?: ChooseOperation;
-	processLocalTransaction?: ProcessLocalTransaction;
-} | undefined {
+function loadServerUtilities():
+	| {
+			OPERATION_FUNCTION_MAP?: OperationFunctionMap;
+			chooseOperation?: ChooseOperation;
+			processLocalTransaction?: ProcessLocalTransaction;
+	  }
+	| undefined {
 	try {
 		// Lazy require: Harper's server-helpers graph initializes eagerly
 		// (RocksDB lock acquisition, schema preload). Loading it from a unit

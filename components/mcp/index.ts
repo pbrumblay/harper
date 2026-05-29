@@ -20,6 +20,7 @@ import { getConfigObj as realGetConfigObj } from '../../config/configUtils.js';
 import { createFastifyHandler } from './adapters/fastify.ts';
 import { createHarperHttpHandler } from './adapters/harperHttp.ts';
 import { ensureSessionTable } from './session.ts';
+import { registerApplicationTools } from './tools/application.ts';
 import { registerOperationsTools } from './tools/operations.ts';
 import type { McpProfile } from './transport.ts';
 
@@ -117,6 +118,7 @@ export function handleApplication(scope: ScopeLike): void {
 	}
 	applicationStarted = true;
 	ensureSessionTable();
+	registerApplicationTools();
 	const mountPath = config.mcp.application.mountPath ?? DEFAULT_MOUNT_PATH;
 	const handler = createHarperHttpHandler('application');
 	scope.server.http(handler, { urlPath: mountPath, after: 'authentication' });
