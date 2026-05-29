@@ -32,9 +32,11 @@ import {
 	SUPPORTED_PROTOCOL_VERSIONS,
 } from './lifecycle.ts';
 import { emitAuditEntry } from './audit.ts';
+import { seedSessionSnapshot } from './listChanged.ts';
 import { tryAdmit } from './rateLimit.ts';
 import { deleteSession, loadSession, touchSession, type McpSessionRecord } from './session.ts';
 import { listResources, listResourceTemplates, readResource } from './resources.ts';
+import { registerSession, unregisterSession } from './sessionRegistry.ts';
 import { getTool, listTools, type AuthedUser, type ToolResult } from './toolRegistry.ts';
 
 export type McpProfile = 'operations' | 'application';
@@ -86,7 +88,7 @@ export async function handleMcpRequest(request: NormRequest): Promise<NormRespon
 			return jsonResponse(403, { error: 'origin_not_allowed' });
 		}
 		if (request.method === 'POST') return await handlePost(request);
-		if (request.method === 'GET') return handleGet();
+		if (request.method === 'GET') return await handleGet(request);
 		if (request.method === 'DELETE') return await handleDelete(request);
 		return { status: 405, headers: { Allow: currentlyAllowedMethods() } };
 	} catch (err) {
@@ -211,10 +213,40 @@ async function dispatchInitialize(
 	};
 }
 
-function handleGet(): NormResponse {
-	// v1 does not offer a GET SSE channel. #619 will replace this with a
-	// real server-push stream for `listChanged` notifications.
-	return { status: 405, headers: { Allow: currentlyAllowedMethods() } };
+async function handleGet(request: NormRequest): Promise<NormResponse> {
+	// Server-push channel for `notifications/{tools,resources}/list_changed`
+	// (#619). The client opens GET /mcp after `initialize`; we keep the SSE
+	// connection alive for the lifetime of the session and push frames as
+	// role/schema events fire. Per the spec, idle sessions get HTTP 404 on
+	// the next POST after eviction — the GET stream itself just closes when
+	// the session record is deleted (via unregisterSession).
+	const sessionId = request.headers[SESSION_HEADER];
+	if (!sessionId) {
+		return { status: 400, headers: {} };
+	}
+	const session = await loadSession(sessionId);
+	if (!session) {
+		return { status: 404, headers: {} };
+	}
+	if (session.user !== request.user) {
+		return { status: 403, headers: {} };
+	}
+	const protocolCheck = validateProtocolHeader(request.headers[PROTOCOL_HEADER], session.protocolVersion);
+	if (protocolCheck.ok !== true) {
+		const fail = protocolCheck as { ok: false; reason: string };
+		return {
+			status: 400,
+			headers: {},
+			jsonBody: { error: { message: fail.reason } },
+		};
+	}
+	const record = registerSession(sessionId, request.profile, effectiveUser(request));
+	seedSessionSnapshot(sessionId);
+	return {
+		status: 200,
+		headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' },
+		sseIterable: record.queue,
+	};
 }
 
 const DEFAULT_MAX_TOOLS = 200;
@@ -470,9 +502,12 @@ function maskSessionId(id: string): string {
 /**
  * Build the `Allow` header value for a 405 response. Per RFC 9110 §9.1 the
  * server MUST list only currently-supported methods. In v1, POST is always
- * supported; GET is never supported (no SSE channel until #619); DELETE is
- * conditional on `mcp.session.allowClientDelete`.
+ * supported; GET opens the server-push SSE channel for
+ * `notifications/{tools,resources}/list_changed`; DELETE is conditional on
+ * `mcp.session.allowClientDelete`.
  */
 function currentlyAllowedMethods(): string {
-	return env.get(CONFIG_PARAMS.MCP_SESSION_ALLOWCLIENTDELETE) === true ? 'POST, DELETE' : 'POST';
+	const allow = ['POST', 'GET'];
+	if (env.get(CONFIG_PARAMS.MCP_SESSION_ALLOWCLIENTDELETE) === true) allow.push('DELETE');
+	return allow.join(', ');
 }

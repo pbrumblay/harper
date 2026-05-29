@@ -17,6 +17,7 @@ import * as env from '../../utility/environment/environmentManager.ts';
 import { CONFIG_PARAMS } from '../../utility/hdbTerms.ts';
 import harperLogger from '../../utility/logging/harper_logger.ts';
 import { clearSessionRateState } from './rateLimit.ts';
+import { unregisterSession } from './sessionRegistry.ts';
 import { clearSessionCache } from './toolRegistry.ts';
 
 const TABLE_NAME = 'mcp_session';
@@ -136,6 +137,7 @@ export async function deleteSession(id: string): Promise<void> {
 	// entries until the process restarts.
 	clearSessionCache(id);
 	clearSessionRateState(id);
+	unregisterSession(id);
 }
 
 /**
