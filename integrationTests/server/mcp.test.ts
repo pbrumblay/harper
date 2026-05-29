@@ -159,12 +159,15 @@ suite('MCP Streamable HTTP transport (operations profile)', (ctx: ContextWithHar
 		strictEqual(res.status, 404);
 	});
 
-	test('GET /mcp returns 405', async () => {
+	test('GET /mcp returns 400 without a session id (SSE channel landed in #619)', async () => {
+		// GET is the server-push SSE channel; needs Mcp-Session-Id to open.
+		// Without it, transport returns 400 — not 405. Previously this test
+		// asserted 405 because GET was a stub until #619.
 		const res = await fetch(mcpUrl(ctx), {
 			method: 'GET',
 			headers: { Accept: 'text/event-stream', Authorization: authHeader(ctx) },
 		});
-		strictEqual(res.status, 405);
+		strictEqual(res.status, 400);
 		await res.body?.cancel();
 	});
 
