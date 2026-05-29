@@ -31,6 +31,8 @@ import {
 	PROTOCOL_VERSION_BACKCOMPAT,
 	SUPPORTED_PROTOCOL_VERSIONS,
 } from './lifecycle.ts';
+import { emitAuditEntry } from './audit.ts';
+import { tryAdmit } from './rateLimit.ts';
 import { deleteSession, loadSession, touchSession, type McpSessionRecord } from './session.ts';
 import { listResources, listResourceTemplates, readResource } from './resources.ts';
 import { getTool, listTools, type AuthedUser, type ToolResult } from './toolRegistry.ts';
@@ -267,14 +269,53 @@ async function dispatchToolsCall(
 	}
 
 	const args = params?.arguments ?? {};
+	const callStartedAt = Date.now();
+	const user = effectiveUser(request);
+
+	// Rate limit check — admit-or-deny BEFORE invoking the handler. Failures
+	// surface as `isError: true` with `kind: 'rate_limited'` (NOT a JSON-RPC
+	// error) so the LLM sees and can back off / try later.
+	const decision = tryAdmit(session.id, name, request.profile);
+	if (!decision.allowed) {
+		// Non-strict tsconfig doesn't narrow the discriminated union here.
+		const denied = decision as { allowed: false; reason: string };
+		const toolResult: ToolResult = {
+			isError: true,
+			content: [
+				{
+					type: 'text',
+					text: JSON.stringify({
+						kind: 'rate_limited',
+						scope: denied.reason,
+						tool: name,
+						message: `MCP ${denied.reason} rate limit reached; back off and try again`,
+					}),
+				},
+			],
+		};
+		emitAuditEntry({
+			timestamp: new Date(callStartedAt).toISOString(),
+			profile: request.profile,
+			sessionId: session.id,
+			tool: name,
+			user: user.username ?? request.user,
+			args: args as object,
+			status: 'rate_limited',
+			durationMs: 0,
+		});
+		return jsonResponse(200, buildSuccess(messageId, toolResult));
+	}
 
 	let toolResult: ToolResult;
+	let status: 'ok' | 'isError' = 'ok';
+	let errorMessage: string | undefined;
 	try {
 		toolResult = await tool.handler(args, {
-			user: effectiveUser(request),
+			user,
 			profile: request.profile,
 			sessionId: session.id,
 		});
+		if (toolResult?.isError) status = 'isError';
 	} catch (err) {
 		// Per MCP §server/tools → Error Handling: tool-execution errors come
 		// back as a successful JSON-RPC result with isError:true so the LLM
@@ -282,6 +323,8 @@ async function dispatchToolsCall(
 		// message goes to the wire (Harper-style hygiene).
 		const errMsg = (err as Error).message ?? 'tool execution failed';
 		harperLogger.warn(`MCP tools/call ${name} threw: ${(err as Error).stack ?? errMsg}`);
+		errorMessage = errMsg;
+		status = 'isError';
 		toolResult = {
 			isError: true,
 			content: [
@@ -291,7 +334,20 @@ async function dispatchToolsCall(
 				},
 			],
 		};
+	} finally {
+		decision.release();
 	}
+	emitAuditEntry({
+		timestamp: new Date(callStartedAt).toISOString(),
+		profile: request.profile,
+		sessionId: session.id,
+		tool: name,
+		user: user.username ?? request.user,
+		args: args as object,
+		status,
+		durationMs: Date.now() - callStartedAt,
+		...(errorMessage ? { errorMessage } : {}),
+	});
 	return jsonResponse(200, buildSuccess(messageId, toolResult));
 }
 
