@@ -85,6 +85,15 @@ class TokenBucket {
 		}
 		return false;
 	}
+	/**
+	 * Refill-and-check, without consuming. Used by `tryAdmit` to peek each
+	 * bucket so denial doesn't burn a token in *another* bucket — the bug
+	 * the claude review flagged on PR #856.
+	 */
+	hasToken(): boolean {
+		this.refill();
+		return this.tokens >= 1;
+	}
 	private refill(): void {
 		const t = now();
 		const elapsedSec = (t - this.lastRefill) / 1000;
@@ -181,17 +190,25 @@ export function tryAdmit(
 	if (state.inFlight >= state.config.sessionConcurrency) {
 		return { allowed: false, reason: 'concurrency' };
 	}
-	if (!state.sessionRate.tryConsume()) {
-		return { allowed: false, reason: 'session_rate' };
-	}
 	let toolBucket = state.perTool.get(toolName);
 	if (!toolBucket) {
 		toolBucket = new TokenBucket(state.config.perToolPerSecond, state.config.perToolBurst);
 		state.perTool.set(toolName, toolBucket);
 	}
-	if (!toolBucket.tryConsume()) {
+	// Peek both buckets first. Consuming session-rate before checking per-tool
+	// (or vice versa) silently drains the unrelated bucket on the denied path —
+	// the claude review bug on PR #856.
+	if (!toolBucket.hasToken()) {
 		return { allowed: false, reason: 'per_tool' };
 	}
+	if (!state.sessionRate.hasToken()) {
+		return { allowed: false, reason: 'session_rate' };
+	}
+	// Both have capacity — actually deduct. The peeks above ran refill(), so
+	// this immediate-follow-up tryConsume sees the same fresh state and is
+	// guaranteed to succeed (refill() is a no-op for elapsedSec ≤ 0).
+	toolBucket.tryConsume();
+	state.sessionRate.tryConsume();
 	state.inFlight += 1;
 	return {
 		allowed: true,

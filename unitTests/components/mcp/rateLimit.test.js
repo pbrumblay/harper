@@ -115,6 +115,38 @@ describe('mcp/rateLimit', () => {
 			assert.equal(r2.allowed, true);
 		});
 
+		it('per-tool denial does not drain the session-rate bucket (claude #856 review)', () => {
+			// Per-tool bucket: 1 token, no refill. Session-rate bucket: 5 tokens.
+			// Hammer the same tool repeatedly. The first succeeds, every subsequent
+			// call should be denied with reason=per_tool. The session-rate bucket
+			// must NOT be drained by the denials — only the first successful call.
+			envOverrides.mcp_application_rateLimit_perToolBurst = 1;
+			envOverrides.mcp_application_rateLimit_perToolPerSecond = 0.0000001;
+			envOverrides.mcp_application_rateLimit_sessionPerSecond = 5;
+			envOverrides.mcp_application_rateLimit_sessionConcurrency = 100;
+			const r1 = tryAdmit('s1', 't', 'application');
+			r1.release();
+			assert.equal(r1.allowed, true);
+			// 10 consecutive per-tool denials.
+			for (let i = 0; i < 10; i++) {
+				const d = tryAdmit('s1', 't', 'application');
+				assert.equal(d.allowed, false);
+				assert.equal(d.reason, 'per_tool', `call ${i + 2}: expected per_tool denial`);
+			}
+			// Switch to a different tool with its own fresh bucket. Should still
+			// have 4 session-rate tokens (5 - 1 used by r1). Verify by burning all 4.
+			envOverrides.mcp_application_rateLimit_perToolBurst = 100; // not the limit here
+			for (let i = 0; i < 4; i++) {
+				const d = tryAdmit('s1', `t${i}`, 'application');
+				assert.equal(d.allowed, true, `expected admit ${i + 1}/4 on a fresh tool`);
+				d.release();
+			}
+			// 5th attempt on yet another tool should now hit session_rate.
+			const last = tryAdmit('s1', 't_overflow', 'application');
+			assert.equal(last.allowed, false);
+			assert.equal(last.reason, 'session_rate');
+		});
+
 		it('treats different tools as independent', () => {
 			envOverrides.mcp_application_rateLimit_perToolBurst = 1;
 			envOverrides.mcp_application_rateLimit_perToolPerSecond = 0.001;
