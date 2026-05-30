@@ -14,8 +14,14 @@
 import * as http from 'node:http';
 import * as https from 'node:https';
 import * as readline from 'node:readline';
+import { StringDecoder } from 'node:string_decoder';
 import { URL } from 'node:url';
+import { loadCredentials, normalizeTarget } from '../cliCredentials.ts';
 import type { McpCliOptions } from './options.ts';
+
+function isJwtish(token: string | undefined): token is string {
+	return typeof token === 'string' && token.split('.').length === 3;
+}
 
 interface HttpOptions {
 	hostname?: string;
@@ -124,8 +130,11 @@ export async function runBridge(opts: BridgeOptions): Promise<void> {
 		}
 	})();
 
-	await stdinDone;
-	getController?.abort();
+	try {
+		await stdinDone;
+	} finally {
+		getController?.abort();
+	}
 }
 
 function openGetStream(
@@ -139,14 +148,21 @@ function openGetStream(
 	const controller = new AbortController();
 	(async () => {
 		try {
-			const { req, res } = await openRequest(connection, mountPath, 'GET', {
-				accept: 'text/event-stream',
-				[SESSION_HEADER]: sessionId,
-				...(protocolVersion ? { [PROTOCOL_HEADER]: protocolVersion } : {}),
-			});
-			controller.signal.addEventListener('abort', () => {
-				req.destroy();
-			});
+			// Pass `signal` straight into the underlying http.request so an
+			// abort fired before/during connect-handshake terminates cleanly —
+			// adding the listener post-await would miss that race.
+			const { res } = await openRequest(
+				connection,
+				mountPath,
+				'GET',
+				{
+					accept: 'text/event-stream',
+					[SESSION_HEADER]: sessionId,
+					...(protocolVersion ? { [PROTOCOL_HEADER]: protocolVersion } : {}),
+				},
+				undefined,
+				controller.signal
+			);
 			if (res.statusCode !== 200) {
 				log(`GET /mcp returned ${res.statusCode}; server-push notifications will not arrive`);
 				res.resume();
@@ -204,7 +220,8 @@ function openRequest(
 	mountPath: string,
 	method: 'GET' | 'POST',
 	headers: Record<string, string>,
-	body?: string
+	body?: string,
+	signal?: AbortSignal
 ): Promise<OpenedRequest> {
 	return new Promise((resolve, reject) => {
 		const isHttps = connection.protocol === 'https:';
@@ -215,6 +232,7 @@ function openRequest(
 			method,
 			path: mountPath,
 			headers: reqHeaders,
+			signal,
 		};
 		if (connection.socketPath) {
 			reqOptions.socketPath = connection.socketPath;
@@ -246,11 +264,20 @@ async function collectBody(res: http.IncomingMessage): Promise<string> {
  * Minimal SSE stream parser per WHATWG (server-sent events). MCP uses only
  * the `event`, `data`, and `id` fields; we ignore `retry` and comments.
  * Multi-line `data:` blocks are joined with `\n`.
+ *
+ * Two correctness details:
+ *   - `StringDecoder` preserves multi-byte UTF-8 sequences that straddle
+ *     chunk boundaries — naive `chunk.toString('utf8')` would corrupt
+ *     them.
+ *   - Strip `\r` so the `\n\n` event delimiter matches whether the server
+ *     emits LF or CRLF line endings (HTTP/SSE often uses CRLF).
  */
 async function* parseSseStream(stream: NodeJS.ReadableStream): AsyncIterable<SseFrame> {
 	let buffer = '';
+	const decoder = new StringDecoder('utf8');
 	for await (const chunk of stream) {
-		buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+		const text = typeof chunk === 'string' ? chunk : decoder.write(chunk);
+		buffer += text.replace(/\r/g, '');
 		let idx: number;
 		while ((idx = buffer.indexOf('\n\n')) !== -1) {
 			const raw = buffer.slice(0, idx);
@@ -259,6 +286,8 @@ async function* parseSseStream(stream: NodeJS.ReadableStream): AsyncIterable<Sse
 			if (frame) yield frame;
 		}
 	}
+	const tail = decoder.end();
+	if (tail) buffer += tail.replace(/\r/g, '');
 	if (buffer.trim().length > 0) {
 		const frame = parseSseFrame(buffer);
 		if (frame) yield frame;
@@ -331,10 +360,33 @@ export function resolveConnection(opts: McpCliOptions): HttpOptions {
 	};
 }
 
+/**
+ * Precedence (highest first):
+ *   1. --bearer <token>
+ *   2. --username + --password
+ *   3. URL embedded user/pass (https://user:pw@host)
+ *   4. Saved JWT from `~/.harperdb/credentials.json` for the resolved target
+ *      (populated by `harper login` — same flow `bin/cliOperations.ts` uses).
+ *
+ * Returning undefined here means "no creds in scope"; the request goes out
+ * unauthenticated and the server gates accordingly.
+ */
 function computeAuthHeader(opts: McpCliOptions, parsed: URL): string | undefined {
 	if (opts.bearer) return `Bearer ${opts.bearer}`;
 	const u = opts.username ?? parsed.username;
 	const p = opts.password ?? parsed.password;
 	if (u) return `Basic ${Buffer.from(`${u}:${p ?? ''}`).toString('base64')}`;
+	try {
+		const all = loadCredentials();
+		// Same lookup key shape `harper login` / cliOperations writes/reads:
+		// `normalizeTarget(<user-supplied URL>)`.
+		const lookup = normalizeTarget(opts.target!);
+		const tokens = all.targets?.[lookup];
+		if (tokens?.operation_token && isJwtish(tokens.operation_token)) {
+			return `Bearer ${tokens.operation_token}`;
+		}
+	} catch {
+		// Missing / unreadable credentials file is non-fatal — fall through to anonymous.
+	}
 	return undefined;
 }

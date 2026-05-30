@@ -11,8 +11,10 @@
  *     on UDS unless the request is for the operations profile or the
  *     application server has explicitly enabled MCP on UDS.
  *   - **HTTPS**: `--target https://host:port` connects over the network.
- *     Credentials come from `~/.harper/credentials` (per `cliCredentials`)
- *     or `--username/--password` flags.
+ *     Credential precedence (highest first):
+ *       `--bearer` > `--username` + `--password` > URL-embedded user/pass
+ *       > saved JWT from `~/.harperdb/credentials.json` (populated by
+ *       `harper login` and looked up via `cliCredentials.normalizeTarget`).
  */
 
 export interface McpCliOptions {

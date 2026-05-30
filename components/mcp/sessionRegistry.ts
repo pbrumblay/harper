@@ -79,13 +79,14 @@ export function registerSession(sessionId: string, profile: McpProfile, user: Au
 	registry.set(sessionId, record);
 	// On-close hook: when the consumer's async-iterator returns/throws (or
 	// supersede emits 'close' above), drop the entry so it doesn't leak past
-	// the underlying HTTP stream's lifetime. `once` so the recursive emit
-	// inside `unregisterSession` is a no-op.
+	// the underlying HTTP stream's lifetime. We delete directly rather than
+	// calling unregisterSession() — the latter would re-emit 'close', firing
+	// any other user-registered 'close' listeners a second time.
 	queue.once('close', () => {
-		// Only unregister if we're still the live record. A racing supersede
+		// Only delete if we're still the live record. A racing supersede
 		// could have already replaced us in the map.
 		if (registry.get(sessionId) === record) {
-			unregisterSession(sessionId);
+			registry.delete(sessionId);
 		}
 	});
 	return record;
