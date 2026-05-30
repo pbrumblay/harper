@@ -116,10 +116,10 @@ describe('mcp/resources', () => {
 
 	describe('listResources — table schemas (harper://schema/...)', () => {
 		it('lists every table backed by a Resource, regardless of caller perms', () => {
-			// Per kriszyp review on #788: list-time RBAC walks are misleading —
-			// Resource access is programmatic, so the list is everything and the
-			// read predicate enforces. Verified for both an unprivileged user
-			// and super_user — same list.
+			// List-time RBAC walks are misleading — Resource access is
+			// programmatic, so the list is everything and the read predicate
+			// enforces. Verified for both an unprivileged user and super_user —
+			// same list.
 			const alice = listResources({ user: ALICE_READ_ONLY, profile: 'application' });
 			const nobody = listResources({ user: NOBODY, profile: 'application' });
 			const aliceUris = alice.resources.filter((r) => r.uri.startsWith('harper://schema/')).map((r) => r.uri);
@@ -320,10 +320,10 @@ describe('mcp/resources', () => {
 
 	describe('readResource — https://... (app profile)', () => {
 		it('returns the Resource descriptor for a matched path (metadata only)', async () => {
-			// Per kriszyp review on #788: the descriptor is a hint, not a
-			// capability — actual data fetches go through tools where each
-			// Resource's allow* predicates run per-record. Any authenticated
-			// user can resolve an existing path; unknown paths still 404.
+			// The descriptor is a hint, not a capability — actual data fetches
+			// go through tools where each Resource's allow* predicates run
+			// per-record. Any authenticated user can resolve an existing path;
+			// unknown paths still 404.
 			const res = await readResource({
 				uri: 'https://harper.example.com:9926/Product',
 				user: NOBODY,
@@ -407,7 +407,7 @@ describe('mcp/resources', () => {
 		});
 	});
 
-	describe('exportTypes gating (Kris #788 review)', () => {
+	describe('exportTypes gating', () => {
 		beforeEach(() => {
 			_setHttpUrlPrefixForTest('https://app.test:9926');
 		});
@@ -441,7 +441,7 @@ describe('mcp/resources', () => {
 			assert.ok(!schemaUris.includes('harper://schema/data/hidden'));
 		});
 
-		it('skips Resources with exportTypes.http === false from the https:// enumeration only', () => {
+		it('publishes Resources with exportTypes.http === false (mcp flag is the only gate)', () => {
 			const NoHttp = makeTableResource({ databaseName: 'data', tableName: 'nohttp' });
 			const map = new Map([
 				[
@@ -459,8 +459,7 @@ describe('mcp/resources', () => {
 			const result = listResources({ user: SUPER, profile: 'application' });
 			const httpUris = result.resources.filter((r) => r.uri.startsWith('https://')).map((r) => r.uri);
 			const schemaUris = result.resources.filter((r) => r.uri.startsWith('harper://schema/')).map((r) => r.uri);
-			assert.ok(!httpUris.some((u) => u.endsWith('/NoHttp')));
-			// Schema enumeration still includes it — exportTypes.http only gates https:// emission.
+			assert.ok(httpUris.includes('https://app.test:9926/NoHttp'));
 			assert.ok(schemaUris.includes('harper://schema/data/nohttp'));
 		});
 
@@ -488,7 +487,7 @@ describe('mcp/resources', () => {
 			assert.match(res.reason, /no resource matches/);
 		});
 
-		it('a resource not in the registry never enumerates (locks in the kris-#788 invariant)', () => {
+		it('a resource not in the registry never enumerates', () => {
 			// Build a class that's a *valid* Resource shape but is intentionally
 			// absent from the registry. It should not surface anywhere in the MCP
 			// list, even though it carries the right shape.

@@ -41,7 +41,7 @@ describe('mcp/audit', () => {
 			assert.ok(out);
 		});
 
-		it('redacts the entire sub-object when depth limit is exceeded (gemini #2)', () => {
+		it('redacts the entire sub-object when depth limit is exceeded', () => {
 			// Build a nesting deeper than MAX_REDACTION_DEPTH (10) and embed a
 			// credential at the bottom. Naively the depth cap could leak it.
 			let leaf = { password: 'should-not-leak' };

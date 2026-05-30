@@ -115,7 +115,7 @@ describe('mcp/rateLimit', () => {
 			assert.equal(r2.allowed, true);
 		});
 
-		it('per-tool denial does not drain the session-rate bucket (claude #856 review)', () => {
+		it('per-tool denial does not drain the session-rate bucket', () => {
 			// Per-tool bucket: 1 token, no refill. Session-rate bucket: 5 tokens.
 			// Hammer the same tool repeatedly. The first succeeds, every subsequent
 			// call should be denied with reason=per_tool. The session-rate bucket
@@ -174,7 +174,7 @@ describe('mcp/rateLimit', () => {
 		});
 	});
 
-	describe('idle-session prune (gemini #6: belt-and-braces against TTL eviction)', () => {
+	describe('idle-session prune (belt-and-braces against TTL eviction)', () => {
 		it('drops sessions that have been idle past the prune window', () => {
 			envOverrides.mcp_application_rateLimit_perToolBurst = 1;
 			envOverrides.mcp_application_rateLimit_perToolPerSecond = 0.001;

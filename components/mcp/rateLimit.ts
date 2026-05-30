@@ -87,8 +87,7 @@ class TokenBucket {
 	}
 	/**
 	 * Refill-and-check, without consuming. Used by `tryAdmit` to peek each
-	 * bucket so denial doesn't burn a token in *another* bucket — the bug
-	 * the claude review flagged on PR #856.
+	 * bucket so denial doesn't burn a token in *another* bucket.
 	 */
 	hasToken(): boolean {
 		this.refill();
@@ -196,8 +195,7 @@ export function tryAdmit(
 		state.perTool.set(toolName, toolBucket);
 	}
 	// Peek both buckets first. Consuming session-rate before checking per-tool
-	// (or vice versa) silently drains the unrelated bucket on the denied path —
-	// the claude review bug on PR #856.
+	// (or vice versa) silently drains the unrelated bucket on the denied path.
 	if (!toolBucket.hasToken()) {
 		return { allowed: false, reason: 'per_tool' };
 	}

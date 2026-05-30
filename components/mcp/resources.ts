@@ -299,7 +299,7 @@ function enumerateAppHttpResources(): ResourceDescriptor[] {
 	if (!prefix) return [];
 	const out: ResourceDescriptor[] = [];
 	for (const [path, entry] of getResources()) {
-		if (!isMcpExposed(entry) || !isHttpExposed(entry)) continue;
+		if (!isMcpExposed(entry)) continue;
 		const ResourceClass = entry.Resource as { prototype?: unknown } | undefined;
 		if (!hasRestVerbs(ResourceClass?.prototype)) continue;
 		out.push({
@@ -322,18 +322,6 @@ function isMcpExposed(entry: { exportTypes?: unknown }): boolean {
 	const types = entry.exportTypes as Record<string, boolean> | undefined;
 	if (!types) return true;
 	return types.mcp !== false;
-}
-
-/**
- * The application MCP surface mirrors the public REST surface. A Resource
- * that operators explicitly hid from HTTP (`exportTypes.http === false`)
- * should not be advertised as an `https://...` URI here either — even if
- * the same Resource is still exposed via, say, WebSockets or GraphQL.
- */
-function isHttpExposed(entry: { exportTypes?: unknown }): boolean {
-	const types = entry.exportTypes as Record<string, boolean> | undefined;
-	if (!types) return true;
-	return types.http !== false;
 }
 
 /**

@@ -127,7 +127,7 @@ describe('mcp/tools/application — registration', () => {
 		assert.deepEqual(names, []);
 	});
 
-	describe('exportTypes gating (Kris #788 review)', () => {
+	describe('exportTypes gating', () => {
 		it('skips Resources with exportTypes.mcp === false', () => {
 			const Hidden = makeTableResource({ databaseName: 'data', tableName: 'hidden' });
 			_setResourcesForTest(makeRegistry([['Hidden', { Resource: Hidden, exportTypes: { mcp: false } }]]));
@@ -138,14 +138,14 @@ describe('mcp/tools/application — registration', () => {
 			assert.deepEqual(names, []);
 		});
 
-		it('skips Resources with exportTypes.http === false (mirrors public REST surface)', () => {
-			const NoHttp = makeTableResource({ databaseName: 'data', tableName: 'nohttp' });
+		it('publishes Resources with exportTypes.http === false (mcp flag is the only gate)', () => {
+			const NoHttp = makeTableResource({ databaseName: 'data', tableName: 'nohttp', verbs: ['get'] });
 			_setResourcesForTest(makeRegistry([['NoHttp', { Resource: NoHttp, exportTypes: { http: false } }]]));
 			registerApplicationTools();
 			const names = listTools({ user: SUPER, profile: 'application', sessionId: 's', limit: 200 }).tools.map(
 				(t) => t.name
 			);
-			assert.deepEqual(names, []);
+			assert.deepEqual(names, ['get_NoHttp']);
 		});
 
 		it('publishes Resources with exportTypes = { mcp: true, http: true }', () => {
@@ -374,8 +374,7 @@ describe('mcp/tools/application — leak invariants', () => {
 	it('a Resource never added to the registry is never enumerated', () => {
 		const Inside = makeTableResource({ databaseName: 'data', tableName: 'inside', verbs: ['get'] });
 		// `Outside` is constructed but NOT added to the registry — should
-		// remain completely invisible to MCP enumeration. Locks in the
-		// invariant Kris asked us to test in #788.
+		// remain completely invisible to MCP enumeration.
 		makeTableResource({ databaseName: 'data', tableName: 'outside', verbs: ['get'] });
 		_setResourcesForTest(makeRegistry([['Inside', { Resource: Inside }]]));
 		registerApplicationTools();

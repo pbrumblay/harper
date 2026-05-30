@@ -3,11 +3,7 @@
  * and registers verb tools (`get_*`, `search_*`, `create_*`, `update_*`,
  * `delete_*`) for each exported Resource that:
  *   1. Has a `'mcp'` exportType not explicitly set to `false`.
- *   2. Has `'http'` exportType not explicitly set to `false` (Kris's review
- *      on #788: the application MCP surface mirrors the public REST surface,
- *      so a Resource the operator disabled for HTTP must not be advertised
- *      here either).
- *   3. Implements the corresponding verb on its prototype.
+ *   2. Implements the corresponding verb on its prototype.
  *
  * Tool dispatch delegates to the static `Resource.get/post/put/delete/search`
  * methods, which wrap `transactional()` internally. That means
@@ -395,9 +391,7 @@ interface ResourceContext {
 function shouldEnumerate(entry: ResourceRegistryEntry): boolean {
 	const types = entry.exportTypes;
 	if (!types) return true; // no per-protocol controls → all enabled
-	if (types.mcp === false) return false;
-	if (types.http === false) return false;
-	return true;
+	return types.mcp !== false;
 }
 
 /**
