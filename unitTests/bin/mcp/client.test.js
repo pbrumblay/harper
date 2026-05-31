@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { Readable, Writable } = require('node:stream');
-const { runBridge } = require('#src/bin/mcp/client');
+const { runBridge, resolveConnection } = require('#src/bin/mcp/client');
 
 class ChunkSink extends Writable {
 	constructor() {
@@ -169,5 +169,66 @@ describe('bin/mcp/client.runBridge', () => {
 		const lines = stdout.text.split('\n').filter(Boolean);
 		assert.equal(lines.length, 1, 'only the valid request produced a response');
 		assert.ok(stderr.text.includes('not valid JSON'));
+	});
+});
+
+describe('bin/mcp/client.resolveConnection', () => {
+	it('throws a helpful error when --profile application is selected without --target', () => {
+		assert.throws(
+			() =>
+				resolveConnection({
+					subcommand: 'bridge',
+					profile: 'application',
+					mountPath: '/mcp',
+					rejectUnauthorized: true,
+					help: false,
+				}),
+			/application MCP endpoint is mounted on the application HTTP server/
+		);
+	});
+
+	it('honors --target https://... in network mode regardless of profile', () => {
+		const conn = resolveConnection({
+			subcommand: 'bridge',
+			profile: 'application',
+			mountPath: '/mcp',
+			target: 'https://node:9926',
+			rejectUnauthorized: true,
+			help: false,
+		});
+		assert.equal(conn.protocol, 'https:');
+		assert.equal(conn.hostname, 'node');
+		assert.equal(conn.port, '9926');
+		assert.equal(conn.socketPath, undefined);
+	});
+
+	it('builds a Basic auth header from --username + --password', () => {
+		const conn = resolveConnection({
+			subcommand: 'bridge',
+			profile: 'application',
+			mountPath: '/mcp',
+			target: 'https://node:9926',
+			username: 'alice',
+			password: 'pw',
+			rejectUnauthorized: true,
+			help: false,
+		});
+		const expected = `Basic ${Buffer.from('alice:pw').toString('base64')}`;
+		assert.equal(conn.authHeader, expected);
+	});
+
+	it('--bearer wins over --username + --password', () => {
+		const conn = resolveConnection({
+			subcommand: 'bridge',
+			profile: 'application',
+			mountPath: '/mcp',
+			target: 'https://node:9926',
+			username: 'alice',
+			password: 'pw',
+			bearer: 'token-xyz',
+			rejectUnauthorized: true,
+			help: false,
+		});
+		assert.equal(conn.authHeader, 'Bearer token-xyz');
 	});
 });

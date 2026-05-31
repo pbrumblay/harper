@@ -24,7 +24,9 @@ Subcommands:
   help              This message.
 
 Connection flags:
-  --profile <p>     'operations' or 'application' (default: application).
+  --profile <p>     'operations' or 'application' (default: operations).
+                    --profile application requires --target (the application
+                    HTTP server doesn't expose a local UDS).
   --target <url>    Connect over the network instead of local UDS. Example:
                     --target https://node.example.com:9926
   --mount-path <p>  Override the MCP route mount path (default: /mcp).
@@ -66,6 +68,10 @@ export async function runMcpCli(argv: readonly string[]): Promise<number> {
 			const result = await runDoctor(opts);
 			formatDoctorReport(result);
 			return result.ok ? 0 : 1;
+		}
+		default: {
+			process.stderr.write(`harper mcp: unknown subcommand '${opts.subcommand as string}'\n`);
+			return 1;
 		}
 	}
 }

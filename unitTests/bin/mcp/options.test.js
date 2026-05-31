@@ -2,10 +2,10 @@ const assert = require('node:assert/strict');
 const { parseArgs } = require('#src/bin/mcp/options');
 
 describe('bin/mcp/options.parseArgs', () => {
-	it('defaults to bridge + application + UDS + /mcp', () => {
+	it('defaults to bridge + operations + UDS + /mcp', () => {
 		const o = parseArgs([]);
 		assert.equal(o.subcommand, 'bridge');
-		assert.equal(o.profile, 'application');
+		assert.equal(o.profile, 'operations');
 		assert.equal(o.target, undefined);
 		assert.equal(o.mountPath, '/mcp');
 		assert.equal(o.rejectUnauthorized, true);
@@ -43,7 +43,7 @@ describe('bin/mcp/options.parseArgs', () => {
 
 	it('rejects unknown profile values silently (default stays)', () => {
 		const o = parseArgs(['--profile', 'bogus']);
-		assert.equal(o.profile, 'application');
+		assert.equal(o.profile, 'operations');
 	});
 
 	it('print-config respects --client', () => {

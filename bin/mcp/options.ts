@@ -6,12 +6,14 @@
  *
  * Two connection modes:
  *   - **UDS** (default): connects to the locally-running Harper instance via
- *     the operationsApi domain socket. No credentials — filesystem
- *     permissions on the socket are the gate. Harper rejects MCP requests
- *     on UDS unless the request is for the operations profile or the
- *     application server has explicitly enabled MCP on UDS.
+ *     the operationsApi domain socket. **Only the operations profile is
+ *     reachable this way** — the application profile is mounted on the
+ *     application HTTP server, which doesn't expose a UDS in v1. Filesystem
+ *     permissions on the operations socket are the access gate; no
+ *     credentials are required or sent.
  *   - **HTTPS**: `--target https://host:port` connects over the network.
- *     Credential precedence (highest first):
+ *     Required for `--profile application`. Credential precedence
+ *     (highest first):
  *       `--bearer` > `--username` + `--password` > URL-embedded user/pass
  *       > saved JWT from `~/.harperdb/credentials.json` (populated by
  *       `harper login` and looked up via `cliCredentials.normalizeTarget`).
@@ -33,7 +35,11 @@ export interface McpCliOptions {
 export function parseArgs(argv: readonly string[]): McpCliOptions {
 	const opts: McpCliOptions = {
 		subcommand: 'bridge',
-		profile: 'application',
+		// Operations is the safer default: the typical zero-config path
+		// (`harper mcp` / `harper mcp doctor` on the local machine, no
+		// --target) connects over the operations UDS, which only routes
+		// to the operations MCP endpoint in v1.
+		profile: 'operations',
 		mountPath: '/mcp',
 		rejectUnauthorized: true,
 		help: false,

@@ -327,10 +327,18 @@ function safeParse(text: string): unknown {
 	}
 }
 
-/** Resolve `--target` / UDS path + creds → HttpOptions. */
+/**
+ * Resolve `--target` / UDS path + creds → HttpOptions.
+ *
+ * UDS-mode caveat: only the **operations** profile is reachable via the
+ * local Unix Domain Socket. The application profile is mounted on the
+ * application HTTP server (the same listener that serves your REST
+ * endpoints), which doesn't expose a UDS in v1. Selecting
+ * `--profile application` without `--target` is a user error — we throw
+ * here rather than silently routing to the operations UDS (which would
+ * misleadingly return the operations tool list under super_user auth).
+ */
 export function resolveConnection(opts: McpCliOptions): HttpOptions {
-	// `--target` wins. Else fall back to local UDS via the operationsApi
-	// domain socket — same path cliOperations uses.
 	if (opts.target) {
 		let parsed: URL;
 		try {
@@ -347,6 +355,13 @@ export function resolveConnection(opts: McpCliOptions): HttpOptions {
 			rejectUnauthorized: opts.rejectUnauthorized,
 			authHeader,
 		};
+	}
+	if (opts.profile === 'application') {
+		throw new Error(
+			'harper mcp: --profile application requires --target https://<host>:<port>. ' +
+				'The application MCP endpoint is mounted on the application HTTP server, which ' +
+				'does not expose a local UDS in v1.'
+		);
 	}
 	// UDS path resolution mirrors bin/cliOperations.ts:150.
 	const { getConfigPath } = require('../../config/configUtils');

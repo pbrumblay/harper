@@ -3,7 +3,7 @@ const { renderConfig } = require('#src/bin/mcp/printConfig');
 
 const BASE = {
 	subcommand: 'print-config',
-	profile: 'application',
+	profile: 'operations',
 	mountPath: '/mcp',
 	rejectUnauthorized: true,
 	help: false,
@@ -34,7 +34,7 @@ describe('bin/mcp/printConfig.renderConfig', () => {
 		const block = renderConfig({
 			...BASE,
 			client: 'claude-desktop',
-			profile: 'operations',
+			profile: 'application',
 			target: 'https://node:9926',
 			mountPath: '/mcp2',
 			username: 'alice',
@@ -44,7 +44,7 @@ describe('bin/mcp/printConfig.renderConfig', () => {
 		assert.deepEqual(args, [
 			'mcp',
 			'--profile',
-			'operations',
+			'application',
 			'--target',
 			'https://node:9926',
 			'--mount-path',
@@ -53,5 +53,10 @@ describe('bin/mcp/printConfig.renderConfig', () => {
 			'alice',
 			'--insecure',
 		]);
+	});
+
+	it('omits --profile when it matches the default (operations)', () => {
+		const block = renderConfig({ ...BASE, client: 'claude-desktop' });
+		assert.deepEqual(block.body.mcpServers.harper.args, ['mcp']);
 	});
 });

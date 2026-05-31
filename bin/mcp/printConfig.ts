@@ -14,7 +14,8 @@ interface ConfigBlock {
 export function renderConfig(opts: McpCliOptions): ConfigBlock {
 	const client = opts.client ?? 'claude-desktop';
 	const args = ['mcp'];
-	if (opts.profile !== 'application') args.push('--profile', opts.profile);
+	// Default is 'operations'; only emit the flag when overriding to 'application'.
+	if (opts.profile !== 'operations') args.push('--profile', opts.profile);
 	if (opts.target) args.push('--target', opts.target);
 	if (opts.mountPath !== '/mcp') args.push('--mount-path', opts.mountPath);
 	if (opts.username) args.push('--username', opts.username);
@@ -72,6 +73,8 @@ export function renderConfig(opts: McpCliOptions): ConfigBlock {
 				notes: ["Zed's MCP support is behind a feature flag — see the Zed docs for activation."],
 			};
 		}
+		default:
+			throw new Error(`harper mcp print-config: unknown --client '${client as string}'`);
 	}
 }
 
