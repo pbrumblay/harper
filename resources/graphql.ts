@@ -168,7 +168,7 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 								);
 							} else {
 								property.embed = embedDefinition;
-								// Model name as version, so changing `model:` triggers reindex (as `@computed` does).
+								// Version carries the model so a model change triggers a reindex (re-index only, not re-embed).
 								if (property.version == undefined) {
 									property.version = `embed:${embedDefinition.model}`;
 								}

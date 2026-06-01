@@ -70,26 +70,9 @@ const RESOURCES_JS = [
 	'',
 ].join('\n');
 
-/**
- * REST GET returns Float32Array-typed columns as a `{type: "Buffer", data: number[]}`
- * JSON shape (msgpack/Buffer round-trip). Decode back to Float32 components for
- * equality assertions.
- */
+/** Vectors are stored and returned as a plain JSON number[]. */
 function decodeVector(field: any): number[] | undefined {
-	if (field == null) return undefined;
-	if (Array.isArray(field)) return field.map(Number);
-	if (field instanceof Float32Array) return Array.from(field);
-	if (field && field.type === 'Buffer' && Array.isArray(field.data)) {
-		const bytes = Uint8Array.from(field.data);
-		const f32 = new Float32Array(bytes.buffer, bytes.byteOffset, Math.floor(bytes.byteLength / 4));
-		return Array.from(f32);
-	}
-	if (field instanceof Uint8Array || field instanceof ArrayBuffer) {
-		const view = field instanceof ArrayBuffer ? new Uint8Array(field) : field;
-		const f32 = new Float32Array(view.buffer, view.byteOffset, Math.floor(view.byteLength / 4));
-		return Array.from(f32);
-	}
-	return undefined;
+	return Array.isArray(field) ? field.map(Number) : undefined;
 }
 
 interface FakeOllama {
@@ -102,9 +85,8 @@ interface FakeOllama {
 }
 
 /**
- * Deterministic embedding function: maps an input string to a 3-element
- * Float32Array. Different inputs produce different vectors; same input
- * produces the same vector across calls.
+ * Deterministic fake embedder: maps an input string to a stable 3-element
+ * vector so assertions can compare exact values.
  */
 function deterministicVector(input: string): number[] {
 	let h1 = 0;
