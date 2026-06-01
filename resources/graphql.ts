@@ -172,9 +172,6 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 								if (property.version == undefined) {
 									property.version = `embed:${embedDefinition.model}`;
 								}
-								if (!property.indexed) {
-									property.indexed = { type: 'HNSW' };
-								}
 							}
 						} else if (directiveName === 'relationship') {
 							const relationshipDefinition = {};
@@ -200,6 +197,16 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 						} else if (server.knownGraphQLDirectives.includes(directiveName)) {
 							console.warn(`@${directiveName} is an unknown directive, at`, directive.loc);
 						}
+					}
+					// @embed auto-indexes with HNSW; resolved after all directives so an explicit
+					// @indexed (in any order) is honored. A conflicting non-HNSW index is a loud error.
+					if (property.embed) {
+						if (!property.indexed) property.indexed = { type: 'HNSW' };
+						else if ((property.indexed as { type?: string }).type !== 'HNSW')
+							throw new ClientError(
+								`@embed on "${property.name}" auto-indexes with HNSW; remove the conflicting @indexed or set @indexed(type: "HNSW")`,
+								400
+							);
 					}
 				}
 				typeDef.type = typeName;
