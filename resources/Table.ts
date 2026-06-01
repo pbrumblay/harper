@@ -3392,6 +3392,11 @@ export function makeTable(options) {
 			// Refresh on every call: schema reload mutates `attributes` in place, so the
 			// class-construction snapshot would otherwise go stale.
 			this.embedAttributes = (this.attributes as any[]).filter((a) => a?.embed);
+			// Drop registry entries for attributes that are no longer `@embed`, so a dropped
+			// directive doesn't leave a stale embedder or block a default refresh on re-add.
+			const embedNames = new Set(this.embedAttributes.map((a) => a.name));
+			for (const name of Object.keys(this.userEmbedders)) if (!embedNames.has(name)) delete this.userEmbedders[name];
+			for (const name of this.userSetEmbedders) if (!embedNames.has(name)) this.userSetEmbedders.delete(name);
 			propertyResolvers = this.propertyResolvers = {
 				$id: (object, context, entry) => ({ value: entry.key }),
 				$updatedtime: (object, context, entry) => entry.version,

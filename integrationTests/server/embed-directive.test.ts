@@ -210,6 +210,10 @@ suite('@embed directive end-to-end with fake Ollama', (ctx: any) => {
 		ok(embeddingAttr, 'embedding attribute should be present');
 		strictEqual(embeddingAttr.type, 'array', 'embedding type should be a [Float] array');
 		strictEqual(embeddingAttr.indexed?.type, 'HNSW', 'embedding should be auto-HNSW-indexed');
+		// describe should surface the @embed config, not just the auto-added HNSW index
+		ok(embeddingAttr.embed, 'describe should surface @embed config');
+		strictEqual(embeddingAttr.embed.source, 'content');
+		strictEqual(embeddingAttr.embed.model, 'default');
 	});
 
 	test('happy path: POST → embedder runs → vector stored on record', async () => {
