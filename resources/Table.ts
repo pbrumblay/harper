@@ -1257,16 +1257,16 @@ export function makeTable(options) {
 		 */
 		save() {
 			if (this.#savingOperation) {
-				const promiseOrResult = this.#savingOperation.promise || this.#savingOperation.result;
-				const transaction = txnForContext(this.getContext());
-				if (transaction.save) {
-					try {
-						return transaction.save(this.#savingOperation) || promiseOrResult;
-					} finally {
-						this.#savingOperation = null;
-					}
+				try {
+					return this.#saveOperation(this.#savingOperation);
+				} finally {
+					this.#savingOperation = null;
 				}
 			}
+		}
+		#saveOperation(operation: any) {
+			const transaction = txnForContext(this.getContext());
+			if (transaction.save) return transaction.save(operation) || operation.promise || operation.result;
 		}
 
 		addTo(property: any, value: any) {
@@ -1534,13 +1534,18 @@ export function makeTable(options) {
 					}
 					// standard path, handle arrays as multiple updates, and otherwise do a direct update
 					if (Array.isArray(record)) {
-						// `when` is used because `_writeUpdate` returns a promise when `@embed` is active.
-						return Promise.all(
-							record.map((element) => {
-								const id = element[primaryKey];
-								return when(this._writeUpdate(id, element, true), () => this.save() as any);
-							})
-						) as any;
+						// Capture each element's operation synchronously (before any async `@embed`
+						// hook resolves): `#savingOperation` is a single field that parallel writes
+						// would otherwise clobber, so a deferred `save()` would commit the wrong op
+						// — e.g. one element's save running before a later element's vector is written.
+						const writes = record.map((element) => {
+							const id = element[primaryKey];
+							const writePromise = this._writeUpdate(id, element, true);
+							const operation = this.#savingOperation;
+							return when(writePromise, () => this.#saveOperation(operation));
+						});
+						this.#savingOperation = null;
+						return Promise.all(writes) as any;
 					} else {
 						const id = requestTargetToId(target as any);
 						return when(this._writeUpdate(id, record, true), () => this.save() as any);
