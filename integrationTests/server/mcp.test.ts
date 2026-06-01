@@ -126,17 +126,17 @@ suite('MCP Streamable HTTP transport (operations profile)', (ctx: ContextWithHar
 		const sessionId = initRes.headers.get('mcp-session-id')!;
 		await initRes.body?.cancel();
 
-		// `resources/list` is intentionally not implemented in #615 (lands in #616).
-		// `tools/list` would be a poor choice here — it's a real handler in this PR.
+		// Use a guaranteed-unknown method name; tools/list, resources/list, and
+		// resources/read are all real handlers now.
 		const res = await jsonRpcPost(
 			ctx,
-			{ jsonrpc: '2.0', id: 2, method: 'resources/list' },
+			{ jsonrpc: '2.0', id: 2, method: 'definitely/not/a/method' },
 			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
 		);
 		strictEqual(res.status, 200);
 		const body = (await res.json()) as { jsonrpc: string; id: number; error: { code: number; message: string } };
 		strictEqual(body.error.code, -32601);
-		match(body.error.message, /resources\/list/);
+		match(body.error.message, /definitely\/not\/a\/method/);
 	});
 
 	test('request without Mcp-Session-Id returns 400', async () => {
@@ -159,12 +159,15 @@ suite('MCP Streamable HTTP transport (operations profile)', (ctx: ContextWithHar
 		strictEqual(res.status, 404);
 	});
 
-	test('GET /mcp returns 405', async () => {
+	test('GET /mcp returns 400 without a session id (SSE channel landed in #619)', async () => {
+		// GET is the server-push SSE channel; needs Mcp-Session-Id to open.
+		// Without it, transport returns 400 — not 405. Previously this test
+		// asserted 405 because GET was a stub until #619.
 		const res = await fetch(mcpUrl(ctx), {
 			method: 'GET',
 			headers: { Accept: 'text/event-stream', Authorization: authHeader(ctx) },
 		});
-		strictEqual(res.status, 405);
+		strictEqual(res.status, 400);
 		await res.body?.cancel();
 	});
 
@@ -188,5 +191,183 @@ suite('MCP Streamable HTTP transport (operations profile)', (ctx: ContextWithHar
 			body: '{not json',
 		});
 		strictEqual(res.status, 400);
+	});
+
+	test('resources/list returns harper:// synthetic URIs (#616)', async () => {
+		const initRes = await jsonRpcPost(ctx, {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'x', version: '0' } },
+		});
+		const sessionId = initRes.headers.get('mcp-session-id')!;
+		await initRes.body?.cancel();
+
+		const res = await jsonRpcPost(
+			ctx,
+			{ jsonrpc: '2.0', id: 40, method: 'resources/list' },
+			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
+		);
+		strictEqual(res.status, 200);
+		const body = (await res.json()) as {
+			jsonrpc: string;
+			id: number;
+			result: { resources: Array<{ uri: string; name: string }> };
+		};
+		const uris = body.result.resources.map((r) => r.uri);
+		ok(uris.includes('harper://about'), `expected harper://about in resources/list, got ${uris.join(', ')}`);
+		// Operations profile exposes harper://operations, not harper://openapi.
+		ok(uris.includes('harper://operations'), `expected harper://operations on operations profile`);
+	});
+
+	test('resources/read for harper://about returns the server metadata (#616)', async () => {
+		const initRes = await jsonRpcPost(ctx, {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'x', version: '0' } },
+		});
+		const sessionId = initRes.headers.get('mcp-session-id')!;
+		await initRes.body?.cancel();
+
+		const res = await jsonRpcPost(
+			ctx,
+			{ jsonrpc: '2.0', id: 41, method: 'resources/read', params: { uri: 'harper://about' } },
+			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
+		);
+		strictEqual(res.status, 200);
+		const body = (await res.json()) as {
+			jsonrpc: string;
+			id: number;
+			result: { contents: Array<{ uri: string; mimeType?: string; text?: string }> };
+		};
+		strictEqual(body.result.contents[0].uri, 'harper://about');
+		strictEqual(body.result.contents[0].mimeType, 'application/json');
+		const payload = JSON.parse(body.result.contents[0].text!) as {
+			serverInfo: { name: string };
+			profile: string;
+		};
+		strictEqual(payload.serverInfo.name, 'harper-mcp');
+		strictEqual(payload.profile, 'operations');
+	});
+
+	test('resources/templates/list returns the URI templates for the profile (#616)', async () => {
+		const initRes = await jsonRpcPost(ctx, {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'x', version: '0' } },
+		});
+		const sessionId = initRes.headers.get('mcp-session-id')!;
+		await initRes.body?.cancel();
+
+		const res = await jsonRpcPost(
+			ctx,
+			{ jsonrpc: '2.0', id: 42, method: 'resources/templates/list' },
+			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
+		);
+		strictEqual(res.status, 200);
+		const body = (await res.json()) as {
+			jsonrpc: string;
+			id: number;
+			result: { resourceTemplates: Array<{ uriTemplate: string }> };
+		};
+		// Operations profile has no application templates, so the array is empty here.
+		ok(Array.isArray(body.result.resourceTemplates));
+	});
+
+	test('resources/read with missing params.uri returns JSON-RPC -32602 (#616)', async () => {
+		const initRes = await jsonRpcPost(ctx, {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'x', version: '0' } },
+		});
+		const sessionId = initRes.headers.get('mcp-session-id')!;
+		await initRes.body?.cancel();
+
+		const res = await jsonRpcPost(
+			ctx,
+			{ jsonrpc: '2.0', id: 43, method: 'resources/read' },
+			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
+		);
+		strictEqual(res.status, 200);
+		const body = (await res.json()) as { jsonrpc: string; id: number; error: { code: number; message: string } };
+		strictEqual(body.error.code, -32602);
+	});
+
+	test('tools/list returns the default-allow operations as MCP tools (#617)', async () => {
+		const initRes = await jsonRpcPost(ctx, {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'x', version: '0' } },
+		});
+		const sessionId = initRes.headers.get('mcp-session-id')!;
+		await initRes.body?.cancel();
+
+		const res = await jsonRpcPost(
+			ctx,
+			{ jsonrpc: '2.0', id: 50, method: 'tools/list' },
+			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
+		);
+		strictEqual(res.status, 200);
+		const body = (await res.json()) as {
+			result: { tools: Array<{ name: string; description: string; inputSchema: { type: string } }> };
+		};
+		const names = body.result.tools.map((t) => t.name);
+		ok(names.includes('describe_all'), `expected describe_all in tools/list, got: ${names.join(', ')}`);
+		ok(names.includes('list_users'));
+		ok(names.includes('system_information'));
+		ok(!names.includes('insert'), 'insert should not be in the default allow list');
+		ok(!names.includes('drop_table'), 'drop_table should not be in the default allow list');
+		const describeAll = body.result.tools.find((t) => t.name === 'describe_all')!;
+		strictEqual(describeAll.inputSchema.type, 'object');
+	});
+
+	test('tools/call describe_all returns the schema tree end-to-end (#617)', async () => {
+		const initRes = await jsonRpcPost(ctx, {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'x', version: '0' } },
+		});
+		const sessionId = initRes.headers.get('mcp-session-id')!;
+		await initRes.body?.cancel();
+
+		const res = await jsonRpcPost(
+			ctx,
+			{ jsonrpc: '2.0', id: 51, method: 'tools/call', params: { name: 'describe_all' } },
+			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
+		);
+		strictEqual(res.status, 200);
+		const body = (await res.json()) as {
+			result: { content: Array<{ type: string; text: string }>; structuredContent?: object; isError?: boolean };
+		};
+		strictEqual(body.result.isError ?? false, false);
+		// structuredContent for describe_all is an object keyed by database name.
+		ok(body.result.structuredContent && typeof body.result.structuredContent === 'object');
+		ok(body.result.content[0].type === 'text');
+	});
+
+	test('tools/call for an unknown operation returns -32601', async () => {
+		const initRes = await jsonRpcPost(ctx, {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'initialize',
+			params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'x', version: '0' } },
+		});
+		const sessionId = initRes.headers.get('mcp-session-id')!;
+		await initRes.body?.cancel();
+
+		const res = await jsonRpcPost(
+			ctx,
+			{ jsonrpc: '2.0', id: 52, method: 'tools/call', params: { name: 'this_tool_does_not_exist' } },
+			{ 'Mcp-Session-Id': sessionId, 'MCP-Protocol-Version': '2025-06-18' }
+		);
+		strictEqual(res.status, 200);
+		const body = (await res.json()) as { error: { code: number; message: string } };
+		strictEqual(body.error.code, -32601);
+		ok(body.error.message.includes('this_tool_does_not_exist'));
 	});
 });

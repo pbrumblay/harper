@@ -31,7 +31,12 @@ import {
 	PROTOCOL_VERSION_BACKCOMPAT,
 	SUPPORTED_PROTOCOL_VERSIONS,
 } from './lifecycle.ts';
+import { emitAuditEntry } from './audit.ts';
+import { seedSessionSnapshot } from './listChanged.ts';
+import { tryAdmit } from './rateLimit.ts';
 import { deleteSession, loadSession, touchSession, type McpSessionRecord } from './session.ts';
+import { listResources, listResourceTemplates, readResource } from './resources.ts';
+import { registerSession } from './sessionRegistry.ts';
 import { getTool, listTools, type AuthedUser, type ToolResult } from './toolRegistry.ts';
 
 export type McpProfile = 'operations' | 'application';
@@ -50,11 +55,10 @@ export interface NormRequest {
 	/** Authenticated username from upstream auth pipeline. Used for session binding. */
 	user: string;
 	/**
-	 * Full authenticated user object from upstream auth — includes role +
-	 * permission tree. Required for tool RBAC filtering (#615) and
-	 * subsequent profiles (#617/#618). Optional in the transport's shape so
-	 * adapters can populate or omit; tools that gate on role will return no
-	 * matches when the object is absent.
+	 * permission tree. Required for tools and resources RBAC enforcement.
+	 * Adapters populate from `request.hdb_user` (Fastify) / `request.user`
+	 * (Harper-HTTP). Tools/resources that gate on role return no matches
+	 * when the object is absent.
 	 */
 	userObject?: AuthedUser;
 	profile: McpProfile;
@@ -84,7 +88,7 @@ export async function handleMcpRequest(request: NormRequest): Promise<NormRespon
 			return jsonResponse(403, { error: 'origin_not_allowed' });
 		}
 		if (request.method === 'POST') return await handlePost(request);
-		if (request.method === 'GET') return handleGet();
+		if (request.method === 'GET') return await handleGet(request);
 		if (request.method === 'DELETE') return await handleDelete(request);
 		return { status: 405, headers: { Allow: currentlyAllowedMethods() } };
 	} catch (err) {
@@ -175,12 +179,14 @@ async function handlePost(request: NormRequest): Promise<NormResponse> {
 		return { status: 202, headers: {} };
 	}
 
-	// Request with id + method (and not 'initialize'): route to the
-	// known method handlers below. Tools came online in #615; resources
-	// land in #616. Anything we don't handle yet returns a
+	// Request with id + method (and not 'initialize'): route to the known
+	// method handlers below. Anything we don't handle yet returns a
 	// spec-conformant Method-not-found error.
 	if (method === 'tools/list') return dispatchToolsList(request, session, message, messageId);
 	if (method === 'tools/call') return dispatchToolsCall(request, session, message, messageId);
+	if (method === 'resources/list') return dispatchResourcesList(request, message, messageId);
+	if (method === 'resources/templates/list') return dispatchResourceTemplatesList(request, messageId);
+	if (method === 'resources/read') return dispatchResourcesRead(request, message, messageId);
 	return jsonResponse(
 		200,
 		buildError(messageId, ERROR_CODES.METHOD_NOT_FOUND, `Method not found: ${method ?? '<missing>'}`)
@@ -207,18 +213,53 @@ async function dispatchInitialize(
 	};
 }
 
-function handleGet(): NormResponse {
-	// v1 does not offer a GET SSE channel. #619 will replace this with a
-	// real server-push stream for `listChanged` notifications.
-	return { status: 405, headers: { Allow: currentlyAllowedMethods() } };
+async function handleGet(request: NormRequest): Promise<NormResponse> {
+	// Server-push channel for `notifications/{tools,resources}/list_changed`
+	// (#619). The client opens GET /mcp after `initialize`; we keep the SSE
+	// connection alive for the lifetime of the session and push frames as
+	// role/schema events fire. Per the spec, idle sessions get HTTP 404 on
+	// the next POST after eviction — the GET stream itself just closes when
+	// the session record is deleted (via unregisterSession).
+	const sessionId = request.headers[SESSION_HEADER];
+	if (!sessionId) {
+		return { status: 400, headers: {} };
+	}
+	const session = await loadSession(sessionId);
+	if (!session) {
+		return { status: 404, headers: {} };
+	}
+	if (session.user !== request.user) {
+		return { status: 403, headers: {} };
+	}
+	const protocolCheck = validateProtocolHeader(request.headers[PROTOCOL_HEADER], session.protocolVersion);
+	if (protocolCheck.ok !== true) {
+		const fail = protocolCheck as { ok: false; reason: string };
+		return {
+			status: 400,
+			headers: {},
+			jsonBody: { error: { message: fail.reason } },
+		};
+	}
+	const record = registerSession(sessionId, request.profile, effectiveUser(request));
+	seedSessionSnapshot(sessionId);
+	return {
+		status: 200,
+		headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' },
+		sseIterable: record.queue,
+	};
 }
 
 const DEFAULT_MAX_TOOLS = 200;
+const DEFAULT_RESOURCE_PAGE_LIMIT = 200;
 
 function profileMaxTools(profile: McpProfile): number {
 	const key = profile === 'operations' ? CONFIG_PARAMS.MCP_OPERATIONS_MAXTOOLS : CONFIG_PARAMS.MCP_APPLICATION_MAXTOOLS;
 	const value = env.get(key);
 	return typeof value === 'number' && value > 0 ? value : DEFAULT_MAX_TOOLS;
+}
+
+function effectiveUser(request: NormRequest): AuthedUser {
+	return request.userObject ?? { username: request.user };
 }
 
 function dispatchToolsList(
@@ -230,9 +271,8 @@ function dispatchToolsList(
 	const params = 'params' in message ? (message.params as { cursor?: unknown } | undefined) : undefined;
 	const cursor = typeof params?.cursor === 'string' ? params.cursor : undefined;
 	const limit = profileMaxTools(request.profile);
-	const userObject: AuthedUser = request.userObject ?? { username: request.user };
 	const { tools, nextCursor } = listTools({
-		user: userObject,
+		user: effectiveUser(request),
 		profile: request.profile,
 		sessionId: session.id,
 		cursor,
@@ -261,11 +301,53 @@ async function dispatchToolsCall(
 	}
 
 	const args = params?.arguments ?? {};
-	const userObject: AuthedUser = request.userObject ?? { username: request.user };
+	const callStartedAt = Date.now();
+	const user = effectiveUser(request);
+
+	// Rate limit check — admit-or-deny BEFORE invoking the handler. Failures
+	// surface as `isError: true` with `kind: 'rate_limited'` (NOT a JSON-RPC
+	// error) so the LLM sees and can back off / try later.
+	const decision = tryAdmit(session.id, name, request.profile);
+	if (!decision.allowed) {
+		// Non-strict tsconfig doesn't narrow the discriminated union here.
+		const denied = decision as { allowed: false; reason: string };
+		const toolResult: ToolResult = {
+			isError: true,
+			content: [
+				{
+					type: 'text',
+					text: JSON.stringify({
+						kind: 'rate_limited',
+						scope: denied.reason,
+						tool: name,
+						message: `MCP ${denied.reason} rate limit reached; back off and try again`,
+					}),
+				},
+			],
+		};
+		emitAuditEntry({
+			timestamp: new Date(callStartedAt).toISOString(),
+			profile: request.profile,
+			sessionId: session.id,
+			tool: name,
+			user: user.username ?? request.user,
+			args: args as object,
+			status: 'rate_limited',
+			durationMs: 0,
+		});
+		return jsonResponse(200, buildSuccess(messageId, toolResult));
+	}
 
 	let toolResult: ToolResult;
+	let status: 'ok' | 'isError' = 'ok';
+	let errorMessage: string | undefined;
 	try {
-		toolResult = await tool.handler(args, { user: userObject, profile: request.profile, sessionId: session.id });
+		toolResult = await tool.handler(args, {
+			user,
+			profile: request.profile,
+			sessionId: session.id,
+		});
+		if (toolResult?.isError) status = 'isError';
 	} catch (err) {
 		// Per MCP §server/tools → Error Handling: tool-execution errors come
 		// back as a successful JSON-RPC result with isError:true so the LLM
@@ -273,6 +355,8 @@ async function dispatchToolsCall(
 		// message goes to the wire (Harper-style hygiene).
 		const errMsg = (err as Error).message ?? 'tool execution failed';
 		harperLogger.warn(`MCP tools/call ${name} threw: ${(err as Error).stack ?? errMsg}`);
+		errorMessage = errMsg;
+		status = 'isError';
 		toolResult = {
 			isError: true,
 			content: [
@@ -282,8 +366,67 @@ async function dispatchToolsCall(
 				},
 			],
 		};
+	} finally {
+		decision.release();
 	}
+	emitAuditEntry({
+		timestamp: new Date(callStartedAt).toISOString(),
+		profile: request.profile,
+		sessionId: session.id,
+		tool: name,
+		user: user.username ?? request.user,
+		args: args as object,
+		status,
+		durationMs: Date.now() - callStartedAt,
+		...(errorMessage ? { errorMessage } : {}),
+	});
 	return jsonResponse(200, buildSuccess(messageId, toolResult));
+}
+
+function dispatchResourcesList(request: NormRequest, message: JsonRpcMessage, messageId: JsonRpcId): NormResponse {
+	const params = 'params' in message ? (message.params as { cursor?: unknown } | undefined) : undefined;
+	const cursor = typeof params?.cursor === 'string' ? params.cursor : undefined;
+	const result = listResources({
+		user: effectiveUser(request),
+		profile: request.profile,
+		cursor,
+		limit: DEFAULT_RESOURCE_PAGE_LIMIT,
+	});
+	const body: { resources: unknown[]; nextCursor?: string } = { resources: result.resources };
+	if (result.nextCursor) body.nextCursor = result.nextCursor;
+	return jsonResponse(200, buildSuccess(messageId, body));
+}
+
+function dispatchResourceTemplatesList(request: NormRequest, messageId: JsonRpcId): NormResponse {
+	const templates = listResourceTemplates(request.profile);
+	return jsonResponse(200, buildSuccess(messageId, { resourceTemplates: templates }));
+}
+
+async function dispatchResourcesRead(
+	request: NormRequest,
+	message: JsonRpcMessage,
+	messageId: JsonRpcId
+): Promise<NormResponse> {
+	const params = 'params' in message ? (message.params as { uri?: unknown } | undefined) : undefined;
+	const uri = typeof params?.uri === 'string' ? params.uri : undefined;
+	if (!uri) {
+		return jsonResponse(200, buildError(messageId, ERROR_CODES.INVALID_PARAMS, 'resources/read requires params.uri'));
+	}
+	const outcome = await readResource({ uri, user: effectiveUser(request), profile: request.profile });
+	if (outcome.ok !== true) {
+		const fail = outcome as { ok: false; reason: string };
+		// Per MCP §server/resources, "resource not found" and access-control
+		// failures are protocol errors, not isError tool results — resources/*
+		// returns JSON-RPC errors rather than success-with-isError. We pick
+		// -32602 (Invalid params) for bad inputs and -32601 (Method not found)
+		// for unknown resources, matching the spec's mapping for analogous
+		// situations and the precedent already in place for tools/call.
+		const code = /not found|no resource matches/.test(fail.reason)
+			? ERROR_CODES.METHOD_NOT_FOUND
+			: ERROR_CODES.INVALID_PARAMS;
+		return jsonResponse(200, buildError(messageId, code, fail.reason));
+	}
+	return jsonResponse(200, buildSuccess(messageId, { contents: outcome.contents }));
 }
 
 async function handleDelete(request: NormRequest): Promise<NormResponse> {
@@ -359,9 +502,12 @@ function maskSessionId(id: string): string {
 /**
  * Build the `Allow` header value for a 405 response. Per RFC 9110 §9.1 the
  * server MUST list only currently-supported methods. In v1, POST is always
- * supported; GET is never supported (no SSE channel until #619); DELETE is
- * conditional on `mcp.session.allowClientDelete`.
+ * supported; GET opens the server-push SSE channel for
+ * `notifications/{tools,resources}/list_changed`; DELETE is conditional on
+ * `mcp.session.allowClientDelete`.
  */
 function currentlyAllowedMethods(): string {
-	return env.get(CONFIG_PARAMS.MCP_SESSION_ALLOWCLIENTDELETE) === true ? 'POST, DELETE' : 'POST';
+	const allow = ['POST', 'GET'];
+	if (env.get(CONFIG_PARAMS.MCP_SESSION_ALLOWCLIENTDELETE) === true) allow.push('DELETE');
+	return allow.join(', ');
 }
