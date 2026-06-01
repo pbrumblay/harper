@@ -82,7 +82,10 @@ export function buildEmbedBefore(
 	userEmbedders: Record<string, Embedder>
 ): (() => Promise<void>) | undefined {
 	if (!embedAttributes || embedAttributes.length === 0) return undefined;
-	// Replication receivers store the originator's vector as-is; don't recompute.
+	// Skip when the write already carries the vector: cluster-replication receiver
+	// (isNotification), REST x-replicate-from:none, or audit-log replay. Known gap:
+	// proactive source-subscribe pushes also set isNotification, so they skip embed
+	// today — closing that is part of the derived-caching work (#750).
 	if (options?.isNotification === true || context?.replicateFrom === false || context?.alreadyLogged === true) {
 		return undefined;
 	}
