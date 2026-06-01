@@ -198,9 +198,15 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 							console.warn(`@${directiveName} is an unknown directive, at`, directive.loc);
 						}
 					}
-					// @embed auto-indexes with HNSW; resolved after all directives so an explicit
-					// @indexed (in any order) is honored. A conflicting non-HNSW index is a loud error.
+					// @embed targets a vector column and auto-indexes it with HNSW; resolved after all
+					// directives so an explicit @indexed (in any order) is honored. The target must be an
+					// array (e.g. [Float]) — a scalar would store the vector wrong and HNSW-index a non-vector.
 					if (property.embed) {
+						if (property.type !== 'array')
+							throw new ClientError(
+								`@embed on "${property.name}" requires an array attribute type (e.g. [Float]); got "${property.type}"`,
+								400
+							);
 						if (!property.indexed) property.indexed = { type: 'HNSW' };
 						else if ((property.indexed as { type?: string }).type !== 'HNSW')
 							throw new ClientError(
