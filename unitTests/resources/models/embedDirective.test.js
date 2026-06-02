@@ -74,6 +74,22 @@ describe('@embed directive parsing', () => {
 		);
 	});
 
+	it('rejects @embed whose source is a prototype key (e.g. "toString") (loud-fail, 400)', async () => {
+		// `source in attributesObject` would match Object.prototype keys; Object.hasOwn must not.
+		await assert.rejects(
+			loadGQLSchema(`type EmbedProto @table {
+				id: ID @primaryKey
+				content: String
+				embedding: [Float] @embed(source: "toString", model: "default")
+			}`),
+			(err) => {
+				assert.equal(err.statusCode, 400, 'should be a client error');
+				assert.match(err.message, /unknown source field|toString/, 'message should name the bad source');
+				return true;
+			}
+		);
+	});
+
 	it('rejects @embed combined with a non-HNSW @indexed (loud-fail, 400)', async () => {
 		await assert.rejects(
 			loadGQLSchema(`type EmbedBtree @table {

@@ -220,7 +220,9 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 				// @embed source must reference a declared field; a typo would silently leave
 				// the vector column unpopulated (the source key never appears in write payloads).
 				for (const prop of properties as any[]) {
-					if (prop.embed && !(prop.embed.source in attributesObject))
+					// Object.hasOwn (not `in`): `attributesObject` is a plain object, so `in` would
+					// match inherited prototype keys (toString, constructor) and pass a bad source.
+					if (prop.embed && !Object.hasOwn(attributesObject, prop.embed.source))
 						throw new ClientError(
 							`@embed on "${prop.name}" references unknown source field "${prop.embed.source}"`,
 							400
