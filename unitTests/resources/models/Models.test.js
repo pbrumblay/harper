@@ -226,6 +226,48 @@ describe('Models facade', () => {
 			assert.strictEqual(r.success, false);
 			assert.strictEqual(r.error_code, 'backend_error');
 		});
+
+		describe("toolMode: 'auto' (entry dispatch)", () => {
+			// Loop behavior lives in `agentLoop.test.js`. Tests here cover the dispatch
+			// branch in `Models.generate` itself — that the entry point picks the right
+			// path and that `'return'` is unaffected.
+
+			it("toolMode: 'return' still flows the single-shot path", async () => {
+				const result = await models.generate('hello', { toolMode: 'return' });
+				assert.strictEqual(typeof result.content, 'string');
+				assert.strictEqual(writer.records.length, 1);
+				assert.strictEqual(writer.records[0].method, 'generate');
+				assert.strictEqual(writer.records[0].success, true);
+			});
+
+			it('still-gated modes throw 501 at the loop entry (sanity — full matrix in agentLoop.test.js)', async () => {
+				// Spot-check that the dispatch branch reaches the guarded loop body. Each
+				// deferred mode has its own assertion in `agentLoop.test.js`.
+				await assert.rejects(
+					() => models.generate('hello', { toolMode: 'auto', toolArgValidation: 'strict' }),
+					(err) => err.statusCode === 501
+				);
+			});
+
+			it('auto + tools against a tools-incapable backend fails loud (no silent no-op)', async () => {
+				// TestBackend is tools:false. Declaring tools for an auto loop against it would
+				// otherwise run as a plain generation, silently ignoring the tools.
+				await assert.rejects(
+					() =>
+						models.generate(
+							{ messages: [{ role: 'user', content: 'hi' }], tools: [{ name: 't', description: '', parameters: {} }] },
+							{ toolMode: 'auto', toolHandlers: { t: () => ({}) } }
+						),
+					(err) => err instanceof ModelCapabilityError && /tools/.test(err.message)
+				);
+			});
+
+			it('auto WITHOUT tools is unaffected by the tools guard', async () => {
+				const result = await models.generate('hi', { toolMode: 'auto' });
+				assert.strictEqual(typeof result.content, 'string');
+				assert.strictEqual(result.finishReason, 'stop');
+			});
+		});
 	});
 
 	describe('generateStream', () => {
@@ -306,6 +348,35 @@ describe('Models facade', () => {
 			assert.strictEqual(writer.records[0].backend, 'no-stream');
 			assert.strictEqual(writer.records[0].error_code, 'capability_unsupported');
 			assert.strictEqual(writer.records[0].method, 'generateStream');
+		});
+
+		describe("toolMode: 'auto' (entry dispatch)", () => {
+			// Streaming auto-loop behavior is in `agentLoop.test.js`. Tests here cover
+			// the dispatch branch in `Models.generateStream` itself.
+
+			it("toolMode: 'return' still flows the single-shot stream", async () => {
+				const chunks = [];
+				for await (const chunk of models.generateStream('hello', { toolMode: 'return' })) {
+					chunks.push(chunk);
+				}
+				assert.ok(chunks.length > 1);
+				assert.strictEqual(writer.records.length, 1);
+				assert.strictEqual(writer.records[0].method, 'generateStream');
+				assert.strictEqual(writer.records[0].success, true);
+			});
+
+			it('auto + tools against a tools-incapable backend throws synchronously (before iteration)', () => {
+				// The guard runs in the synchronous body of generateStream, before the iterable
+				// is returned — so it throws on call, not on first `next()`.
+				assert.throws(
+					() =>
+						models.generateStream(
+							{ messages: [{ role: 'user', content: 'hi' }], tools: [{ name: 't', description: '', parameters: {} }] },
+							{ toolMode: 'auto', toolHandlers: { t: () => ({}) } }
+						),
+					(err) => err instanceof ModelCapabilityError && /tools/.test(err.message)
+				);
+			});
 		});
 	});
 });
