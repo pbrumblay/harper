@@ -150,13 +150,11 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 							// attribute and auto-index it with HNSW.
 							const embedDefinition: { source?: string; model?: string } = {};
 							for (const arg of directive.arguments || []) {
-								if (arg.value.kind !== 'StringValue') {
-									console.error(
-										`@embed(${arg.name.value}: ...) on "${property.name}" expects a string literal, at`,
-										arg.loc
+								if (arg.value.kind !== 'StringValue')
+									throw new ClientError(
+										`@embed(${arg.name.value}: ...) on "${property.name}" expects a string literal`,
+										400
 									);
-									continue;
-								}
 								embedDefinition[arg.name.value] = (arg.value as StringValueNode).value;
 							}
 							if (!embedDefinition.source || !embedDefinition.model) {

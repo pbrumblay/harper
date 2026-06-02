@@ -59,6 +59,21 @@ describe('@embed directive parsing', () => {
 		);
 	});
 
+	it('rejects @embed with a non-string-literal argument (loud-fail, 400)', async () => {
+		await assert.rejects(
+			loadGQLSchema(`type EmbedNonStr @table {
+				id: ID @primaryKey
+				content: String
+				embedding: [Float] @embed(source: 123, model: "default")
+			}`),
+			(err) => {
+				assert.equal(err.statusCode, 400, 'should be a client error');
+				assert.match(err.message, /string literal/, 'message should name the string-literal requirement');
+				return true;
+			}
+		);
+	});
+
 	it('rejects @embed whose source references an unknown field (loud-fail, 400)', async () => {
 		await assert.rejects(
 			loadGQLSchema(`type EmbedBadSource @table {
