@@ -1968,6 +1968,12 @@ export function makeTable(options) {
 			// `@embed` hook must run before `addWrite` so the embedder's vector is on the
 			// record when `commit` runs. (The txn `before` slot runs after commit, which
 			// suits blob writes but not embedding, where the vector must be present at commit.)
+			// Known limitation of this write-time placement (a validate-time alternative was
+			// tried and reverted as a Harper-foreign pattern): the embedder sees this write's
+			// payload, before table validation — so a write that later fails validation still
+			// calls the backend, and a tracked-instance mutation (update(id,{}); row.source=…;
+			// save()) that sets the source via accessors after update() won't re-embed. A
+			// resource-layer re-embed is the proper fix; tracked as a follow-up.
 			const embedBefore = buildEmbedBefore(
 				recordUpdate,
 				context,
