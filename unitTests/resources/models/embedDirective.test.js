@@ -59,6 +59,21 @@ describe('@embed directive parsing', () => {
 		);
 	});
 
+	it('rejects @embed whose source references an unknown field (loud-fail, 400)', async () => {
+		await assert.rejects(
+			loadGQLSchema(`type EmbedBadSource @table {
+				id: ID @primaryKey
+				content: String
+				embedding: [Float] @embed(source: "contnet", model: "default")
+			}`),
+			(err) => {
+				assert.equal(err.statusCode, 400, 'should be a client error');
+				assert.match(err.message, /unknown source field|contnet/, 'message should name the unknown source');
+				return true;
+			}
+		);
+	});
+
 	it('rejects @embed combined with a non-HNSW @indexed (loud-fail, 400)', async () => {
 		await assert.rejects(
 			loadGQLSchema(`type EmbedBtree @table {

@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const { setupTestDBPath } = require('../../testUtils');
 const { table } = require('#src/resources/databases');
 
 // Exercises the per-table `@embed` registry on the Table class: default-embedder
@@ -9,6 +10,7 @@ const { table } = require('#src/resources/databases');
 describe('@embed registry (setEmbedAttribute + schema reload)', () => {
 	let T;
 	before(() => {
+		setupTestDBPath();
 		T = table({
 			table: 'EmbedRegTest',
 			database: 'test',

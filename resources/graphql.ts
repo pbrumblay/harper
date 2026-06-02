@@ -217,6 +217,15 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 							);
 					}
 				}
+				// @embed source must reference a declared field; a typo would silently leave
+				// the vector column unpopulated (the source key never appears in write payloads).
+				for (const prop of properties as any[]) {
+					if (prop.embed && !(prop.embed.source in attributesObject))
+						throw new ClientError(
+							`@embed on "${prop.name}" references unknown source field "${prop.embed.source}"`,
+							400
+						);
+				}
 				typeDef.type = typeName;
 		}
 	}
