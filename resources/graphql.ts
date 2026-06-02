@@ -202,9 +202,11 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 					// directives so an explicit @indexed (in any order) is honored. The target must be an
 					// array (e.g. [Float]) — a scalar would store the vector wrong and HNSW-index a non-vector.
 					if (property.embed) {
-						if (property.type !== 'array')
+						const elementType =
+							property.type === 'array' ? (property as { elements?: { type?: string } }).elements?.type : undefined;
+						if (property.type !== 'array' || elementType !== 'Float')
 							throw new ClientError(
-								`@embed on "${property.name}" requires an array attribute type (e.g. [Float]); got "${property.type}"`,
+								`@embed on "${property.name}" requires a [Float] attribute type; got "${property.type === 'array' ? `[${elementType ?? '?'}]` : property.type}"`,
 								400
 							);
 						if (!property.indexed) property.indexed = { type: 'HNSW' };

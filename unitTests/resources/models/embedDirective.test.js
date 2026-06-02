@@ -38,7 +38,22 @@ describe('@embed directive parsing', () => {
 			}`),
 			(err) => {
 				assert.equal(err.statusCode, 400, 'should be a client error');
-				assert.match(err.message, /array/, 'message should name the array-type requirement');
+				assert.match(err.message, /\[Float\]/, 'message should name the [Float] requirement');
+				return true;
+			}
+		);
+	});
+
+	it('rejects @embed on a non-Float array element type (e.g. [String]) (loud-fail, 400)', async () => {
+		await assert.rejects(
+			loadGQLSchema(`type EmbedStrArr @table {
+				id: ID @primaryKey
+				content: String
+				embedding: [String] @embed(source: "content", model: "default")
+			}`),
+			(err) => {
+				assert.equal(err.statusCode, 400, 'should be a client error');
+				assert.match(err.message, /\[Float\]/, 'message should name the [Float] requirement');
 				return true;
 			}
 		);
