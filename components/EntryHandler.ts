@@ -306,15 +306,20 @@ export class EntryHandler extends EventEmitter<EntryHandlerEventMap> {
 		return this.#openCount;
 	}
 
-	close(): this {
+	close(): Promise<this> {
 		this.#closed = true;
-		this.#watcher?.close();
+		const pendingReads = [...this.#pendingFileReads];
+		const watcherClose = this.#watcher ? Promise.resolve(this.#watcher.close()).catch(() => {}) : Promise.resolve();
 		this.#watcher = undefined;
+		// If paused, there may be an in-flight close from pause() that hasn't settled yet.
+		// Include it so close() doesn't resolve while inotify handles are still releasing.
+		const pausedClose = this.#pausedClose ?? Promise.resolve();
+		this.#pausedClose = undefined;
 
 		this.emit('close');
 		this.removeAllListeners();
 
-		return this;
+		return Promise.allSettled([watcherClose, pausedClose, ...pendingReads]).then(() => this);
 	}
 
 	/**
