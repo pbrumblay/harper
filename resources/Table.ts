@@ -4492,8 +4492,11 @@ export function makeTable(options) {
 							}
 						},
 					};
-					// The cache-from-source write bypasses `_writeUpdate`, so wire the embed
-					// hook here too. This path is always on the originating node.
+					// The cache-from-source write bypasses `_writeUpdate`, so wire the embed hook here
+					// too (always the originating node). It runs after the client GET has resolved with
+					// fresh source data, so it's a background commit: an embedder failure aborts the cache
+					// write via the outer error handler (row re-embeds next read) and never reaches the
+					// caller. Source-resolution errors are handled earlier, with the stale-data fallback.
 					const embedBefore = buildEmbedBefore(
 						updatedRecord,
 						sourceContext,
