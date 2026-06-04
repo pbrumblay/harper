@@ -147,16 +147,26 @@ describe('endIteratorOnCorruptFrame', () => {
 		assert.strictEqual(threwWith, boom);
 	});
 
-	it('does not synthesize return()/throw() when the underlying iterator lacks them', () => {
-		const wrapped = endIteratorOnCorruptFrame(
-			{
-				next() {
-					return { done: true, value: undefined };
-				},
+	it('return()/throw() fall back to protocol defaults and latch when the underlying lacks them', () => {
+		let nextCalls = 0;
+		const source = {
+			next() {
+				nextCalls++;
+				return { done: false, value: 1 };
 			},
-			() => {}
+		};
+		const wrapped = endIteratorOnCorruptFrame(source, () => {});
+
+		// return() defaults to done and latches without ever pulling the source again
+		assert.deepStrictEqual(wrapped.return('x'), { done: true, value: 'x' });
+		assert.deepStrictEqual(wrapped.next(), { done: true, value: undefined });
+		assert.strictEqual(nextCalls, 0);
+
+		// throw() rethrows when the source can't handle it
+		const boom = new Error('boom');
+		assert.throws(
+			() => endIteratorOnCorruptFrame({ next: source.next }, () => {}).throw(boom),
+			(error) => error === boom
 		);
-		assert.strictEqual(wrapped.return, undefined);
-		assert.strictEqual(wrapped.throw, undefined);
 	});
 });

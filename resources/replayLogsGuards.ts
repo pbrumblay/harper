@@ -63,7 +63,7 @@ export function endIteratorOnCorruptFrame<T>(
 	onCorruptFrame: (error: RangeError) => void
 ): IterableIterator<T> {
 	let stopped = false;
-	const wrapped: IterableIterator<T> = {
+	return {
 		[Symbol.iterator]() {
 			return this;
 		},
@@ -84,19 +84,19 @@ export function endIteratorOnCorruptFrame<T>(
 				return { done: true, value: undefined };
 			}
 		},
-	};
-	// Stay a faithful proxy: delegate the optional return()/throw() so early termination
-	// (a for-of break, or an outer .return()) still releases whatever the source iterator
-	// holds. The current rocksdb-js query iterator implements neither, but a future one that
-	// adds cleanup must not be silently bypassed by this wrapper.
-	if (iterator.return) {
-		wrapped.return = (value?: any): IteratorResult<T> => {
+		// Forward early termination so the source iterator's cleanup (e.g. releasing a
+		// rocksdb read handle / lock) still runs when a consumer exits a for-of early via
+		// break/return/throw. Mark stopped first so a later next() can't re-enter. The
+		// current rocksdb-js query iterator implements neither, hence the protocol defaults.
+		return(value?: any): IteratorResult<T> {
 			stopped = true;
-			return iterator.return!(value);
-		};
-	}
-	if (iterator.throw) {
-		wrapped.throw = (error?: any): IteratorResult<T> => iterator.throw!(error);
-	}
-	return wrapped;
+			if (typeof iterator.return === 'function') return iterator.return(value);
+			return { done: true, value };
+		},
+		throw(error?: any): IteratorResult<T> {
+			stopped = true;
+			if (typeof iterator.throw === 'function') return iterator.throw(error);
+			throw error;
+		},
+	};
 }
