@@ -64,10 +64,8 @@ describe('classifyAuditEntryForReplay', () => {
 	});
 });
 
-// Regression tests for HarperFast/harper#1135: rocksdb-js's txnlog reader throws a bounded
-// RangeError when an entry's declared length overruns the log (a torn/corrupt frame). That
-// used to escape uncaught out of the replay/broadcast iterator and abort startup. The wrapper
-// must turn it into a clean end-of-log instead, while leaving every other failure untouched.
+// Regression tests for HarperFast/harper#1135: the wrapper must turn a framing RangeError into
+// a clean end-of-log (so replay/broadcast don't abort the boot) and leave other errors alone.
 describe('endIteratorOnCorruptFrame', () => {
 	it('yields entries up to a corrupt frame, then ends cleanly and reports it once', () => {
 		let calls = 0;

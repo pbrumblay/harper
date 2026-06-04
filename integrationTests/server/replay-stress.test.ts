@@ -135,12 +135,9 @@ function truncateTail(path: string, bytes: number) {
 }
 
 function corruptLastEntryLength(path: string): boolean {
-	// Walk the entry frames to the *last* well-framed entry, then force its declared length
-	// to overrun the log by setting the most-significant byte of its big-endian uint32 length
-	// to 0xff (≥ 4 GB). Targeting the last entry puts the corruption in the unflushed tail
-	// that replay actually reads (replay starts from the last-flushed position), rather than a
-	// flushed prefix it skips over. Deterministic — same frame, same corruption — unlike the
-	// old random byte flips, whose effect depended on what RocksDB had flushed before SIGKILL.
+	// Force the *last* well-framed entry's big-endian uint32 length to overrun the log (top
+	// byte → 0xff, ≥ 4 GB). The last entry sits in the unflushed tail that replay reads
+	// (replay starts from the last-flushed position), so a flushed prefix isn't skipped over.
 	const buf = readFileSync(path);
 	let pos = TRANSACTION_LOG_FILE_HEADER_SIZE;
 	let lastLengthPos = -1;
@@ -218,22 +215,16 @@ suite('Transaction log replay stress', (ctx: ContextWithHarper) => {
 		}
 		let corrupted = 0;
 		await crashAndRestart(ctx, (dataRootDir) => {
-			// User-DB only: corrupting system/ txnlogs trips the version-tracking
-			// upgrade-abort path on next boot — a real but different failure mode.
-			// Here we want the framing-corruption case (#1135): a declared length that
-			// overruns the log used to throw an uncaught RangeError out of the txnlog
-			// iterator and abort startup; replay must now treat it as end-of-log.
+			// User-DB only: corrupting system/ txnlogs trips the upgrade-abort path on next
+			// boot — a different failure mode than the framing corruption (#1135) under test.
 			for (const f of listTxnLogFiles(dataRootDir, { userOnly: true })) {
 				if (corruptLastEntryLength(f)) corrupted++;
 			}
 		});
-		// Fail loudly rather than vacuously pass if the framing ever changes and we corrupt
-		// nothing — otherwise this would silently stop being a regression test for #1135.
+		// Fail loudly, not vacuously, if the framing ever changes and nothing gets corrupted.
 		ok(corrupted > 0, 'expected to corrupt at least one user-DB txnlog');
-		// Behavioral assertion, not a wall-clock budget: crashAndRestart resolving above
-		// means the server came back up (startHarper saw 'successfully started'); a
-		// regression resurfaces as a failed/timed-out restart, not a slow one — so there
-		// is nothing to tune per-runner. Confirm every table is still queryable.
+		// Behavioral, not a wall-clock budget: crashAndRestart resolved → the server came back
+		// up; a regression shows up as a failed restart, not a slow one. Confirm tables queryable.
 		for (const t of TABLES) {
 			const c = await countRows(ctx.harper, t);
 			ok(typeof c === 'number' && c >= 0, `count on ${t} should be a number, got ${c}`);
