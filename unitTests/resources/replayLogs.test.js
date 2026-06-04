@@ -2,7 +2,11 @@ const assert = require('node:assert');
 
 // The helper lives in a dependency-free module so the test doesn't need to bootstrap
 // the full Resource/RocksDB module graph (which has a circular require chain).
-const { classifyAuditEntryForReplay, RECORD_BEARING_FLAGS } = require('#src/resources/replayLogsGuards');
+const {
+	classifyAuditEntryForReplay,
+	RECORD_BEARING_FLAGS,
+	endIteratorOnCorruptFrame,
+} = require('#src/resources/replayLogsGuards');
 
 // Regression tests for the unclean-shutdown replay guards. Without these, an audit log
 // containing entries with corrupt MessagePack values caused replayLogs to write
@@ -57,5 +61,59 @@ describe('classifyAuditEntryForReplay', () => {
 		// Lock the mask: the audit writer in auditStore.ts uses these exact bit values.
 		// Silent drift here would re-introduce the crash.
 		assert.strictEqual(RECORD_BEARING_FLAGS, HAS_RECORD | HAS_PARTIAL_RECORD);
+	});
+});
+
+// Regression tests for HarperFast/harper#1135: rocksdb-js's txnlog reader throws a bounded
+// RangeError when an entry's declared length overruns the log (a torn/corrupt frame). That
+// used to escape uncaught out of the replay/broadcast iterator and abort startup. The wrapper
+// must turn it into a clean end-of-log instead, while leaving every other failure untouched.
+describe('endIteratorOnCorruptFrame', () => {
+	it('yields entries up to a corrupt frame, then ends cleanly and reports it once', () => {
+		let calls = 0;
+		const source = {
+			next() {
+				calls++;
+				if (calls === 1) return { done: false, value: 'a' };
+				if (calls === 2) return { done: false, value: 'b' };
+				throw new RangeError('declared length 1778384896 overruns the log (limit=5439)');
+			},
+		};
+		const reported = [];
+		const wrapped = endIteratorOnCorruptFrame(source, (error) => reported.push(error));
+
+		assert.deepStrictEqual([...wrapped], ['a', 'b']);
+		assert.strictEqual(reported.length, 1);
+		assert.ok(reported[0] instanceof RangeError);
+		// Latched: stays done without re-invoking the source (no repeated reporting/spam).
+		assert.deepStrictEqual(wrapped.next(), { done: true, value: undefined });
+		assert.strictEqual(calls, 3);
+		assert.strictEqual(reported.length, 1);
+	});
+
+	it('does not swallow non-RangeError failures', () => {
+		const source = {
+			next() {
+				throw new TypeError('boom');
+			},
+		};
+		let reported = 0;
+		const wrapped = endIteratorOnCorruptFrame(source, () => reported++);
+		assert.throws(() => wrapped.next(), TypeError);
+		assert.strictEqual(reported, 0);
+	});
+
+	it('passes a normal exhaustion through without reporting a corrupt frame', () => {
+		let calls = 0;
+		const source = {
+			next() {
+				calls++;
+				return calls === 1 ? { done: false, value: 1 } : { done: true, value: undefined };
+			},
+		};
+		let reported = 0;
+		const wrapped = endIteratorOnCorruptFrame(source, () => reported++);
+		assert.deepStrictEqual([...wrapped], [1]);
+		assert.strictEqual(reported, 0);
 	});
 });
