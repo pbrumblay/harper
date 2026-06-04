@@ -63,7 +63,7 @@ export function endIteratorOnCorruptFrame<T>(
 	onCorruptFrame: (error: RangeError) => void
 ): IterableIterator<T> {
 	let stopped = false;
-	return {
+	const wrapped: IterableIterator<T> = {
 		[Symbol.iterator]() {
 			return this;
 		},
@@ -85,4 +85,18 @@ export function endIteratorOnCorruptFrame<T>(
 			}
 		},
 	};
+	// Stay a faithful proxy: delegate the optional return()/throw() so early termination
+	// (a for-of break, or an outer .return()) still releases whatever the source iterator
+	// holds. The current rocksdb-js query iterator implements neither, but a future one that
+	// adds cleanup must not be silently bypassed by this wrapper.
+	if (iterator.return) {
+		wrapped.return = (value?: any): IteratorResult<T> => {
+			stopped = true;
+			return iterator.return!(value);
+		};
+	}
+	if (iterator.throw) {
+		wrapped.throw = (error?: any): IteratorResult<T> => iterator.throw!(error);
+	}
+	return wrapped;
 }

@@ -116,4 +116,47 @@ describe('endIteratorOnCorruptFrame', () => {
 		assert.deepStrictEqual([...wrapped], [1]);
 		assert.strictEqual(reported, 0);
 	});
+
+	it('delegates return()/throw() to the underlying iterator so early-exit cleanup runs', () => {
+		let returnedWith;
+		let threwWith;
+		const source = {
+			next() {
+				return { done: false, value: 1 };
+			},
+			return(value) {
+				returnedWith = value;
+				return { done: true, value };
+			},
+			throw(error) {
+				threwWith = error;
+				return { done: true, value: undefined };
+			},
+		};
+		const wrapped = endIteratorOnCorruptFrame(source, () => {});
+
+		assert.strictEqual(typeof wrapped.return, 'function');
+		assert.deepStrictEqual(wrapped.return('cleanup'), { done: true, value: 'cleanup' });
+		assert.strictEqual(returnedWith, 'cleanup');
+		// after return(), the wrapper is latched done and never touches the source again
+		assert.deepStrictEqual(wrapped.next(), { done: true, value: undefined });
+
+		assert.strictEqual(typeof wrapped.throw, 'function');
+		const boom = new Error('boom');
+		wrapped.throw(boom);
+		assert.strictEqual(threwWith, boom);
+	});
+
+	it('does not synthesize return()/throw() when the underlying iterator lacks them', () => {
+		const wrapped = endIteratorOnCorruptFrame(
+			{
+				next() {
+					return { done: true, value: undefined };
+				},
+			},
+			() => {}
+		);
+		assert.strictEqual(wrapped.return, undefined);
+		assert.strictEqual(wrapped.throw, undefined);
+	});
 });
