@@ -69,6 +69,7 @@ import { throttle } from '../server/throttle.ts';
 import { RocksDatabase } from '@harperfast/rocksdb-js';
 import { LMDBTransaction, ImmediateTransaction as ImmediateLMDBTransaction } from './LMDBTransaction';
 import { contentTypes } from '../server/serverHelpers/contentTypes';
+import { type JsonSchemaFragment, projectAttributesToProperties } from './jsonSchemaTypes.ts';
 
 const { sortBy } = lodash;
 const { validateAttribute } = lmdbProcessRows;
@@ -76,6 +77,8 @@ const { validateAttribute } = lmdbProcessRows;
 export type Attribute = {
 	name: string;
 	type: 'ID' | 'Int' | 'Float' | 'Long' | 'String' | 'Boolean' | 'Date' | 'Bytes' | 'Any' | 'BigInt' | 'Blob' | string;
+	description?: string;
+	hidden?: boolean;
 	assignCreatedTime?: boolean;
 	assignUpdatedTime?: boolean;
 	nullable?: boolean;
@@ -142,6 +145,9 @@ export interface Table {
 	indexingOperations?: Promise<void>;
 	source?: new () => ResourceInterface;
 	Transaction: ReturnType<typeof makeTable>;
+	description?: string;
+	properties?: Record<string, JsonSchemaFragment>;
+	hidden?: boolean;
 }
 type ResidencyDefinition = number | string[] | void;
 
@@ -166,11 +172,15 @@ export function makeTable(options) {
 		sealed,
 		splitSegments,
 		replicate,
+		description,
+		hidden,
 	} = options;
 	let { expirationMS: expirationMs, evictionMS: evictionMs, audit, trackDeletes } = options;
 	evictionMs ??= 0;
-	let { attributes }: { attributes: Attribute[] } = options;
+	let { attributes, properties }: { attributes: Attribute[]; properties?: Record<string, JsonSchemaFragment> } =
+		options;
 	if (!attributes) attributes = [];
+	if (!properties) properties = projectAttributesToProperties(attributes);
 	const updateRecord = recordUpdater(primaryStore, tableId, auditStore);
 	let sourceLoad: any; // if a source has a load function (replicator), record it here
 	let hasSourceGet: any;
@@ -257,6 +267,11 @@ export function makeTable(options) {
 		static databasePath = databasePath;
 		static databaseName = databaseName;
 		static attributes = attributes;
+		static description = description;
+		static properties = properties;
+		static hidden = hidden;
+		static outputSchemas: { [verb: string]: JsonSchemaFragment } | undefined;
+		static mcp: { annotations?: { [verb: string]: any } } | undefined;
 		static replicate = replicate;
 		static sealed = sealed;
 		static splitSegments = splitSegments ?? true;
