@@ -444,6 +444,21 @@ interface VerbDescriptionContext {
 }
 
 /**
+ * Map each verb to the Resource RBAC method that gates it at runtime.
+ * Harper exposes four predicates — allowRead / allowCreate / allowUpdate /
+ * allowDelete — so multiple verbs share the same method (get + search both
+ * gate on allowRead; update + patch both gate on allowUpdate).
+ */
+const VERB_TO_RBAC_METHOD: Record<Verb, string> = {
+	get: 'allowRead',
+	search: 'allowRead',
+	create: 'allowCreate',
+	update: 'allowUpdate',
+	patch: 'allowUpdate',
+	delete: 'allowDelete',
+};
+
+/**
  * Compose the per-verb tool description. When the Resource carries a
  * `static description` (or a `Table.description` from the GraphQL parser),
  * prefix it; then the verb-specific sentence; then the runtime-RBAC note.
@@ -451,8 +466,8 @@ interface VerbDescriptionContext {
 function verbDescription(verb: Verb, ctx: VerbDescriptionContext): string {
 	const prefix = ctx.tableDoc ? `${ctx.tableDoc}\n\n` : '';
 	const sentence = VERB_SENTENCES[verb](ctx);
-	const allowVerb = `allow${verb[0].toUpperCase() + verb.slice(1)}`;
-	return `${prefix}${sentence} Runtime RBAC (${allowVerb}) enforces per-record access at call time.`;
+	const allowMethod = VERB_TO_RBAC_METHOD[verb];
+	return `${prefix}${sentence} Runtime RBAC (${allowMethod}) enforces per-record access at call time.`;
 }
 
 /**

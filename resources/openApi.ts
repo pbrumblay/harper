@@ -70,9 +70,18 @@ export function generateJsonApi(resources: Resources, serverHttpURL: string) {
 				} else if (prop.properties) {
 					entry = new Ref(prop.type);
 					includeDefinitionInSchema(prop);
-				} else if (prop.elements?.properties) {
-					entry = new ArrayRef(prop.elements.type);
-					includeDefinitionInSchema(prop.elements);
+				} else if (prop.type === 'array' && prop.elements) {
+					// Sub-attribute array. Primitive element types (e.g. [String], [Int]) go to a
+					// Type-typed items entry; complex-typed elements recurse like the top-level path.
+					if (prop.elements.properties) {
+						entry = new ArrayRef(prop.elements.type);
+						includeDefinitionInSchema(prop.elements);
+					} else if (DATA_TYPES[prop.elements.type]) {
+						entry = { type: 'array', items: new Type(DATA_TYPES[prop.elements.type], prop.elements.type) };
+					} else {
+						// Unknown / `Any` element — emit a loose array shape rather than dropping.
+						entry = { type: 'array', items: { format: prop.elements.type } };
+					}
 				}
 				if (entry) {
 					if (prop.description) entry.description = prop.description;

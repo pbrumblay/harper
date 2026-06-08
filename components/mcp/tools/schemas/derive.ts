@@ -342,24 +342,15 @@ export function derivePatchOutputSchema(
 }
 
 /**
- * Synthesized envelope for delete responses. Pre-merge verification: confirm
- * Harper's actual delete handler returns this shape end-to-end. If it doesn't,
- * the caller should drop outputSchema for delete_* rather than emit a lie.
+ * Output schema for delete responses. Table.delete returns Promise<boolean>;
+ * makeDeleteHandler wraps it as wrapResult(data ?? { ok: true }) — so on
+ * success the MCP response carries a text content of "true" with no
+ * structuredContent. Advertise the actual contract (boolean) rather than a
+ * synthesized object envelope the handler never produces.
  */
-export function deriveDeleteOutputSchema(attributes: HarperAttribute[]): object {
-	const pk = findPrimaryKey(attributes);
-	const properties: Record<string, object> = {
-		deleted: { type: 'boolean', const: true, description: 'True when the record was deleted.' },
-	};
-	const required = ['deleted'];
-	if (pk) {
-		properties[pk.name] = { ...attributeToProperty(pk), description: `Primary key of the deleted record.` };
-		required.push(pk.name);
-	}
+export function deriveDeleteOutputSchema(_attributes: HarperAttribute[]): object {
 	return {
-		type: 'object',
-		properties,
-		required,
-		additionalProperties: false,
+		type: 'boolean',
+		description: 'True when the record was deleted; false when no record matched the primary key.',
 	};
 }
