@@ -235,6 +235,34 @@ describe('mcp/tools/application — registration', () => {
 		assert.equal(getTool('search_Product').annotations?.readOnlyHint, true);
 		assert.equal(getTool('delete_Product').annotations?.destructiveHint, true);
 	});
+
+	it('omits outputSchema on delete_ and search_ (handler wire format has no structuredContent)', () => {
+		const Product = makeTableResource({ databaseName: 'data', tableName: 'product' });
+		_setResourcesForTest(makeRegistry([['Product', { Resource: Product }]]));
+		registerApplicationTools();
+		// MCP spec: outputSchema validates structuredContent. wrapResult only sets
+		// structuredContent when the handler returns an object; Table.delete returns
+		// Promise<boolean>, search_* envelope shape is deferred to a sibling issue.
+		const del = getTool('delete_Product');
+		const search = getTool('search_Product');
+		assert.equal(del.outputSchema, undefined, 'delete_ must not advertise outputSchema');
+		assert.equal(search.outputSchema, undefined, 'search_ must not advertise outputSchema');
+		// get_/update_/create_ DO advertise outputSchema (handlers return object records).
+		assert.ok(getTool('get_Product').outputSchema, 'get_ does advertise outputSchema');
+		assert.ok(getTool('update_Product').outputSchema, 'update_ does advertise outputSchema');
+		assert.ok(getTool('create_Product').outputSchema, 'create_ does advertise outputSchema');
+	});
+
+	it('honors static outputSchemas.delete override when an author supplies a structured envelope', () => {
+		const Product = makeTableResource({ databaseName: 'data', tableName: 'product' });
+		Product.outputSchemas = {
+			delete: { type: 'object', properties: { deleted: { type: 'boolean' } }, required: ['deleted'] },
+		};
+		_setResourcesForTest(makeRegistry([['Product', { Resource: Product }]]));
+		registerApplicationTools();
+		const del = getTool('delete_Product');
+		assert.deepEqual(del.outputSchema, Product.outputSchemas.delete);
+	});
 });
 
 describe('mcp/tools/application — custom mcpTools opt-in (#622)', () => {

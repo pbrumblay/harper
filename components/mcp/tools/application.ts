@@ -23,7 +23,6 @@ import {
 	deriveCreateSchema,
 	deriveCreateOutputSchema,
 	deriveDeleteSchema,
-	deriveDeleteOutputSchema,
 	deriveGetSchema,
 	deriveGetOutputSchema,
 	derivePatchOutputSchema,
@@ -576,11 +575,19 @@ function registerVerbTools(ctx: ResourceContext): number {
 	}
 	if (verbs.delete) {
 		const name = `delete_${suffix}`;
+		// outputSchema deliberately omitted (matches the search_* precedent).
+		// `Table.delete` returns Promise<boolean>; `makeDeleteHandler` wraps it as
+		// `wrapResult(data ?? { ok: true })`, and wrapResult only sets
+		// `structuredContent` when data is an object. So a boolean handler
+		// return produces text content only — no structuredContent for an
+		// outputSchema to validate. An author who returns a structured
+		// envelope can opt in via `static outputSchemas.delete`.
+		const deleteOverride = overrideOutput('delete');
 		addTool({
 			name,
 			description: verbDescription('delete', ctxForVerb),
 			inputSchema: deriveDeleteSchema(attributes, undefined),
-			outputSchema: overrideOutput('delete') ?? deriveDeleteOutputSchema(attributes),
+			...(deleteOverride ? { outputSchema: deleteOverride } : {}),
 			profile: 'application',
 			// delete_* idempotency depends on delete-of-deleted behavior; default
 			// omits idempotentHint until verified end-to-end.
