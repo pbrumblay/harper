@@ -24,7 +24,9 @@ function getChanges(target) {
 export function assignTrackedAccessors(Target, typeDef, useFullPropertyProxy = false) {
 	const prototype = Target.prototype;
 	const descriptors = {};
-	const attributes = typeDef.attributes || typeDef.properties || [];
+	// Read the Array form. `typeDef.properties` is now a Record<string, JsonSchemaFragment>
+	// after the schema-metadata alignment; iterating it with for...of would throw.
+	const attributes = typeDef.attributes || [];
 	for (const attribute of attributes) {
 		const name = attribute.name;
 		let set;

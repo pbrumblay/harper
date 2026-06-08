@@ -714,6 +714,9 @@ interface TableDefinition {
 	attributes: any[];
 	schemaDefined?: boolean;
 	origin?: string;
+	description?: string;
+	properties?: Record<string, any>;
+	hidden?: boolean;
 }
 /**
  * Ensure that we have this database object (that holds a set of tables) set up
@@ -932,6 +935,9 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 		trackDeletes,
 		schemaDefined,
 		origin,
+		description,
+		properties,
+		hidden,
 	} = tableDefinition;
 	if (!databaseName) databaseName = DEFAULT_DATABASE_NAME;
 	const rootStore = database({ database: databaseName, table: tableName });
@@ -965,6 +971,10 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 		// it table already exists, get the split segments setting
 		if (splitSegments == undefined) splitSegments = Table.splitSegments;
 		Table.attributes.splice(0, Table.attributes.length, ...attributes);
+		// Refresh class-level schema metadata to track docstring/directive changes across reloads.
+		Table.description = description;
+		Table.properties = properties;
+		Table.hidden = hidden;
 	} else {
 		const auditStore = rootStore.auditStore;
 		primaryKeyAttribute = attributes.find((attribute) => attribute.isPrimaryKey) || {};
@@ -1045,6 +1055,9 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 				attributes,
 				schemaDefined,
 				dbisDB: attributesDbi,
+				description,
+				properties,
+				hidden,
 			})
 		);
 		Table.schemaVersion = 1;
