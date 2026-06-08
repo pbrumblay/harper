@@ -38,6 +38,8 @@ When `migrateOnStart` opens a source LMDB primary store to read records out for 
 
 Harper's normal `databases.ts` path already does this (search for `dbiInit.compression = primaryKeyAttribute.compression`); the migration path in `bin/copyDb.ts` has to match.
 
+The same source-dbi open has a second non-obvious requirement: assign `sourceDbi.encoder.rootStore = sourceRootStore` for the primary store. The primary dbi decodes through a `RecordEncoder`, and decoding a record that holds a file-backed blob reference resolves that reference against `rootStore` (it locates the blob file). With `rootStore` unset, the `Blob` msgpackr extension throws `No store specified, cannot load blob from storage`; `RecordEncoder.decode` swallows the error and yields `null`, and `copyDbToRocks` then skips the `null` value — so every record with a file-backed blob is silently dropped from the migration. The runtime path gets `rootStore` from `handleLocalTimeForGets`; the migration path opens the source dbi raw and must set it explicitly (issue #857).
+
 ## Schema migration and `runIndexing` internals (`databases.ts`)
 
 When `table()` is called with an attribute newly marked `indexed: true` (or with any change that requires re-building the secondary index), `runIndexing` is launched asynchronously and `Table.indexingOperation` is set to its promise. While running:
@@ -88,7 +90,9 @@ Adding a new system table (e.g. `hdb_deployment` in #641 Slice A) requires three
 
 1. **`json/systemSchema.json`** — the table entry. Fresh installs auto-create it via `utility/mount_hdb.ts:createTables()`, which iterates `Object.keys(systemSchema)` on first boot.
 2. **`utility/hdbTerms.ts`** — add the table name to `SYSTEM_TABLE_NAMES`.
-3. **`upgrade/directives/<version>.ts`** — provisions the table on existing installs that already have a system schema. Registered in `upgrade/directives/directivesController.ts` (which is otherwise empty — its `versions` Map gets populated by these imports). The directive shape is `{ version, sync_functions, async_functions }`; copy `5-2-0.ts` for the canonical pattern (uses `bridge.createTable` to match what `mount_hdb` does on a fresh install).
+3. **`upgrade/directives/<version>.ts`** — provisions the table on existing installs that already have a system schema. Registered in `upgrade/directives/directivesController.ts` (which is otherwise empty — its `versions` Map gets populated by these imports). The directive shape is `{ version, sync_functions, async_functions }`; copy `5-1-0.ts` for the canonical pattern (uses `bridge.createTable` to match what `mount_hdb` does on a fresh install).
+
+   **Version the directive to the first release that ships the dependent code, not a later one.** Directives only run when `current_version < directive_version <= upgrade_version` (`directivesController.getVersionsForUpgrade`). The `hdb_deployment` directive was originally mis-tagged `5.2.0` while the deployment-recorder code shipped in `5.1.0`, so on every `5.0.x -> 5.1.x` upgrade the directive was filtered out (`5.2.0 > 5.1.x`) and the table never got created — breaking replicated `deploy_component` on peer nodes for the entire existing customer base. Caveat: `utility/common_utils.ts:compareVersions` strips trailing `.0` and therefore sorts a pre-release (`5.1.0-beta.1`) _above_ its GA (`5.1.0`), so an install already on a `5.1.0-beta.x` data version will not pick up a `5.1.0` directive when upgrading to GA; those pre-release installs need the table created by other means.
 
 System tables replicate by default. To opt out, add the name to `NON_REPLICATING_SYSTEM_TABLES` in `resources/databases.ts`. The check happens after table init and sets `table.replicate = false` per-node.
 

@@ -15,6 +15,7 @@ const terms = require('../../utility/hdbTerms.ts');
 const { server } = require('../Server.ts');
 let { createServer: createSecureSocketServer } = require('node:tls');
 const { restartNumber, getWorkerIndex } = require('./manageThreads.js');
+const { realExit } = require('./workerProcessGuard.ts');
 const { isBun } = require('../serverHelpers/Request.ts');
 const { createTLSSelector } = require('../../security/keys.ts');
 const { startupLog } = require('../../bin/run.ts');
@@ -172,7 +173,7 @@ function startServers() {
 						// shutdown (for these threads) means stop listening for incoming requests (finish what we are working) and
 						// close connections as possible, then let the event loop complete
 						closeServers().then(() => {
-							process.exit(0);
+							realExit(0);
 						});
 						// Clean up per-thread UDS socket and metadata files
 						httpComponent.cleanupUdsFiles();
@@ -492,6 +493,10 @@ function onSocket(listener, options) {
 			});
 
 			udsServer.isPerThreadSocket = true;
+			// Strip the PROXY v1 header a fronting proxy (e.g. symphony) prepends, same as the
+			// HTTP UDS mirror. Without this the header is fed to the protocol parser (e.g. MQTT),
+			// corrupting the first packet.
+			httpComponent.enableProxyProtocol(udsServer);
 			SERVERS[udsPath] = udsServer;
 			httpComponent.registerUdsCleanupPaths(udsPath, yamlPath);
 
