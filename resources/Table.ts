@@ -108,6 +108,19 @@ const CACHEABLE_STATUS_CODES = new Set([200, 203, 204, 206, 300, 301, 308, 404, 
 envMngr.initSync();
 const LMDB_PREFETCH_WRITES = envMngr.get(CONFIG_PARAMS.STORAGE_PREFETCHWRITES);
 const LOCK_TIMEOUT = 10000;
+// A frozen record we may need to copy-on-mutate before stamping it (records are immutable — decoded
+// records are frozen and 5.2 record caching relies on it). Only plain/record objects qualify: never
+// a Buffer/typed-array (spreading would corrupt the binary into a {0:.., 1:..} object) or a primitive
+// (which reports as frozen and would spread into character/index keys).
+function isFrozenRecordObject(value: any): boolean {
+	return (
+		value !== null &&
+		typeof value === 'object' &&
+		!ArrayBuffer.isView(value) &&
+		!(value instanceof ArrayBuffer) &&
+		Object.isFrozen(value)
+	);
+}
 export const INVALIDATED = 1;
 export const EVICTED = 8; // note that 2 is reserved for timestamps
 const TEST_WRITE_KEY_BUFFER = Buffer.allocUnsafeSlow(8192);
@@ -1666,6 +1679,12 @@ export function makeTable(options) {
 					if (fullUpdate || (recordUpdate && hasChanges(this.#changes === recordUpdate ? this : recordUpdate))) {
 						if (!(context as any)?.source) {
 							transaction.checkOverloaded();
+							// Records are intentionally immutable: decoded records are frozen (and 5.2 record
+							// caching relies on it), so mutating in place would corrupt cached/shared state.
+							// validate() coerces values and we stamp created/updated times + the primary key
+							// below, so copy-on-mutate when recordUpdate is frozen (e.g. a record decoded during
+							// log replay) instead of writing through the frozen object.
+							if (isFrozenRecordObject(recordUpdate)) recordUpdate = { ...recordUpdate };
 							this.validate(recordUpdate, !fullUpdate);
 							if (updatedTimeProperty) {
 								recordUpdate[updatedTimeProperty.name] =
@@ -1741,6 +1760,32 @@ export function makeTable(options) {
 						// of the updates to the record to ensure consistency across the cluster
 						// TODO: can the previous version be older, but even more previous version be newer?
 						if (audit) {
+							// A re-delivered out-of-order write (full-copy audit-replay re-delivers writes) must not have
+							// its commutative ops re-folded. additionalAuditRefs is the record's own list of folded
+							// out-of-order versions, read with read-your-writes consistency, so this skips the duplicate up
+							// front — before the audit-log walk below, which can miss it: the walk stops at the depth cap, or
+							// breaks early on a not-yet-visible audit entry, before reaching txnTime, and the keyed
+							// transaction-log lookup it would otherwise use can lag a back-to-back re-delivery (that lag
+							// silently double-applied the increment — #1137). This covers the re-delivery while the ref is
+							// still on the record; a later in-order write rewrites the record and drops the ref (it survives
+							// only as previousAdditionalAuditRefs on the audit log), so that case falls back to the
+							// best-effort keyed lookup in the capped block below — see #1148. precedesExistingVersion(...)
+							// === 0 is the identity tie: same version AND same node (the local node is id 0, so an undefined
+							// options?.nodeId resolves to the same 0 the ref stored).
+							if (
+								existingEntry.additionalAuditRefs?.some(
+									(ref) =>
+										ref.version === txnTime &&
+										precedesExistingVersion(
+											txnTime,
+											{ version: txnTime, localTime: txnTime, key: id, nodeId: ref.nodeId },
+											options?.nodeId
+										) === 0
+								)
+							) {
+								write.skipped = true;
+								return; // out-of-order write already folded into this record
+							}
 							// incremental CRDT updates are only available with audit logging on
 							let localTime = existingEntry.localTime;
 							let auditedVersion = existingEntry.version;
@@ -1872,8 +1917,12 @@ export function makeTable(options) {
 								// retained window are not layered in — but the authoritative full-copy record restores exact
 								// convergence. Because we stopped before reaching txnTime, the inline duplicate detection in
 								// the walk never ran; full-copy audit-replay re-delivers writes, and re-applying one would
-								// double-apply its commutative ops, so rule that out here with a single O(1) lookup at txnTime
-								// (RocksDB audit logs are keyed by version, and the cap is RocksDB-only).
+								// double-apply its commutative ops. A re-delivered out-of-order write is already ruled out by
+								// the additionalAuditRefs check at the top of this block; this keyed lookup is the best-effort
+								// guard for the remaining case — a re-delivered write that was originally in-order (so it left
+								// no ref) and is now deeper than the cap. It is best-effort because the transaction-log lookup
+								// can intermittently miss an entry under load (tracked separately); the authoritative full-copy
+								// record still restores exact convergence.
 								logger.warn?.(
 									'Out-of-order audit reconciliation exceeded depth cap; reconciling against most recent updates only',
 									{
@@ -4382,6 +4431,10 @@ export function makeTable(options) {
 								}
 							}
 							if (typeof updatedRecord.toJSON === 'function') updatedRecord = updatedRecord.toJSON();
+							// updatedRecord may still be a frozen record (e.g. a reused existingRecord); copy-on-mutate
+							// before stamping the primary key and created/updated times below (records are immutable —
+							// 5.2 record caching relies on it — so we must not write through the frozen object).
+							if (isFrozenRecordObject(updatedRecord)) updatedRecord = { ...updatedRecord };
 							if (primaryKey && updatedRecord[primaryKey] !== id) updatedRecord[primaryKey] = id;
 						}
 						resolved = true;

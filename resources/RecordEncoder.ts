@@ -30,6 +30,8 @@ import { getThisNodeId } from './nodeIdMapping.ts';
 import { recordAction } from './analytics/write.ts';
 import { RocksDatabase } from '@harperfast/rocksdb-js';
 import { when } from '../utility/when.ts';
+import { CONFIG_PARAMS } from '../utility/hdbTerms.ts';
+import * as envMngr from '../utility/environment/environmentManager.js';
 
 const StructonEncoder = createStructon(Encoder) as typeof Encoder;
 export type Entry = {
@@ -220,7 +222,18 @@ export class RecordEncoder extends StructonEncoder {
 		const superGetStructures = this.getStructures;
 		this.saveStructures = function (structures, isCompatible): boolean | undefined {
 			if (this.isRocksDB) {
-				return this.rootStore.transactionSync(
+				// transactionSync returns the callback's value on commit, but returns `undefined`
+				// when the txn was aborted (it swallows ERR_ALREADY_ABORTED). The success path here
+				// returns an explicit `true`; anything else means the shared structures were NOT
+				// durably committed (a CAS conflict → `false`, or a swallowed abort → `undefined`).
+				//
+				// We must report a non-commit as `false` (not the buggy `undefined`, which msgpackr
+				// reads as success and then writes a record referencing a structure that was never
+				// saved → later "Record id is not defined" on decode). Returning `false` makes msgpackr
+				// re-pack; paired with the msgpackr fix that marks structures uninitialized on
+				// save-failure, the re-pack reloads the durable structures, rebuilds the transition
+				// trie, re-mints, and re-saves — so the record always references a persisted structure.
+				const committed = this.rootStore.transactionSync(
 					(txn) => {
 						const sharedStructuresKey = [Symbol.for('structures'), this.name];
 						const existingStructuresBuffer = txn.getBinarySync(sharedStructuresKey);
@@ -233,10 +246,18 @@ export class RecordEncoder extends StructonEncoder {
 							return false;
 						}
 						txn.putSync(sharedStructuresKey, structures);
-						this.structureUpdate = structures;
+						return true;
 					},
 					{ retryOnBusy: true }
 				);
+				// Only record the structure update once the txn has actually committed. Setting it
+				// inside the callback would leave it dangling on an aborted txn and could flag a
+				// HAS_STRUCTURE_UPDATE in the audit log for a structure that was never persisted.
+				if (committed === true) {
+					this.structureUpdate = structures;
+					return true;
+				}
+				return false;
 			} else {
 				const result = superSaveStructures.call(this, structures, isCompatible);
 				this.structureUpdate = structures;
@@ -260,7 +281,14 @@ export class RecordEncoder extends StructonEncoder {
 		let nextByte = buffer[start];
 		let metadataFlags = 0;
 		try {
-			if ((this.isRocksDB && nextByte === 66) || (nextByte < 32 && end > 2)) {
+			// The metadata/timestamp prefix is detected heuristically by the first byte. For rocksdb a
+			// local-timestamp prefix starts with 66 — but 66 (0x42) is also classic shared-structure
+			// record-id #2, so a timestamp-less classic record beginning with that id is misread as a
+			// timestamped record (8 bytes stripped → corrupt). Callers that pass a value known to have no
+			// prefix (e.g. the audit store's getValue) set options.noMetadata to skip the heuristic. Typed
+			// structs start at 0x20-0x3f and never hit this, which is why it only surfaces with classic
+			// structures (typed structures off).
+			if (!options?.noMetadata && ((this.isRocksDB && nextByte === 66) || (nextByte < 32 && end > 2))) {
 				// record with metadata
 				// this means that the record starts with a local timestamp (that was assigned by lmdb-js).
 				// we copy it so we can decode it as float-64; we need to do it first because if structural data
@@ -497,6 +525,7 @@ export function handleLocalTimeForGets(store, rootStore) {
 				use.call(this);
 			};
 			Txn.prototype.done = function () {
+				if (this.isDone) return;
 				done.call(this);
 				this.openTimer = 0; // reset so idle pool time doesn't accumulate toward the stale-open threshold
 				if (this.isDone) {
@@ -515,16 +544,18 @@ export function handleLocalTimeForGets(store, rootStore) {
 	return store;
 }
 const trackedTxns: WeakRef<any>[] = [];
-setInterval(() => {
+const configValue = envMngr.get(CONFIG_PARAMS.STORAGE_MAX_READ_TRANSACTION_OPEN_TIME) ?? 300000;
+let READ_TXN_TIMEOUT_TICKS = Math.round(configValue / 15000);
+export function checkReadTxnTimeouts() {
 	for (let i = 0; i < trackedTxns.length; i++) {
 		const txn = trackedTxns[i].deref();
 		if (!txn || txn.isDone || txn.isCommitted) trackedTxns.splice(i--, 1);
 		else if (txn.notCurrent) {
 			if (txn.openTimer) {
 				if (txn.openTimer > 3) {
-					if (txn.openTimer > 60) {
+					if (txn.openTimer > READ_TXN_TIMEOUT_TICKS) {
 						harperLogger.error(
-							'Read transaction detected that has been open too long (over 15 minutes), ending transaction',
+							`Read transaction detected that has been open too long (over ${Math.round(READ_TXN_TIMEOUT_TICKS * 15)} seconds), ending transaction`,
 							txn
 						);
 						trackedTxns.splice(i--, 1);
@@ -545,7 +576,12 @@ setInterval(() => {
 			} else txn.openTimer = 1;
 		}
 	}
-}, 15000).unref();
+}
+setInterval(checkReadTxnTimeouts, 15000).unref();
+export function setReadTxnExpiration(ms: number) {
+	READ_TXN_TIMEOUT_TICKS = Math.round(ms / 15000);
+	return trackedTxns;
+}
 export function setNextEncoding(timestamp: number, metadata: number, expiresAt = -1, nodeId = -1, residencyId = 0) {
 	timestampNextEncoding = timestamp;
 	metadataInNextEncoding = metadata;
