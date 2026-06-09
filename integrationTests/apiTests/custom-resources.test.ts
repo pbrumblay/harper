@@ -51,7 +51,7 @@ type RedirectChange @table @export {
   createdAt: Date @createdTime
 }
 
-type AbusCounter @table(expiration: 10) @export {
+type AbuseCounter @table(expiration: 10) @export {
   id: ID @primaryKey
   count: Int
 }
@@ -86,7 +86,7 @@ export class RedirectRule extends tables.RedirectRule {
     }
     if (existing.length > 0) {
       const context = this.getContext();
-      context.response.status = 409;
+      if (context?.response) context.response.status = 409;
       return { error: 'Chain redirect detected' };
     }
     const id = Math.random().toString(36).slice(2);
@@ -133,8 +133,8 @@ export class RoutingDecision extends Resource {
   }
 }
 
-// AbusCounter: atomic counter with 403 threshold (Ford PasswordResetAbuse pattern)
-export class AbusCounter extends tables.AbusCounter {
+// AbuseCounter: atomic counter with 403 threshold (Ford PasswordResetAbuse pattern)
+export class AbuseCounter extends tables.AbuseCounter {
   async put(body, ctx) {
     // this is the loaded record instance; get current count from the stored record
     const current = await this.get();
@@ -142,7 +142,7 @@ export class AbusCounter extends tables.AbusCounter {
     const newCount = ((current && current.count) || 0) + 1;
     if (newCount > 5) {
       const context = this.getContext();
-      context.response.status = 403;
+      if (context?.response) context.response.status = 403;
       return { error: 'Too many attempts' };
     }
     // Full update via single-arg super.put (legacy: update(record, true) + save)
@@ -421,25 +421,25 @@ suite('Custom resource patterns', { skip: skipSuite }, (ctx) => {
 	// 6. Abuse counter with 403 threshold (Ford PasswordResetAbuse pattern)
 	// -----------------------------------------------------------------------
 
-	suite('AbusCounter: threshold enforcement', () => {
-		test('PUT AbusCounter increments count (attempts 1–5 succeed)', async () => {
+	suite('AbuseCounter: threshold enforcement', () => {
+		test('PUT AbuseCounter increments count (attempts 1–5 succeed)', async () => {
 			for (let i = 1; i <= 5; i++) {
-				const res = await restReq(httpURL, '/AbusCounter/counter1', 'PUT', { id: 'counter1' });
+				const res = await restReq(httpURL, '/AbuseCounter/counter1', 'PUT', { id: 'counter1' });
 				strictEqual(res.status, 200, `attempt ${i} unexpected status: ${res.status}`);
 				const body = (await res.json()) as Record<string, unknown>;
 				strictEqual(body.count, i, `attempt ${i} expected count=${i}, got: ${JSON.stringify(body)}`);
 			}
 		});
 
-		test('6th PUT AbusCounter returns 403', async () => {
-			const res = await restReq(httpURL, '/AbusCounter/counter1', 'PUT', { id: 'counter1' });
+		test('6th PUT AbuseCounter returns 403', async () => {
+			const res = await restReq(httpURL, '/AbuseCounter/counter1', 'PUT', { id: 'counter1' });
 			strictEqual(res.status, 403, `expected 403 on 6th attempt, got: ${res.status}`);
 			const body = (await res.json()) as Record<string, unknown>;
 			ok(typeof body.error === 'string', `expected error message on 403, got: ${JSON.stringify(body)}`);
 		});
 
 		test('independent counters do not interfere', async () => {
-			const res = await restReq(httpURL, '/AbusCounter/counter2', 'PUT', { id: 'counter2' });
+			const res = await restReq(httpURL, '/AbuseCounter/counter2', 'PUT', { id: 'counter2' });
 			strictEqual(res.status, 200, `first attempt on counter2 unexpected status: ${res.status}`);
 			const body = (await res.json()) as Record<string, unknown>;
 			strictEqual(body.count, 1, `expected count=1 for fresh counter, got: ${JSON.stringify(body)}`);
