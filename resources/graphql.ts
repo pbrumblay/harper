@@ -285,7 +285,8 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 		// should be created if it does not exist
 		typeDef.tableClass = table(typeDef);
 		if (getWorkerIndex() === 0) {
-			const pk = (typeDef.properties as any[])?.find((p) => p.isPrimaryKey)?.name ?? 'id';
+			// Post-Phase-2: typeDef.properties is the canonical Record (no .find); read the Array form.
+			const pk = (typeDef.attributes as any[])?.find((p) => p.isPrimaryKey)?.name ?? 'id';
 			const schemaPart = typeDef.database ? `, schema: ${typeDef.database}` : '';
 			harperLogger.info?.(`Initialized table "${typeDef.table}"${schemaPart}, primaryKey: ${pk}`);
 		}
