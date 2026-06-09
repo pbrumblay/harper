@@ -6,6 +6,7 @@ import { Resources } from './Resources.ts';
 import type { NamedTypeNode, StringValueNode } from 'graphql';
 import { once } from 'node:events';
 import { ClientError } from '../utility/errors/hdbError.ts';
+import { attributeToFragment, type JsonSchemaFragment } from './jsonSchemaTypes.ts';
 import harperLogger from '../utility/logging/harper_logger.ts';
 
 const PRIMITIVE_TYPES = ['ID', 'Int', 'Float', 'Long', 'String', 'Boolean', 'Date', 'Bytes', 'Any', 'BigInt', 'Blob'];
@@ -26,7 +27,8 @@ server.knownGraphQLDirectives.push(
 	'updatedTime',
 	'expiresAt',
 	'allow',
-	'enumerable'
+	'enumerable',
+	'hidden'
 );
 /**
  * This is the entry point for handling GraphQL schemas (and server-side defined queries, eventually). This will be
@@ -75,8 +77,10 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 			case Kind.OBJECT_TYPE_DEFINITION:
 				const typeName = definition.name.value;
 				// use type name as the default table
-				const properties = [];
-				const typeDef: any = { table: null, database: null, properties };
+				const attributes: any[] = [];
+				const typeProperties: Record<string, JsonSchemaFragment> = {};
+				const typeDef: any = { table: null, database: null, attributes, properties: typeProperties };
+				if (definition.description?.value) typeDef.description = definition.description.value;
 				types.set(typeName, typeDef);
 				resources.allTypes.set(typeName, typeDef);
 				for (const directive of definition.directives) {
@@ -91,12 +95,12 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 						// Boolean directive args arrive as actual booleans; tolerate string forms too.
 						if (typeDef.randomAccessFields !== undefined)
 							typeDef.randomAccessFields = typeDef.randomAccessFields === true || typeDef.randomAccessFields === 'true';
-						typeDef.attributes = typeDef.properties;
 						tables.push(typeDef);
 					}
 					if (directive.name.value === 'sealed') typeDef.sealed = true;
 					if (directive.name.value === 'splitSegments') typeDef.splitSegments = true;
 					if (directive.name.value === 'replicate') typeDef.replicate = true;
+					if (directive.name.value === 'hidden') typeDef.hidden = true;
 					if (directive.name.value === 'export') {
 						typeDef.export = true;
 						for (const arg of directive.arguments) {
@@ -127,7 +131,8 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 				for (const field of definition.fields) {
 					const property = getProperty(field.type);
 					property.name = field.name.value;
-					properties.push(property);
+					if (field.description?.value) property.description = field.description.value;
+					attributes.push(property);
 					attributesObject[property.name] = undefined; // this is used as a backup scope for computed properties
 					for (const directive of field.directives) {
 						const directiveName = directive.name.value;
@@ -199,6 +204,8 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 							property.expiresAt = true;
 						} else if (directiveName === 'enumerable') {
 							property.enumerable = true;
+						} else if (directiveName === 'hidden') {
+							property.hidden = true;
 						} else if (directiveName === 'allow') {
 							const authorizedRoles = (property.authorizedRoles = []);
 							for (const arg of directive.arguments) {
@@ -231,7 +238,7 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 				}
 				// @embed source must reference a declared field; a typo would silently leave
 				// the vector column unpopulated (the source key never appears in write payloads).
-				for (const prop of properties as any[]) {
+				for (const prop of attributes as any[]) {
 					// Object.hasOwn (not `in`): `attributesObject` is a plain object, so `in` would
 					// match inherited prototype keys (toString, constructor) and pass a bad source.
 					if (prop.embed && !Object.hasOwn(attributesObject, prop.embed.source))
@@ -240,6 +247,14 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 							400
 						);
 				}
+				// Project the array form into the canonical `properties` Record (JSON-Schema-shaped,
+				// keyed by attribute name). Both shapes are co-populated in this single pass;
+				// downstream consumers (MCP, OpenAPI) read whichever form they prefer.
+				// `attributeToFragment` handles array types recursively so primitive arrays
+				// (e.g. `[String]`) emit `{ type: 'array', items: { type: 'string' } }`.
+				for (const prop of attributes as any[]) {
+					typeProperties[prop.name] = attributeToFragment(prop);
+				}
 				typeDef.type = typeName;
 		}
 	}
@@ -247,7 +262,11 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 	function connectPropertyType(property) {
 		const targetTypeDef = types.get(property.type);
 		if (targetTypeDef) {
-			Object.defineProperty(property, 'properties', { value: targetTypeDef.properties });
+			// `property.properties` on a complex-type attribute carries the nested Array of
+			// sub-attributes (Attribute.properties — Array<Attribute>). Keep reading from
+			// `targetTypeDef.attributes` (the internal Array form) rather than the new
+			// class-level `typeDef.properties` (the Record canonical surface).
+			Object.defineProperty(property, 'properties', { value: targetTypeDef.attributes });
 			Object.defineProperty(property, 'definition', { value: targetTypeDef });
 		} else if (property.type === 'array') connectPropertyType(property.elements);
 		else if (!PRIMITIVE_TYPES.includes(property.type)) {
@@ -258,7 +277,7 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 		}
 	}
 	for (const typeDef of types.values()) {
-		for (const property of typeDef.properties) connectPropertyType(property);
+		for (const property of typeDef.attributes) connectPropertyType(property);
 	}
 	// any tables that are defined in the schema can now be registered
 	for (const typeDef of tables) {
@@ -266,7 +285,8 @@ async function processGraphQLSchema(gqlContent, urlPath, filePath, resources) {
 		// should be created if it does not exist
 		typeDef.tableClass = table(typeDef);
 		if (getWorkerIndex() === 0) {
-			const pk = (typeDef.properties as any[])?.find((p) => p.isPrimaryKey)?.name ?? 'id';
+			// Post-Phase-2: typeDef.properties is the canonical Record (no .find); read the Array form.
+			const pk = (typeDef.attributes as any[])?.find((p) => p.isPrimaryKey)?.name ?? 'id';
 			const schemaPart = typeDef.database ? `, schema: ${typeDef.database}` : '';
 			harperLogger.info?.(`Initialized table "${typeDef.table}"${schemaPart}, primaryKey: ${pk}`);
 		}
