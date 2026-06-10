@@ -8,156 +8,23 @@
  * - Chain-redirect detection (409 on A→B when B→C would chain)
  * - Abuse-counter threshold (Ford PasswordResetAbuse: 403 after N attempts)
  *
- * Self-contained: deploys an inline component with schema + resources JS and
- * restarts http_workers. Skipped on Windows (restart_service http_workers
- * crashes the Harper instance on Windows — see HarperFast/harper#549).
+ * Component files live in integrationTests/fixtures/custom-resources/.
+ * Skipped on Windows (restart_service http_workers crashes the Harper instance
+ * on Windows — see HarperFast/harper#549).
  *
  * Implements HarperFast/harper#1190.
  */
 import { suite, test, before, after } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startHarper, teardownHarper } from '@harperfast/integration-testing';
-import { createApiClient } from './utils/client.mjs';
-import { installAppComponent } from './utils/components.mjs';
+import { createApiClient } from '../apiTests/utils/client.mjs';
+import { installAppComponent } from '../apiTests/utils/components.mjs';
 
-// ---------------------------------------------------------------------------
-// Component definition
-// ---------------------------------------------------------------------------
-
-const SCHEMA_GRAPHQL = `
-type WorkItem @table @export {
-  id: ID @primaryKey
-  state: String @indexed
-  payload: String
-  result: String
-  resultAt: Date @updatedTime
-}
-
-type RedirectRule @table @export @sealed {
-  id: ID @primaryKey
-  matchUrl: String @indexed
-  redirectUrl: String @indexed
-  statusCode: Int
-  startTime: Date
-  endTime: Date
-  createdBy: String
-}
-
-type RedirectChange @table @export {
-  id: ID @primaryKey
-  redirectId: String @indexed
-  operation: String
-  previousState: String
-  createdAt: Date @createdTime
-}
-
-type AbuseCounter @table(expiration: 10) @export {
-  id: ID @primaryKey
-  count: Int
-}
-`;
-
-const RESOURCES_JS = `
-// WorkItem: async write-then-patch pattern (CDI RT enqueueing + AI inference result attachment)
-export class WorkItem extends tables.WorkItem {
-  async post(body, ctx) {
-    const id = Math.random().toString(36).slice(2);
-    // Use static class method to create a new record by explicit id
-    await tables.WorkItem.put({ id, state: 'pending', payload: JSON.stringify(body) });
-    return { id, state: 'pending' };
-  }
-  async patch(body, ctx) {
-    // this is the loaded record instance; doesExist() tells us if it was found
-    if (!this.doesExist()) return new Response(null, { status: 404 });
-    const current = await this.get();
-    // Full update via single-arg super.put (legacy: update(record, true) + save)
-    await super.put({ ...current, state: 'completed', result: body.result, resultAt: new Date() });
-    return { state: 'completed' };
-  }
-}
-
-// RedirectRule: routing decision with audit trail (Walmart USGM pattern)
-export class RedirectRule extends tables.RedirectRule {
-  async post(body, ctx) {
-    // chain detection: check if redirectUrl matches any existing matchUrl
-    const existing = [];
-    for await (const r of tables.RedirectRule.search({ conditions: [{ attribute: 'matchUrl', value: body.redirectUrl }] })) {
-      existing.push(r);
-    }
-    if (existing.length > 0) {
-      const context = this.getContext();
-      if (context?.response) context.response.status = 409;
-      return { error: 'Chain redirect detected' };
-    }
-    const id = Math.random().toString(36).slice(2);
-    const user = this.getContext()?.user;
-    const record = { id, ...body, createdBy: user?.username || 'anonymous' };
-    // Write the redirect rule and audit record using static methods
-    await tables.RedirectRule.put(record);
-    await tables.RedirectChange.put({
-      id: Math.random().toString(36).slice(2),
-      redirectId: id,
-      operation: 'create',
-      previousState: null,
-    });
-    return record;
-  }
-}
-
-// Block external mutations on RedirectChange (audit log is immutable from outside)
-export class RedirectChange extends tables.RedirectChange {
-  post() { return new Response(null, { status: 405 }); }
-  put() { return new Response(null, { status: 405 }); }
-  patch() { return new Response(null, { status: 405 }); }
-  delete() { return new Response(null, { status: 405 }); }
-}
-
-// RoutingDecision: POST-only routing lookup endpoint (Walmart USGM)
-export class RoutingDecision extends Resource {
-  static loadAsInstance = false;
-  async post(query, body) {
-    const { path } = body;
-    if (!path) return {};
-    const now = new Date();
-    const rules = [];
-    for await (const r of tables.RedirectRule.search({ conditions: [{ attribute: 'matchUrl', value: path }] })) {
-      rules.push(r);
-    }
-    const rule = rules.find(r => {
-      if (r.startTime && new Date(r.startTime) > now) return false;
-      if (r.endTime && new Date(r.endTime) < now) return false;
-      return true;
-    });
-    if (rule) return { shouldRedirect: true, status: rule.statusCode || 302, location: rule.redirectUrl };
-    return {};
-  }
-}
-
-// AbuseCounter: atomic counter with 403 threshold (Ford PasswordResetAbuse pattern)
-export class AbuseCounter extends tables.AbuseCounter {
-  async put(body, ctx) {
-    // this is the loaded record instance; get current count from the stored record
-    const current = await this.get();
-    const id = this.getId();
-    const newCount = ((current && current.count) || 0) + 1;
-    if (newCount > 5) {
-      const context = this.getContext();
-      if (context?.response) context.response.status = 403;
-      return { error: 'Too many attempts' };
-    }
-    // Full update via single-arg super.put (legacy: update(record, true) + save)
-    await super.put({ id, count: newCount });
-    return { count: newCount };
-  }
-}
-`;
-
-const CONFIG_YAML = `graphqlSchema:
-  files: '*.graphql'
-jsResource:
-  files: resources.js
-rest: true
-`;
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURE_DIR = join(__dirname, '../fixtures/custom-resources');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -191,9 +58,9 @@ suite('Custom resource patterns', { skip: skipSuite }, (ctx) => {
 		await installAppComponent(client, {
 			project: 'customResources',
 			files: {
-				'schema.graphql': SCHEMA_GRAPHQL,
-				'resources.js': RESOURCES_JS,
-				'config.yaml': CONFIG_YAML,
+				'schema.graphql': readFileSync(join(FIXTURE_DIR, 'schema.graphql'), 'utf-8'),
+				'resources.js': readFileSync(join(FIXTURE_DIR, 'resources.js'), 'utf-8'),
+				'config.yaml': readFileSync(join(FIXTURE_DIR, 'config.yaml'), 'utf-8'),
 			},
 			probePath: '/WorkItem/',
 			restartTimeoutMs: 120_000,
