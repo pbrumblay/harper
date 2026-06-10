@@ -414,8 +414,12 @@ export function searchByIndex(
 				typeof attribute_name === 'string'
 			) {
 				const rescored = (loaded as any[]).filter((e) => e !== SKIP && e && e.value);
-				for (const e of rescored)
-					e.distance = index.customIndex.exactDistance(searchCondition, e.value[attribute_name]);
+				for (const e of rescored) {
+					const d = index.customIndex.exactDistance(searchCondition, e.value[attribute_name]);
+					// Non-finite exact distances (NaN from a corrupt record vector, Infinity from a
+					// missing vector) sort last — consistent with the missing-vector sentinel in exactDistance.
+					e.distance = Number.isFinite(d) ? d : Infinity;
+				}
 				// comparison-based (not subtraction) so Infinity sentinels for missing vectors
 				// sort last without producing NaN (Infinity - Infinity).
 				rescored.sort((a, b) => (a.distance === b.distance ? 0 : a.distance < b.distance ? -1 : 1));

@@ -190,6 +190,19 @@ export class HierarchicalNavigableSmallWorld {
 		}
 	}
 	index(primaryKey: Id, vector: number[], existingVector?: number[], options: any = {}) {
+		// Reject non-finite components before touching the graph. NaN in particular poisons
+		// bisectInsert (arr[mid].distance <= NaN is always false → returns 0, pinning the
+		// candidate to rank 1 of every future search). Infinity causes analogous ordering
+		// anomalies. embedHook.ts intentionally passes NaN through and expects HNSW to guard.
+		if (vector) {
+			for (let i = 0; i < vector.length; i++) {
+				if (!Number.isFinite(vector[i])) {
+					throw new ClientError(
+						`Vector for attribute "${String(primaryKey)}" contains non-finite component at index ${i}: ${vector[i]}. Ensure the embedding produces only finite values.`
+					);
+				}
+			}
+		}
 		// first get the node id for the primary key; we use internal node ids for better efficiency,
 		// but we must use a safe key that won't collide with the node ids
 		const safeKey = typeof primaryKey === 'number' ? [KEY_PREFIX, primaryKey] : primaryKey;
@@ -228,7 +241,29 @@ export class HierarchicalNavigableSmallWorld {
 			// If we are updating an existing entry, we need to update the entry point
 			// if the new entry is closer to the entry point than the old one
 			oldNode = { ...this.safeGetSync(nodeId, options) };
-		} else oldNode = {} as Node;
+		} else {
+			// If this key already has a graph node — which happens
+			// when runIndexing re-feeds an already-indexed record after a crash/restart — load it
+			// and treat the call as an update rather than a fresh insert. Without this, the absent
+			// existingVector causes oldNode = {} → a new random level, connections overwritten,
+			// and old-connection cleanup skipped, leaving dangling reverse edges and wrong levels.
+			const storedNode = nodeId && vector ? this.safeGetSync(nodeId, options) : undefined;
+			if (storedNode && storedNode.level !== undefined) {
+				// Treat as an update: carry forward the stored graph state so cleanup and level
+				// assignment below use the real existing connections instead of starting fresh.
+				oldNode = { ...storedNode };
+				// Reconstruct the existingVector from the stored node so distance computations
+				// in the cleanup pass use the right baseline (dequantize if int8).
+				if (!existingVector) {
+					existingVector =
+						storedNode.scale !== undefined
+							? dequantizeInt8(storedNode.vector as Int8Array, storedNode.scale)
+							: (storedNode.vector as number[]);
+				}
+			} else {
+				oldNode = {} as Node;
+			}
+		}
 		if (vector) {
 			// Pre-compute 1/|vector| for cosine distance so searchLayer can skip sqrt per neighbor
 			let invMag: number | undefined;
@@ -423,15 +458,22 @@ export class HierarchicalNavigableSmallWorld {
 					if (entryPointId !== undefined) break;
 				}
 				if (entryPointId === undefined) {
-					// scan through all nodes to find one with highest level
+					// Fallback scan: pass transaction so it sees the same write-set (not stale committed state),
+					// skip the node being deleted (it is typically the highest-level node and would be
+					// re-elected), and verify each candidate actually resolves before committing it.
 					let highestLevel = -1;
 					for (const { key, value } of this.indexStore.getRange({
 						start: 0,
 						end: Infinity,
+						transaction: options.transaction,
 					})) {
+						// skip the node being removed (safeKey mappings can't appear here: symbol-array
+						// and string keys sort outside the numeric 0..Infinity range)
+						if (key === nodeId) continue;
+						if (!value || value.level === undefined) continue;
 						if (value.level > highestLevel) {
 							entryPointId = key;
-							if (value.level === lastLevel) break; // if we found a node at the same level as the last entry point, we can stop
+							if (value.level === lastLevel) break; // found a node at the same level as the old entry point
 							highestLevel = value.level;
 						}
 					}
@@ -449,6 +491,9 @@ export class HierarchicalNavigableSmallWorld {
 				}
 			}
 			this.indexStore.remove(nodeId, options);
+			// Remove the safeKey→nodeId mapping so the key count used by autoScaleEf stays accurate
+			// and a re-insert of this primary key gets a fresh node rather than the deleted node's id.
+			this.indexStore.remove(safeKey, options);
 		}
 		const needsReindexing = new Map();
 		// remove connections to this node that are no longer valid
@@ -459,7 +504,14 @@ export class HierarchicalNavigableSmallWorld {
 					// get and copy the neighbor node so we can modify it
 					const neighborNode = updateNode(neighborId, this.safeGetSync(neighborId, options));
 					if (!neighborNode) continue;
-					for (let l2 = 0; l2 <= l; l2++) {
+					// On an UPDATE (vector != null), only remove the reverse edge at
+					// the exact level l where the old connection existed. Sweeping 0..l would destroy reverse
+					// edges at lower levels that were just re-added by addConnection or preserved by the
+					// splice logic above — causing asymmetry that accumulates with every re-embed.
+					// On DELETE (vector == null), the full 0..l sweep is correct: we want to remove every
+					// occurrence of nodeId from all levels of each neighbor.
+					const levelStart = vector ? l : 0;
+					for (let l2 = levelStart; l2 <= l; l2++) {
 						// remove the connection to this node from the neighbor node
 						neighborNode[l2] = neighborNode[l2]?.filter(({ id: nid }) => {
 							return nid !== nodeId;
@@ -491,8 +543,41 @@ export class HierarchicalNavigableSmallWorld {
 		for (const [id, updatedNode] of updatedNodes) {
 			this.indexStore.put(id, updatedNode, options);
 		}
-		for (const [key, vector] of needsReindexing) {
-			this.index(key, vector, vector, options);
+		for (const [key, orphanVector] of needsReindexing) {
+			// If the orphan IS the current entry point, re-running
+			// index() from it would find no other nodes to connect to (the entry point search returns
+			// itself), leaving it permanently isolated. Elect a surviving neighbor as entry point first
+			// so the orphan can reconnect to the live graph.
+			const currentEP = this.indexStore.getSync(ENTRY_POINT, options);
+			const orphanNodeId = this.indexStore.getSync(typeof key === 'number' ? [KEY_PREFIX, key] : key, options);
+			if (currentEP !== undefined && currentEP === orphanNodeId) {
+				// The orphan's own connection lists are empty, so look for a surviving node to elect:
+				// first among the nodes updated in this pass, then a full scan as fallback.
+				let replacementEP: number | undefined;
+				for (const [candidateId, candidateNode] of updatedNodes) {
+					if (candidateId !== orphanNodeId && candidateNode[0]?.length > 0) {
+						replacementEP = candidateId;
+						break;
+					}
+				}
+				if (replacementEP === undefined) {
+					for (const { key: candidateKey, value: candidateNode } of this.indexStore.getRange({
+						start: 0,
+						end: Infinity,
+						transaction: options.transaction,
+					})) {
+						if (candidateKey === orphanNodeId) continue;
+						if (candidateNode?.level !== undefined) {
+							replacementEP = candidateKey;
+							break;
+						}
+					}
+				}
+				if (replacementEP !== undefined) {
+					this.indexStore.put(ENTRY_POINT, replacementEP, options);
+				}
+			}
+			this.index(key, orphanVector, orphanVector, options);
 		}
 		this.checkSymmetry(nodeId, this.safeGetSync(nodeId, options), options);
 	}
@@ -669,10 +754,13 @@ export class HierarchicalNavigableSmallWorld {
 		},
 		context: any
 	) {
-		let limit = 0; // zero is ignored, only used if set below
+		let limit: number | undefined; // only set for threshold comparators; 0 is a valid threshold (e.g. dotProduct)
+		let limitInclusive = false; // true for `le`, false for `lt`
 		switch (comparator) {
-			case 'lt':
 			case 'le':
+				limitInclusive = true;
+			// fallthrough
+			case 'lt':
 				limit = value;
 			// fallthrough
 			case 'sort':
@@ -716,7 +804,10 @@ export class HierarchicalNavigableSmallWorld {
 				entryPointId = neighbor.id;
 			}
 		}
-		if (limit) results = results.filter((candidate) => candidate.distance < limit);
+		if (limit !== undefined)
+			results = results.filter((candidate) =>
+				limitInclusive ? candidate.distance <= limit : candidate.distance < limit
+			);
 		return results.map((candidate) => ({
 			// we return the result as an entry so we can provide distance as metadata
 			key: candidate.node.primaryKey, // return value

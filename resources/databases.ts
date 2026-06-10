@@ -1250,7 +1250,19 @@ export function table<TableResourceType>(tableDefinition: TableDefinition): Tabl
 							break;
 						}
 						if (hasExistingData) {
-							attribute.lastIndexedKey = attributeDescriptor?.lastIndexedKey ?? undefined;
+							// When the index definition itself has structurally changed (different distance
+							// metric, M, quantization, etc.), any
+							// previous lastIndexedKey checkpoint is for a graph built under the old options —
+							// resuming from it would mix two incompatible graphs. Reset to undefined so
+							// runIndexing clears the dbi and starts from scratch.
+							// For pure crash-recovery (same options, different PID/restartNumber), preserve
+							// the checkpoint so the backfill resumes rather than restarts.
+							const indexOptionsChanged =
+								JSON.stringify(stripSearchOnly(attributeDescriptor?.indexed)) !==
+								JSON.stringify(stripSearchOnly(attribute.indexed));
+							attribute.lastIndexedKey = indexOptionsChanged
+								? undefined
+								: (attributeDescriptor?.lastIndexedKey ?? undefined);
 							attribute.indexingPID = process.pid;
 							delete attribute.indexingFailed; // clear failure flag for the new run
 							dbi.isIndexing = true;
