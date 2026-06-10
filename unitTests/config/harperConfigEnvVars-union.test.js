@@ -194,6 +194,41 @@ describe('$union array directive', function () {
 
 			assert.deepStrictEqual(fileConfig.tls.uses, ['app-cert', 'server']);
 		});
+
+		it('does not union into an un-sourced array at runtime (DEFAULT no-op contract)', function () {
+			// Runtime (not install) + an existing array DEFAULT never set → DEFAULT yields, union no-ops.
+			process.env.HARPER_DEFAULT_CONFIG = JSON.stringify({ tls: { uses: { $union: ['server'] } } });
+			const fileConfig = { tls: { uses: ['app-cert'] } };
+
+			applyRuntimeEnvConfig(fileConfig, testRoot);
+
+			assert.deepStrictEqual(
+				fileConfig.tls.uses,
+				['app-cert'],
+				'runtime DEFAULT must not compose into an un-sourced array'
+			);
+		});
+
+		it('re-applies $union idempotently at runtime on a DEFAULT-sourced path', function () {
+			// Install sources the path via DEFAULT...
+			process.env.HARPER_DEFAULT_CONFIG = JSON.stringify({ tls: { uses: { $union: ['server'] } } });
+			const fileConfig = { tls: { uses: ['app-cert'] } };
+			applyRuntimeEnvConfig(fileConfig, testRoot, { isInstall: true });
+			assert.deepStrictEqual(fileConfig.tls.uses, ['app-cert', 'server']);
+
+			// ...so a later runtime boot re-applies the directive (no-op) on that DEFAULT-sourced path,
+			// and a grown list composes rather than no-ops.
+			applyRuntimeEnvConfig(fileConfig, testRoot);
+			assert.deepStrictEqual(fileConfig.tls.uses, ['app-cert', 'server'], 'idempotent runtime re-apply');
+
+			process.env.HARPER_DEFAULT_CONFIG = JSON.stringify({ tls: { uses: { $union: ['server', 'operations-api'] } } });
+			applyRuntimeEnvConfig(fileConfig, testRoot);
+			assert.deepStrictEqual(
+				fileConfig.tls.uses,
+				['app-cert', 'server', 'operations-api'],
+				'runtime compose on a DEFAULT-sourced path'
+			);
+		});
 	});
 
 	describe('composeConfigFromEnv', function () {
