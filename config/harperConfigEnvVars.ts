@@ -109,9 +109,11 @@ function isPlainObject(value: any): value is Record<string, any> {
  * Array-composition directive: `{ $union: [...] }`.
  *
  * A "directive" is a plain object that encodes a non-default merge operation for a
- * leaf value instead of the usual overwrite. It is recognized by a `$`-prefixed key
- * (real config keys are never `$`-prefixed), so `flattenObject` treats it as a leaf
- * rather than recursing into `tls.uses.$union`.
+ * leaf value instead of the usual overwrite. It is recognized by the presence of a
+ * supported directive key (see SUPPORTED_DIRECTIVES), so `flattenObject` treats it as
+ * a leaf rather than recursing into `tls.uses.$union`. Other `$`-prefixed keys (e.g. a
+ * JSON Schema's `$schema`/`$ref` inside component config) are NOT directives and pass
+ * through as ordinary config values.
  *
  * `$union` guarantees the listed items are present in the target array — the
  * order-preserving union of (existing ∪ listed). It is idempotent under repeated
@@ -127,12 +129,16 @@ function isPlainObject(value: any): value is Record<string, any> {
  * previously set" contract. Use HARPER_SET_CONFIG to compose at runtime.
  */
 const DIRECTIVE_UNION = '$union';
+const SUPPORTED_DIRECTIVES = [DIRECTIVE_UNION];
 
 /**
- * True if value is a plain object carrying a directive (a `$`-prefixed key).
+ * True if value is a plain object carrying a supported directive key. Detection is
+ * deliberately narrowed to the known sentinels (not any `$`-prefixed key) so ordinary
+ * config that happens to contain `$`-keys — e.g. a component config embedding a JSON
+ * Schema with `$schema`/`$ref` — keeps flattening and applying as plain values.
  */
 function isDirectiveObject(value: any): boolean {
-	return isPlainObject(value) && Object.keys(value).some((key) => key.startsWith('$'));
+	return isPlainObject(value) && SUPPORTED_DIRECTIVES.some((directive) => directive in value);
 }
 
 /**
@@ -142,10 +148,9 @@ function isDirectiveObject(value: any): boolean {
 function parseDirective(value: Record<string, any>, path: string): { items: any[] } {
 	const keys = Object.keys(value);
 	if (keys.length !== 1) {
-		throw new ConfigEnvVarError(`Config directive at "${path}" must be the only key, got: ${keys.join(', ')}`);
-	}
-	if (keys[0] !== DIRECTIVE_UNION) {
-		throw new ConfigEnvVarError(`Unknown config directive "${keys[0]}" at "${path}" (supported: ${DIRECTIVE_UNION})`);
+		throw new ConfigEnvVarError(
+			`Config directive "${DIRECTIVE_UNION}" at "${path}" must be the only key, got: ${keys.join(', ')}`
+		);
 	}
 	const items = value[DIRECTIVE_UNION];
 	if (!Array.isArray(items)) {

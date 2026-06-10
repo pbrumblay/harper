@@ -100,12 +100,15 @@ describe('$union array directive', function () {
 	});
 
 	describe('directive recognition', function () {
-		it('isDirectiveObject is true only for $-prefixed-key objects', function () {
+		it('isDirectiveObject is true only for supported directive keys', function () {
 			assert.equal(isDirectiveObject({ $union: [] }), true);
 			assert.equal(isDirectiveObject({ uses: [] }), false);
 			assert.equal(isDirectiveObject(['a']), false);
 			assert.equal(isDirectiveObject('a'), false);
 			assert.equal(isDirectiveObject({}), false);
+			// unsupported $-keys are NOT directives (e.g. JSON Schema keywords in component config)
+			assert.equal(isDirectiveObject({ $schema: 'https://json-schema.org/draft/2020-12/schema' }), false);
+			assert.equal(isDirectiveObject({ $append: ['x'] }), false);
 		});
 
 		it('flattenObject treats a directive as a leaf (does not recurse into $union)', function () {
@@ -266,9 +269,18 @@ describe('$union array directive', function () {
 			assert.throws(() => applyRuntimeEnvConfig({}, testRoot), /requires an array value/);
 		});
 
-		it('rejects an unknown directive', function () {
-			process.env.HARPER_SET_CONFIG = JSON.stringify({ tls: { uses: { $append: ['server'] } } });
-			assert.throws(() => applyRuntimeEnvConfig({}, testRoot), /Unknown config directive/);
+		it('passes unsupported $-keys through as plain config (forward/JSON-Schema compatibility)', function () {
+			// e.g. a component config embedding a JSON Schema — must keep flattening and applying,
+			// not throw at boot (root config is forward-compatible; app config allows arbitrary keys)
+			process.env.HARPER_SET_CONFIG = JSON.stringify({
+				'my-app': { schema: { $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object' } },
+			});
+			const fileConfig = {};
+
+			applyRuntimeEnvConfig(fileConfig, testRoot);
+
+			assert.strictEqual(fileConfig['my-app'].schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
+			assert.strictEqual(fileConfig['my-app'].schema.type, 'object');
 		});
 
 		it('rejects a directive mixed with other keys', function () {
