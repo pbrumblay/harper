@@ -38,7 +38,7 @@
  * Related fixes: commit 251e5b73 (fix(hnsw): six data-integrity fixes)
  */
 import { suite, test, before, after } from 'node:test';
-import { ok } from 'node:assert/strict';
+import { ok, strictEqual } from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { startHarper, teardownHarper, type ContextWithHarper } from '@harperfast/integration-testing';
 // @ts-expect-error no type declarations on .mjs utils
@@ -100,19 +100,6 @@ function seedVector(seed: number, dims: number = 8): number[] {
 	return v.map((x) => x * inv);
 }
 
-/** Cosine distance — matches the HNSW default metric. */
-function cosineDistance(a: number[], b: number[]): number {
-	let dot = 0;
-	let magA = 0;
-	let magB = 0;
-	for (let i = 0; i < a.length; i++) {
-		dot += a[i] * b[i];
-		magA += a[i] * a[i];
-		magB += b[i] * b[i];
-	}
-	return 1 - dot / ((Math.sqrt(magA) || 1) * (Math.sqrt(magB) || 1));
-}
-
 // ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
@@ -129,24 +116,37 @@ async function vectorSearch(
 	headers: Record<string, string>,
 	resourcePath: string,
 	target: number[],
-	opts: { limit?: number } = {}
+	opts: { limit?: number; select?: string[] } = {}
 ): Promise<any[]> {
 	const body: any = {
 		sort: { attribute: 'embedding', target, distance: 'cosine' },
 	};
 	if (opts.limit !== undefined) body.limit = opts.limit;
+	if (opts.select !== undefined) body.select = opts.select;
+	return queryResource(httpURL, headers, resourcePath, body);
+}
 
-	const resp = await request(httpURL)
-		.query(resourcePath)
-		.set(headers)
-		.set('Content-Type', 'application/json')
-		.method('QUERY' as any)
-		.send(body);
-
+/**
+ * Issue an HTTP QUERY request via fetch — supertest/superagent has no API for
+ * non-standard verbs, while undici's fetch passes custom method tokens through.
+ */
+async function queryResource(
+	httpURL: string,
+	headers: Record<string, string>,
+	resourcePath: string,
+	body: any
+): Promise<any[]> {
+	const resp = await fetch(`${httpURL}${resourcePath}`, {
+		method: 'QUERY',
+		headers: { ...headers, 'Content-Type': 'application/json' },
+		body: JSON.stringify(body),
+	});
+	const text = await resp.text();
 	if (resp.status !== 200) {
-		throw new Error(`QUERY ${resourcePath} returned ${resp.status}: ${JSON.stringify(resp.body)}`);
+		throw new Error(`QUERY ${resourcePath} returned ${resp.status}: ${text}`);
 	}
-	return Array.isArray(resp.body) ? resp.body : [];
+	const data = JSON.parse(text);
+	return Array.isArray(data) ? data : [];
 }
 
 /**
@@ -167,18 +167,7 @@ async function vectorThresholdSearch(
 	const body = {
 		conditions: [{ attribute: 'embedding', comparator, value, target }],
 	};
-
-	const resp = await request(httpURL)
-		.query(resourcePath)
-		.set(headers)
-		.set('Content-Type', 'application/json')
-		.method('QUERY' as any)
-		.send(body);
-
-	if (resp.status !== 200) {
-		throw new Error(`QUERY threshold ${resourcePath} returned ${resp.status}: ${JSON.stringify(resp.body)}`);
-	}
-	return Array.isArray(resp.body) ? resp.body : [];
+	return queryResource(httpURL, headers, resourcePath, body);
 }
 
 /** POST a record to the REST endpoint. */
@@ -416,47 +405,56 @@ suite('HNSW vector-index data-integrity (integration)', (ctx: ContextWithHarper)
 		const headers = client.headers;
 		const path = `/${TABLE}/`;
 
-		// 2-D vectors for exact, predictable cosine distances:
-		//   [1,0] vs [1,0]             → distance ≈ 0     (exact)
-		//   [1,0] vs [1/√2, 1/√2]     → distance ≈ 0.293 (near)
-		//   [1,0] vs [0,1]             → distance = 1     (far)
+		// 2-D vectors at three well-separated cosine distances from [1,0]:
+		//   [1,0]            → distance 0      (exact; representable in float32, so exactly 0)
+		//   [1/√2, 1/√2]    → distance ≈0.293 (near)
+		//   [0,1]            → distance 1      (far)
+		// Vectors are STORED as float32, so a float64 prediction of the near distance
+		// differs from the server's computed value at ~1e-8. Boundary assertions must
+		// therefore use the server's own $distance values, not locally computed ones.
 		const INV_SQRT2 = 1 / Math.sqrt(2);
 		const target = [1, 0];
-		const exactVec = [1, 0];
-		const nearVec = [INV_SQRT2, INV_SQRT2];
-		const farVec = [0, 1];
 
-		const dExact = cosineDistance(target, exactVec);
-		const dNear = cosineDistance(target, nearVec);
+		await insertRecord(httpURL, headers, path, { id: 'exact', embedding: [1, 0] });
+		await insertRecord(httpURL, headers, path, { id: 'near', embedding: [INV_SQRT2, INV_SQRT2] });
+		await insertRecord(httpURL, headers, path, { id: 'far', embedding: [0, 1] });
 
-		await insertRecord(httpURL, headers, path, { id: 'exact', embedding: exactVec });
-		await insertRecord(httpURL, headers, path, { id: 'near', embedding: nearVec });
-		await insertRecord(httpURL, headers, path, { id: 'far', embedding: farVec });
+		// Fetch the actual stored distances; these are the exact values the threshold
+		// filter compares against (same candidate-distance computation, no rerank on
+		// a non-quantized index).
+		const ranked = await vectorSearch(httpURL, headers, path, target, { select: ['id', '$distance'] });
+		const distanceOf = (id: string) => {
+			const rec = ranked.find((r: any) => r.id === id);
+			ok(rec && typeof rec.$distance === 'number', `expected $distance for '${id}', got ${JSON.stringify(rec)}`);
+			return rec.$distance as number;
+		};
+		const dExact = distanceOf('exact');
+		const dNear = distanceOf('near');
+		strictEqual(dExact, 0, `[1,0] is float32-representable; self-distance must be exactly 0, got ${dExact}`);
 
-		// 3a. le(dNear) must include both "exact" (dist < boundary) and "near"
-		//     (dist == boundary — this is the fix).
+		// le(dNear) must include both "exact" (dist < boundary) and "near"
+		// (dist == boundary — this is the <= fix).
 		const leNear = await vectorThresholdSearch(httpURL, headers, path, target, 'le', dNear);
 		const leNearIds = new Set(leNear.map((r: any) => r.id));
-		ok(leNearIds.has('exact'), `le(dNear) must include 'exact' (${dExact} ≤ ${dNear})`);
+		ok(leNearIds.has('exact'), `le(dNear) must include 'exact' (0 ≤ ${dNear})`);
 		ok(leNearIds.has('near'), `le(dNear) must include 'near' at exact boundary distance ${dNear}`);
 		ok(!leNearIds.has('far'), `le(dNear) must not include 'far' (distance 1 > ${dNear})`);
 
-		// 3b. lt(dNear) must include "exact" but NOT "near" (strict).
+		// lt(dNear) must include "exact" but NOT "near" (strict).
 		const ltNear = await vectorThresholdSearch(httpURL, headers, path, target, 'lt', dNear);
 		const ltNearIds = new Set(ltNear.map((r: any) => r.id));
-		ok(ltNearIds.has('exact'), `lt(dNear) must include 'exact' (${dExact} < ${dNear})`);
+		ok(ltNearIds.has('exact'), `lt(dNear) must include 'exact' (0 < ${dNear})`);
 		ok(!ltNearIds.has('near'), `lt(dNear) must NOT include 'near' at boundary (strict less-than)`);
 
-		// 3c. le(~0) must return only the exact-match record.
-		//     Pre-fix falsy-0 issue: if limit was checked with a truthy guard (if (limit))
-		//     rather than (limit !== undefined), le(0) would skip the filter entirely.
-		const epsilon = 1e-10;
-		const leZero = await vectorThresholdSearch(httpURL, headers, path, target, 'le', dExact + epsilon);
+		// le(0) must return only the exact-match record. Pre-fix falsy-0 issue: a truthy
+		// guard (if (limit)) skipped the filter entirely for a threshold of 0, returning
+		// every record. dExact is exactly 0, so this exercises the real boundary.
+		const leZero = await vectorThresholdSearch(httpURL, headers, path, target, 'le', dExact);
 		const leZeroIds = new Set(leZero.map((r: any) => r.id));
-		ok(leZeroIds.has('exact'), `le(~0) must include the exact-match record`);
+		ok(leZeroIds.has('exact'), `le(0) must include the exact-match record`);
 		ok(
 			!leZeroIds.has('near') && !leZeroIds.has('far'),
-			`le(~0) must return only the exact match; got ${JSON.stringify([...leZeroIds])}`
+			`le(0) must return only the exact match; got ${JSON.stringify([...leZeroIds])}`
 		);
 	});
 
