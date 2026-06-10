@@ -392,14 +392,40 @@ describe('OpenAIBackend', () => {
 			// OpenAI-compatible shims (vLLM, Ollama-compat, older gateways) only understand
 			// `max_tokens`; keep the legacy field for any non-api.openai.com endpoint.
 			const fetch = mockFetch(() => chatResponse());
-			const b = new OpenAIBackend(
-				{ apiKey: API_KEY, model: 'm', baseUrl: 'https://my-vllm.internal/v1' },
-				fetch
-			);
+			const b = new OpenAIBackend({ apiKey: API_KEY, model: 'm', baseUrl: 'https://my-vllm.internal/v1' }, fetch);
 			await b.generate('q', { accounting: ACCOUNTING, maxTokens: 100 });
 			const sent = JSON.parse(fetch.calls[0].init.body);
 			assert.strictEqual(sent.max_tokens, 100);
-			assert.strictEqual(sent.max_completion_tokens, undefined, 'max_completion_tokens must not appear for compat endpoint');
+			assert.strictEqual(
+				sent.max_completion_tokens,
+				undefined,
+				'max_completion_tokens must not appear for compat endpoint'
+			);
+		});
+
+		it('URL-parsed native-OpenAI detection: port-suffixed url still resolves as native', async () => {
+			// api.openai.com:443 should still classify as native — startsWith would
+			// miss it but URL-hostname check is correct.
+			const fetch = mockFetch(() => chatResponse());
+			const b = new OpenAIBackend({ apiKey: API_KEY, model: 'm', baseUrl: 'https://api.openai.com:443/v1' }, fetch);
+			await b.generate('q', { accounting: ACCOUNTING, maxTokens: 50 });
+			const sent = JSON.parse(fetch.calls[0].init.body);
+			assert.strictEqual(sent.max_completion_tokens, 50, 'port-suffix url must still be treated as native');
+			assert.strictEqual(sent.max_tokens, undefined);
+		});
+
+		it('URL-parsed native-OpenAI detection: subdomain-spoofed url is not native', async () => {
+			// api.openai.com.attacker.com starts with "https://api.openai.com" but its
+			// hostname is "api.openai.com.attacker.com" — URL parsing correctly rejects it.
+			const fetch = mockFetch(() => chatResponse());
+			const b = new OpenAIBackend(
+				{ apiKey: API_KEY, model: 'm', baseUrl: 'https://api.openai.com.attacker.com/v1' },
+				fetch
+			);
+			await b.generate('q', { accounting: ACCOUNTING, maxTokens: 50 });
+			const sent = JSON.parse(fetch.calls[0].init.body);
+			assert.strictEqual(sent.max_tokens, 50, 'spoofed subdomain must not be treated as native');
+			assert.strictEqual(sent.max_completion_tokens, undefined);
 		});
 
 		it("maps finish_reason='length' to finishReason='length'", async () => {
@@ -661,6 +687,49 @@ describe('OpenAIBackend', () => {
 			}, /tool-call arguments exceed/);
 		});
 
+		it('throws when total tool-call argument chars across all entries exceed 8 MiB', async () => {
+			// Use many small-ish deltas per entry so no single SSE event hits the 1 MiB SSE
+			// buffer cap. Each delta is 512 KiB; 17 deltas = ~8.5 MiB total (> 8 MiB cap).
+			// They all go to the same tool-call index so the per-entry cap (1 MiB) would
+			// trip first — instead use 9 distinct indices, each with a 1-MiB payload split
+			// across two SSE events of 512 KiB each so no single event hits the SSE cap.
+			const half = 'x'.repeat(512 * 1024); // 512 KiB per SSE event
+			const encoder = new TextEncoder();
+			const stream = new ReadableStream({
+				start(controller) {
+					// 9 indices × 2 events × 512 KiB = 9 MiB total (exceeds 8 MiB cap).
+					// Per-entry: each index gets 1 MiB total (exactly the per-entry cap).
+					// The total-stream cap trips before the 9th index finishes.
+					for (let i = 0; i < 9; i++) {
+						// First event: open the tool call with first half of arguments
+						const open = {
+							choices: [
+								{ delta: { tool_calls: [{ index: i, id: `c${i}`, function: { name: `fn${i}`, arguments: half } }] } },
+							],
+						};
+						controller.enqueue(
+							encoder.encode(`data: ${JSON.stringify(open)}` + String.fromCharCode(10) + String.fromCharCode(10))
+						);
+						// Second event: second half pushes entry to 1 MiB (at the per-entry limit)
+						const cont = { choices: [{ delta: { tool_calls: [{ index: i, function: { arguments: half } }] } }] };
+						controller.enqueue(
+							encoder.encode(`data: ${JSON.stringify(cont)}` + String.fromCharCode(10) + String.fromCharCode(10))
+						);
+					}
+					controller.close();
+				},
+			});
+			const fetch = mockFetch(
+				() => new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+			);
+			const b = new OpenAIBackend({ apiKey: API_KEY, model: 'm' }, fetch);
+			await assert.rejects(async () => {
+				for await (const _c of b.generateStream('q', { accounting: ACCOUNTING })) {
+					/* drain */
+				}
+			}, /total stream cap/);
+		});
+
 		it('drops streamed tool calls with malformed JSON arguments', async () => {
 			const fetch = mockFetch(() =>
 				sseResponse([
@@ -811,24 +880,27 @@ describe('OpenAI streaming tool-call accumulator cardinality cap', () => {
 				controller.close();
 			},
 		});
-		const fetch = mockFetch(() => new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }));
-		const b = new OpenAIBackend({ apiKey: API_KEY, model: 'm' }, fetch);
-		await assert.rejects(
-			async () => {
-				for await (const _c of b.generateStream('q', { accounting: ACCOUNTING })) { /* drain */ }
-			},
-			/tool-call accumulator exceeded 128/
+		const fetch = mockFetch(
+			() => new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
 		);
+		const b = new OpenAIBackend({ apiKey: API_KEY, model: 'm' }, fetch);
+		await assert.rejects(async () => {
+			for await (const _c of b.generateStream('q', { accounting: ACCOUNTING })) {
+				/* drain */
+			}
+		}, /tool-call accumulator exceeded 128/);
 	});
 
 	it('does not throw for a normal response with a small number of tool calls', async () => {
 		const fetch = mockFetch(() =>
 			sseResponse([
 				{
-					choices: [{
-						delta: { tool_calls: [{ index: 0, id: 'c0', function: { name: 'fn', arguments: '{"x":1}' } }] },
-						finish_reason: 'tool_calls',
-					}],
+					choices: [
+						{
+							delta: { tool_calls: [{ index: 0, id: 'c0', function: { name: 'fn', arguments: '{"x":1}' } }] },
+							finish_reason: 'tool_calls',
+						},
+					],
 				},
 			])
 		);

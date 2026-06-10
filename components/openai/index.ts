@@ -67,6 +67,10 @@ const MAX_UPSTREAM_ERROR_MESSAGE_CHARS = 500;
 // upstream can allocate unbounded map entries (one per index value). Real
 // responses use single-digit counts.
 const MAX_TOOL_CALL_ACCUMULATOR_ENTRIES = 128;
+// Total tool-call argument chars across all entries in one stream. The per-entry
+// cap (1 MiB) plus the 128-entry cap still allows ~128 MiB accumulated; this cap
+// keeps any single stream well-bounded. Real responses use tens of KB.
+const MAX_TOTAL_TOOL_CALL_ARGS_CHARS = 8 * 1024 * 1024; // 8 MiB
 
 const log = harperLogger.forComponent('openai').conditional;
 
@@ -115,7 +119,11 @@ export class OpenAIBackend implements ModelBackend {
 	constructor(config: OpenAIBackendConfig = {}, fetchImpl: typeof fetch = fetch) {
 		this.#apiKey = requireCredential(config.apiKey, 'OpenAI', 'apiKey', OpenAIBackendError);
 		this.#baseUrl = normalizeOrigin(config.baseUrl, { host: DEFAULT_BASE_URL, secure: true });
-		this.#isNativeOpenAI = this.#baseUrl.startsWith('https://api.openai.com');
+		try {
+			this.#isNativeOpenAI = new URL(this.#baseUrl).hostname === 'api.openai.com';
+		} catch {
+			this.#isNativeOpenAI = false;
+		}
 		this.#defaultModel = config.model;
 		this.#organization = config.organization;
 		this.#requestTimeoutMs = config.requestTimeoutMs;
@@ -196,6 +204,7 @@ export class OpenAIBackend implements ModelBackend {
 		// never a partial string.
 		const toolBuf = new Map<number, ToolCallAccumulator>();
 		let finalFinishReason: GenerateResult['finishReason'] | undefined;
+		let totalArgChars = 0;
 
 		for await (const event of readSse(res.body)) {
 			const choice = event.choices?.[0];
@@ -207,7 +216,7 @@ export class OpenAIBackend implements ModelBackend {
 			}
 			if (Array.isArray(delta?.tool_calls)) {
 				for (const tcDelta of delta.tool_calls) {
-					accumulateToolCallDelta(toolBuf, tcDelta);
+					totalArgChars = accumulateToolCallDelta(toolBuf, tcDelta, totalArgChars);
 				}
 			}
 			if (choice.finish_reason) {
@@ -448,7 +457,11 @@ interface ToolCallAccumulator {
 	argumentsBuf: string;
 }
 
-function accumulateToolCallDelta(buf: Map<number, ToolCallAccumulator>, delta: OpenAIToolCallDelta): void {
+function accumulateToolCallDelta(
+	buf: Map<number, ToolCallAccumulator>,
+	delta: OpenAIToolCallDelta,
+	totalArgChars: number
+): number {
 	const index = typeof delta.index === 'number' ? delta.index : 0;
 	let acc = buf.get(index);
 	if (!acc) {
@@ -465,16 +478,23 @@ function accumulateToolCallDelta(buf: Map<number, ToolCallAccumulator>, delta: O
 	if (delta.id) acc.id = delta.id;
 	if (delta.function?.name) acc.name = delta.function.name;
 	if (typeof delta.function?.arguments === 'string') {
-		// Defend against an unbounded accumulator: the per-event SSE buffer cap
-		// stops a single oversize event, but tool-call arguments are *built up*
-		// across many sub-cap events. Throw before V8 hits string-length limits.
+		// Per-entry cap: the per-event SSE buffer cap stops a single oversize event,
+		// but tool-call arguments are *built up* across many sub-cap events.
 		if (acc.argumentsBuf.length + delta.function.arguments.length > MAX_TOOL_CALL_ARGS_CHARS) {
 			throw new OpenAIBackendError(
 				`OpenAI tool-call arguments exceed ${MAX_TOOL_CALL_ARGS_CHARS} chars (index ${index})`
 			);
 		}
+		// Total-stream cap: 128 entries each at 1 MiB still allows ~128 MiB accumulated.
+		totalArgChars += delta.function.arguments.length;
+		if (totalArgChars > MAX_TOTAL_TOOL_CALL_ARGS_CHARS) {
+			throw new OpenAIBackendError(
+				`OpenAI tool-call arguments exceed total stream cap of ${MAX_TOTAL_TOOL_CALL_ARGS_CHARS} chars`
+			);
+		}
 		acc.argumentsBuf += delta.function.arguments;
 	}
+	return totalArgChars;
 }
 
 function flushToolCallBuffer(buf: Map<number, ToolCallAccumulator>): Partial<ToolCall>[] {

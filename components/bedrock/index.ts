@@ -50,6 +50,8 @@ const MAX_TOOL_CALL_ARGS_CHARS = 1 << 20;
 // `index` values could otherwise allocate unbounded map entries if
 // content_block_stop events never arrive. Matches the cap in the direct backends.
 const MAX_TOOL_CALL_ACCUMULATOR_ENTRIES = 128;
+// Total tool-call argument chars across all content blocks in one stream.
+const MAX_TOTAL_TOOL_CALL_ARGS_CHARS = 8 * 1024 * 1024; // 8 MiB
 
 const log = harperLogger.forComponent('bedrock').conditional;
 
@@ -371,7 +373,12 @@ function rejectNovaModel(modelId: string): void {
 	}
 }
 
-function buildGenerateBody(family: Family, modelId: string, input: GenerateInput, opts: BackendOpts<GenerateOpts>): object {
+function buildGenerateBody(
+	family: Family,
+	modelId: string,
+	input: GenerateInput,
+	opts: BackendOpts<GenerateOpts>
+): object {
 	if (family === 'anthropic') return buildAnthropicBody(input, opts);
 	if (family === 'meta') return buildLlamaBody(input, opts);
 	if (family === 'amazon') {
@@ -551,6 +558,7 @@ async function* parseAnthropicStream(
 	const decoder = new TextDecoder('utf-8');
 	const toolBuf = new Map<number, { id: string; name: string; argumentsBuf: string }>();
 	let finalFinishReason: GenerateResult['finishReason'] | undefined;
+	let totalArgChars = 0;
 
 	for await (const event of body) {
 		if (!event.chunk?.bytes) continue;
@@ -605,6 +613,12 @@ async function* parseAnthropicStream(
 					if (acc.argumentsBuf.length + delta.partial_json.length > MAX_TOOL_CALL_ARGS_CHARS) {
 						throw new BedrockBackendError(
 							`Bedrock tool-call arguments exceed ${MAX_TOOL_CALL_ARGS_CHARS} chars (index ${index})`
+						);
+					}
+					totalArgChars += delta.partial_json.length;
+					if (totalArgChars > MAX_TOTAL_TOOL_CALL_ARGS_CHARS) {
+						throw new BedrockBackendError(
+							`Bedrock tool-call arguments exceed total stream cap of ${MAX_TOTAL_TOOL_CALL_ARGS_CHARS} chars`
 						);
 					}
 					acc.argumentsBuf += delta.partial_json;

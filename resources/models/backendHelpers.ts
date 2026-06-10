@@ -54,6 +54,9 @@ export function assignFiniteTokenCount(
 export const MAX_RESPONSE_BODY_BYTES = 64 << 20; // 64 MiB
 export const MAX_ERROR_BODY_BYTES = 256 << 10; // 256 KiB
 
+// Module-level TextDecoder avoids per-call allocation in the streaming read path.
+const BODY_DECODER = new TextDecoder('utf-8');
+
 /**
  * Read at most `maxBytes` from `res.body`, then JSON.parse. Throws the
  * caller's error class — never a bare `SyntaxError` or `RangeError` — so
@@ -74,29 +77,42 @@ export async function readBoundedJson<T>(
 	}
 	const chunks: Uint8Array[] = [];
 	let totalBytes = 0;
-	for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
-		totalBytes += chunk.byteLength;
-		if (totalBytes > maxBytes) {
-			throw new Err(
-				`${endpoint} response body exceeds ${maxBytes}-byte limit (received >${totalBytes} bytes); ` +
-					'rejecting to prevent unbounded memory use'
-			);
+	try {
+		for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+			totalBytes += chunk.byteLength;
+			if (totalBytes > maxBytes) {
+				// Release the connection promptly before throwing.
+				res.body?.cancel?.().catch(() => {});
+				throw new Err(
+					`${endpoint} response body exceeds ${maxBytes}-byte limit (received >${totalBytes} bytes); ` +
+						'rejecting to prevent unbounded memory use'
+				);
+			}
+			chunks.push(chunk);
 		}
-		chunks.push(chunk);
+	} catch (err) {
+		// Re-wrap unexpected stream errors (network abort, socket reset, etc.)
+		// so callers always see the backend's Err class, not a raw DOMException
+		// or Node stream error. Don't rewrap errors we already constructed above.
+		if (err instanceof Err) throw err;
+		throw new Err(`${endpoint} stream error while reading response body: ${(err as Error)?.message ?? err}`);
 	}
-	const merged = totalBytes === 0 ? '' : new TextDecoder('utf-8').decode(
-		chunks.length === 1
-			? chunks[0]
-			: (() => {
-				const buf = new Uint8Array(totalBytes);
-				let offset = 0;
-				for (const c of chunks) {
-					buf.set(c, offset);
-					offset += c.byteLength;
-				}
-				return buf;
-			})()
-	);
+	const merged =
+		totalBytes === 0
+			? ''
+			: BODY_DECODER.decode(
+					chunks.length === 1
+						? chunks[0]
+						: (() => {
+								const buf = new Uint8Array(totalBytes);
+								let offset = 0;
+								for (const c of chunks) {
+									buf.set(c, offset);
+									offset += c.byteLength;
+								}
+								return buf;
+							})()
+				);
 	try {
 		return JSON.parse(merged) as T;
 	} catch {

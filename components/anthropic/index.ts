@@ -65,6 +65,8 @@ const MAX_UPSTREAM_ERROR_MESSAGE_CHARS = 500;
 // `index` from content_block_start events; a hostile upstream can open unbounded
 // entries if content_block_stop never arrives for earlier indices.
 const MAX_TOOL_CALL_ACCUMULATOR_ENTRIES = 128;
+// Total tool-call argument chars across all content blocks in one stream.
+const MAX_TOTAL_TOOL_CALL_ARGS_CHARS = 8 * 1024 * 1024; // 8 MiB
 
 const log = harperLogger.forComponent('anthropic').conditional;
 
@@ -144,6 +146,7 @@ export class AnthropicBackend implements ModelBackend {
 		// partial strings.
 		const toolBuf = new Map<number, AnthropicToolCallAccumulator>();
 		let finalFinishReason: GenerateResult['finishReason'] | undefined;
+		let totalArgChars = 0;
 
 		for await (const event of readSse(res.body)) {
 			const chunk: GenerateChunk = {};
@@ -194,6 +197,12 @@ export class AnthropicBackend implements ModelBackend {
 						if (acc.argumentsBuf.length + event.delta.partial_json.length > MAX_TOOL_CALL_ARGS_CHARS) {
 							throw new AnthropicBackendError(
 								`Anthropic tool-call arguments exceed ${MAX_TOOL_CALL_ARGS_CHARS} chars (index ${event.index})`
+							);
+						}
+						totalArgChars += event.delta.partial_json.length;
+						if (totalArgChars > MAX_TOTAL_TOOL_CALL_ARGS_CHARS) {
+							throw new AnthropicBackendError(
+								`Anthropic tool-call arguments exceed total stream cap of ${MAX_TOTAL_TOOL_CALL_ARGS_CHARS} chars`
 							);
 						}
 						acc.argumentsBuf += event.delta.partial_json;

@@ -1,8 +1,6 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 const { ModelCallAnalyticsWriter } = require('#src/resources/models/analyticsTable');
 
@@ -261,25 +259,29 @@ describe('ModelCallAnalyticsWriter', () => {
 // ---- schema correctness (finding 1: phantom indexes) ----------------------------
 // flush() writes via primaryStore.put which bypasses updateIndices, so
 // `indexed: true` on any non-PK attribute produces a permanently-empty index.
-// Verify the schema declaration carries no `indexed` on non-PK attributes.
+// Uses the exported MODEL_CALL_ATTRIBUTES const for a structural assertion that is
+// not fragile to source reformatting or minification.
+const { MODEL_CALL_ATTRIBUTES } = require('#src/resources/models/analyticsTable');
+
 describe('getModelCallsTable schema', () => {
 	it('hdb_model_calls attributes do not carry indexed:true (would produce phantom empty indexes)', () => {
-		// Read the compiled/type-stripped source to avoid touching real LMDB.
-		// We check the TS source because the test suite runs with typestrip enabled.
-		const srcPath = path.resolve(__dirname, '../../../resources/models/analyticsTable.ts');
-		const src = fs.readFileSync(srcPath, 'utf8');
-		// Extract the attributes array block (everything between the first
-		// `attributes: [` and the matching `]`).
-		const attrMatch = src.match(/attributes:\s*\[([\s\S]*?)\],/);
-		assert.ok(attrMatch, 'could not locate attributes array in analyticsTable.ts');
-		const attrBlock = attrMatch[1];
-		// The primary key is the only entry allowed to carry `isPrimaryKey: true`.
-		// No entry should carry `indexed: true`.
-		assert.ok(
-			!attrBlock.includes('indexed: true') && !attrBlock.includes("indexed:true"),
-			`hdb_model_calls schema carries indexed: true on a non-PK attribute — ` +
-				`flush() bypasses updateIndices so the index would be permanently empty`
+		assert.ok(Array.isArray(MODEL_CALL_ATTRIBUTES), 'MODEL_CALL_ATTRIBUTES must be exported');
+		const nonPk = MODEL_CALL_ATTRIBUTES.filter((a) => !a.isPrimaryKey);
+		const offenders = nonPk.filter((a) => a.indexed);
+		assert.strictEqual(
+			offenders.length,
+			0,
+			'hdb_model_calls schema carries indexed: true on non-PK attributes — ' +
+				'flush() bypasses updateIndices so the index would be permanently empty. ' +
+				'Offending: ' +
+				offenders.map((a) => a.name).join(', ')
 		);
+	});
+
+	it('the primary key attribute has isPrimaryKey: true and name "id"', () => {
+		const pk = MODEL_CALL_ATTRIBUTES.find((a) => a.isPrimaryKey);
+		assert.ok(pk, 'expected one isPrimaryKey attribute');
+		assert.strictEqual(pk.name, 'id');
 	});
 
 	it('flush still writes rows retrievable by their numeric id (PK scan)', async () => {
@@ -287,9 +289,15 @@ describe('getModelCallsTable schema', () => {
 		const store = new Map();
 		const mockTbl = {
 			primaryStore: {
-				put(id, record) { store.set(id, record); },
-				remove(id) { store.delete(id); },
-				getKeys() { return []; },
+				put(id, record) {
+					store.set(id, record);
+				},
+				remove(id) {
+					store.delete(id);
+				},
+				getKeys() {
+					return [];
+				},
 			},
 		};
 		const w = new Writer({ flushIntervalMs: 60_000, cleanupIntervalMs: 60_000, getTable: () => mockTbl });
