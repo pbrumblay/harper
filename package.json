@@ -103,8 +103,7 @@
 		}
 	},
 	"engines": {
-		"node": ">=20",
-		"minimum-node": "20.0.0"
+		"node": "^22.18.0 || >=24.0.0"
 	},
 	"devEngines": {
 		"runtime": {
