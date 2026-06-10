@@ -106,6 +106,121 @@ function isPlainObject(value: any): value is Record<string, any> {
 }
 
 /**
+ * Array-composition directive: `{ $union: [...] }`.
+ *
+ * A "directive" is a plain object that encodes a non-default merge operation for a
+ * leaf value instead of the usual overwrite. It is recognized by the presence of a
+ * supported directive key (see SUPPORTED_DIRECTIVES), so `flattenObject` treats it as
+ * a leaf rather than recursing into `tls.uses.$union`. Other `$`-prefixed keys (e.g. a
+ * JSON Schema's `$schema`/`$ref` inside component config) are NOT directives and pass
+ * through as ordinary config values.
+ *
+ * `$union` guarantees the listed items are present in the target array — the
+ * order-preserving union of (existing ∪ listed). It is idempotent under repeated
+ * application and never removes entries it didn't name, which is what lets a platform
+ * layer reapply its required entries on every restart without dropping an app's
+ * additions (even on the HARPER_SET_CONFIG force/drift path). We deliberately do not
+ * add `$append` (not idempotent) or `$replace` (a bare array already replaces); the
+ * vocabulary stays open so further directives can be added non-breaking.
+ *
+ * Note on HARPER_DEFAULT_CONFIG: a `$union` there composes at install (or against a
+ * value DEFAULT previously set), but at runtime DEFAULT yields to an existing
+ * un-sourced array and the union no-ops — matching DEFAULT's "only update values we
+ * previously set" contract. Use HARPER_SET_CONFIG to compose at runtime.
+ */
+const DIRECTIVE_UNION = '$union';
+const SUPPORTED_DIRECTIVES = [DIRECTIVE_UNION];
+
+/**
+ * True if value is a plain object carrying a supported directive key. Detection is
+ * deliberately narrowed to the known sentinels (not any `$`-prefixed key) so ordinary
+ * config that happens to contain `$`-keys — e.g. a component config embedding a JSON
+ * Schema with `$schema`/`$ref` — keeps flattening and applying as plain values.
+ */
+function isDirectiveObject(value: any): boolean {
+	return isPlainObject(value) && SUPPORTED_DIRECTIVES.some((directive) => directive in value);
+}
+
+/**
+ * Validate a directive object and return its operands. Throws on a malformed directive
+ * so misconfiguration surfaces loudly rather than silently misbehaving.
+ */
+function parseDirective(value: Record<string, any>, path: string): { items: any[] } {
+	const keys = Object.keys(value);
+	if (keys.length !== 1) {
+		throw new ConfigEnvVarError(
+			`Config directive "${DIRECTIVE_UNION}" at "${path}" must be the only key, got: ${keys.join(', ')}`
+		);
+	}
+	const items = value[DIRECTIVE_UNION];
+	if (!Array.isArray(items)) {
+		throw new ConfigEnvVarError(`Config directive "${DIRECTIVE_UNION}" at "${path}" requires an array value`);
+	}
+	return { items };
+}
+
+/**
+ * Deterministic JSON string with object keys sorted at every level, so two
+ * structurally-equal values compare equal regardless of property insertion order.
+ * Shared by snapshot hashing and by `$union`'s idempotent dedup of object entries.
+ */
+function stableStringify(value: any): string {
+	// Honor toJSON (e.g. Date) so values serialize the way JSON.stringify would.
+	if (value && typeof value.toJSON === 'function') {
+		value = value.toJSON();
+	}
+	if (value === null || typeof value !== 'object') {
+		// undefined/function/symbol stringify to undefined → normalize to 'null' (matches
+		// JSON.stringify of an array slot) and keep the declared string return type honest.
+		return JSON.stringify(value) ?? 'null';
+	}
+	if (Array.isArray(value)) {
+		return '[' + value.map((item) => stableStringify(item)).join(',') + ']';
+	}
+	// Match JSON.stringify, which omits keys whose value is undefined/function/symbol.
+	const pairs: string[] = [];
+	for (const key of Object.keys(value).sort()) {
+		const item = value[key];
+		if (item !== undefined && typeof item !== 'function' && typeof item !== 'symbol') {
+			pairs.push(JSON.stringify(key) + ':' + stableStringify(item));
+		}
+	}
+	return '{' + pairs.join(',') + '}';
+}
+
+/**
+ * Order-preserving union: existing entries kept in place, listed items appended only
+ * when not already present. Idempotent (re-applying is a no-op, no duplicates) and
+ * never removes entries the directive didn't name. Dedup uses key-order-insensitive
+ * equality so object entries (e.g. `{ port, host }` vs `{ host, port }`) don't
+ * re-append across boots.
+ */
+function unionArrays(current: any, items: any[]): any[] {
+	const result = Array.isArray(current) ? [...current] : [];
+	// Pre-stringify existing entries once, then stringify each candidate once (O(N+M)).
+	const seen = result.map((existing) => stableStringify(existing));
+	for (const item of items) {
+		const key = stableStringify(item);
+		if (!seen.includes(key)) {
+			result.push(item);
+			seen.push(key);
+		}
+	}
+	return result;
+}
+
+/**
+ * Resolve the value to write for a flattened leaf given the value currently at that
+ * path. Plain leaves overwrite (default); directive leaves compose against current.
+ */
+function resolveLeafValue(currentValue: any, leafValue: any, path: string): any {
+	if (isDirectiveObject(leafValue)) {
+		return unionArrays(currentValue, parseDirective(leafValue, path).items);
+	}
+	return leafValue;
+}
+
+/**
  * Filters out arguments that are already set in HARPER_SET_CONFIG.
  * This prevents individual environment variables from overriding runtime configuration.
  *
@@ -148,7 +263,12 @@ export function filterArgsAgainstRuntimeConfig(args: Record<string, any>): Recor
 		const keys = new Set<string>();
 		for (const key in obj) {
 			const newKey = prefix ? `${prefix}_${key}` : key;
-			if (obj[key] !== null && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+			if (
+				obj[key] !== null &&
+				typeof obj[key] === 'object' &&
+				!Array.isArray(obj[key]) &&
+				!isDirectiveObject(obj[key])
+			) {
 				flattenSetConfig(obj[key], newKey).forEach((k) => keys.add(k));
 			} else {
 				keys.add(newKey.toLowerCase());
@@ -182,11 +302,11 @@ function flattenObject(obj: ConfigObject, prefix = ''): Record<string, any> {
 		const value = obj[key];
 		const newKey = prefix ? `${prefix}.${key}` : key;
 
-		if (isPlainObject(value)) {
+		if (isPlainObject(value) && !isDirectiveObject(value)) {
 			// Recurse for nested objects
 			Object.assign(result, flattenObject(value, newKey));
 		} else {
-			// Store primitive or array
+			// Store primitive, array, or directive ({ $union: [...] }) as a leaf
 			result[newKey] = value;
 		}
 	}
@@ -251,21 +371,7 @@ function deleteNestedValue(obj: ConfigObject, path: string): void {
  * Hash config object for snapshot comparison
  */
 function hashConfig(config: ConfigObject): string {
-	// Deterministic JSON stringify with sorted keys at all levels
-	const sortedStringify = (obj: any): string => {
-		if (obj === null || typeof obj !== 'object') {
-			return JSON.stringify(obj);
-		}
-		if (Array.isArray(obj)) {
-			return '[' + obj.map(sortedStringify).join(',') + ']';
-		}
-		const keys = Object.keys(obj).sort();
-		const pairs = keys.map((key) => JSON.stringify(key) + ':' + sortedStringify(obj[key]));
-		return '{' + pairs.join(',') + '}';
-	};
-
-	const json = sortedStringify(config);
-	return crypto.createHash('sha256').update(json).digest('hex');
+	return crypto.createHash('sha256').update(stableStringify(config)).digest('hex');
 }
 
 /**
@@ -402,8 +508,9 @@ function applyConfigLayer(
 			}
 		}
 
-		// Set the value and track the source
-		setNestedValue(fileConfig, path, value);
+		// Set the value and track the source (directive leaves compose against current,
+		// so a $union keeps existing/app entries instead of overwriting them)
+		setNestedValue(fileConfig, path, resolveLeafValue(currentValue, value, path));
 		state.sources[path] = sourceName;
 	}
 }
@@ -532,8 +639,8 @@ function processEnvVar(
 					}
 				}
 
-				// Set the value and track the source
-				setNestedValue(fileConfig, path, value);
+				// Set the value and track the source (directive leaves compose against current)
+				setNestedValue(fileConfig, path, resolveLeafValue(currentValue, value, path));
 				state.sources[path] = sourceName;
 			}
 		}
@@ -617,7 +724,8 @@ export function composeConfigFromEnv(base: ConfigObject = {}): ConfigObject {
 	for (const layer of layers) {
 		if (!layer) continue;
 		for (const [p, value] of Object.entries(flattenObject(layer))) {
-			setNestedValue(result, p, value);
+			// directive leaves compose against the value accumulated by prior layers
+			setNestedValue(result, p, resolveLeafValue(getNestedValue(result, p), value, p));
 		}
 	}
 
