@@ -17,12 +17,10 @@
 import { suite, test, before, after } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert/strict';
 import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { setupHarperWithFixture, teardownHarper } from '@harperfast/integration-testing';
 import { createApiClient } from '../apiTests/utils/client.mjs';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const FIXTURE_PATH = resolve(__dirname, '../fixtures/custom-resources');
+const FIXTURE_PATH = resolve(import.meta.dirname, '../fixtures/custom-resources');
 
 // ---------------------------------------------------------------------------
 // Helpers
