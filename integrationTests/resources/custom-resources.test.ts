@@ -16,15 +16,13 @@
  */
 import { suite, test, before, after } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startHarper, teardownHarper } from '@harperfast/integration-testing';
+import { setupHarperWithFixture, teardownHarper } from '@harperfast/integration-testing';
 import { createApiClient } from '../apiTests/utils/client.mjs';
-import { installAppComponent } from '../apiTests/utils/components.mjs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const FIXTURE_DIR = join(__dirname, '../fixtures/custom-resources');
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const FIXTURE_PATH = resolve(__dirname, '../fixtures/custom-resources');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -47,24 +45,28 @@ function restReq(httpURL: string, path: string, method: string, body?: unknown, 
 // ---------------------------------------------------------------------------
 
 suite('Custom resource patterns', { skip: skipSuite }, (ctx) => {
-	let client: ReturnType<typeof createApiClient>;
+	let _client: ReturnType<typeof createApiClient>;
 	let httpURL: string;
 
 	before(async () => {
-		await startHarper(ctx, { config: {}, env: {} });
-		client = createApiClient(ctx.harper);
+		await setupHarperWithFixture(ctx, FIXTURE_PATH, { config: {}, env: {} });
+		_client = createApiClient(ctx.harper);
 		httpURL = ctx.harper.httpURL;
 
-		await installAppComponent(client, {
-			project: 'customResources',
-			files: {
-				'schema.graphql': readFileSync(join(FIXTURE_DIR, 'schema.graphql'), 'utf-8'),
-				'resources.js': readFileSync(join(FIXTURE_DIR, 'resources.js'), 'utf-8'),
-				'config.yaml': readFileSync(join(FIXTURE_DIR, 'config.yaml'), 'utf-8'),
-			},
-			probePath: '/WorkItem/',
-			restartTimeoutMs: 120_000,
-		});
+		// Poll until WorkItem route is ready (may take a moment after startHarper resolves)
+		const deadline = Date.now() + 30_000;
+		while (Date.now() < deadline) {
+			try {
+				const probe = await fetch(`${httpURL}/WorkItem/`, {
+					method: 'GET',
+					headers: { 'Content-Type': 'application/json' },
+				});
+				if (probe.status !== 404) break;
+			} catch {
+				// connection not yet ready
+			}
+			await new Promise((r) => setTimeout(r, 200));
+		}
 	});
 
 	after(async () => {
