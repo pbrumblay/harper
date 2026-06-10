@@ -376,13 +376,30 @@ describe('OpenAIBackend', () => {
 			});
 		});
 
-		it('maps temperature and maxTokens to OpenAI fields', async () => {
+		it('maps temperature and maxTokens: native OpenAI endpoint sends max_completion_tokens', async () => {
+			// api.openai.com reasoning/gpt-5 models reject `max_tokens` (400);
+			// send `max_completion_tokens` for the default endpoint.
 			const fetch = mockFetch(() => chatResponse());
 			const b = new OpenAIBackend({ apiKey: API_KEY, model: 'm' }, fetch);
 			await b.generate('q', { accounting: ACCOUNTING, temperature: 0.5, maxTokens: 100 });
 			const sent = JSON.parse(fetch.calls[0].init.body);
 			assert.strictEqual(sent.temperature, 0.5);
+			assert.strictEqual(sent.max_completion_tokens, 100);
+			assert.strictEqual(sent.max_tokens, undefined, 'max_tokens must not appear for native OpenAI');
+		});
+
+		it('maps maxTokens to max_tokens for a custom baseUrl (compat shims only understand max_tokens)', async () => {
+			// OpenAI-compatible shims (vLLM, Ollama-compat, older gateways) only understand
+			// `max_tokens`; keep the legacy field for any non-api.openai.com endpoint.
+			const fetch = mockFetch(() => chatResponse());
+			const b = new OpenAIBackend(
+				{ apiKey: API_KEY, model: 'm', baseUrl: 'https://my-vllm.internal/v1' },
+				fetch
+			);
+			await b.generate('q', { accounting: ACCOUNTING, maxTokens: 100 });
+			const sent = JSON.parse(fetch.calls[0].init.body);
 			assert.strictEqual(sent.max_tokens, 100);
+			assert.strictEqual(sent.max_completion_tokens, undefined, 'max_completion_tokens must not appear for compat endpoint');
 		});
 
 		it("maps finish_reason='length' to finishReason='length'", async () => {
@@ -766,6 +783,59 @@ describe('OpenAIBackend', () => {
 			assert.ok(seenSignal instanceof AbortSignal);
 			assert.notStrictEqual(seenSignal, ctrl.signal);
 		});
+	});
+});
+
+// ---- finding 5b: tool-call accumulator cardinality cap --------------------------
+
+describe('OpenAI streaming tool-call accumulator cardinality cap', () => {
+	it('throws OpenAIBackendError when more than 128 distinct tool-call indices arrive', async () => {
+		// Build an SSE response that emits 129 distinct `index` values without
+		// a `finish_reason`, exercising the accumulator-cardinality guard.
+		const encoder = new TextEncoder();
+		const stream = new ReadableStream({
+			start(controller) {
+				for (let i = 0; i < 129; i++) {
+					const delta = {
+						choices: [
+							{
+								delta: {
+									tool_calls: [{ index: i, id: `c${i}`, function: { name: `fn${i}`, arguments: '{}' } }],
+								},
+								finish_reason: null,
+							},
+						],
+					};
+					controller.enqueue(encoder.encode(`data: ${JSON.stringify(delta)}\n\n`));
+				}
+				controller.close();
+			},
+		});
+		const fetch = mockFetch(() => new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }));
+		const b = new OpenAIBackend({ apiKey: API_KEY, model: 'm' }, fetch);
+		await assert.rejects(
+			async () => {
+				for await (const _c of b.generateStream('q', { accounting: ACCOUNTING })) { /* drain */ }
+			},
+			/tool-call accumulator exceeded 128/
+		);
+	});
+
+	it('does not throw for a normal response with a small number of tool calls', async () => {
+		const fetch = mockFetch(() =>
+			sseResponse([
+				{
+					choices: [{
+						delta: { tool_calls: [{ index: 0, id: 'c0', function: { name: 'fn', arguments: '{"x":1}' } }] },
+						finish_reason: 'tool_calls',
+					}],
+				},
+			])
+		);
+		const b = new OpenAIBackend({ apiKey: API_KEY, model: 'm' }, fetch);
+		const chunks = [];
+		for await (const c of b.generateStream('q', { accounting: ACCOUNTING })) chunks.push(c);
+		assert.ok(chunks.some((c) => c.deltaToolCalls));
 	});
 });
 

@@ -55,20 +55,24 @@ export function getModelCallsTable(): any {
 		audit: true,
 		trackDeletes: false,
 		attributes: [
+			// flush() writes via tbl.primaryStore.put and cleanup() removes via
+			// primaryStore.remove — both bypass updateIndices, so secondary indexes
+			// would stay permanently empty. Match hdb_raw_analytics (write.ts) which
+			// intentionally omits `indexed` from all non-PK attributes for the same reason.
 			{ name: 'id', isPrimaryKey: true },
-			{ name: 'tenant', type: 'string', indexed: true },
-			{ name: 'app', type: 'string', indexed: true },
-			{ name: 'model', type: 'string', indexed: true },
-			{ name: 'backend', type: 'string', indexed: true },
-			{ name: 'method', type: 'string', indexed: true },
-			{ name: 'adapter', type: 'string', indexed: true },
-			{ name: 'conversation_id', type: 'string', indexed: true },
+			{ name: 'tenant', type: 'string' },
+			{ name: 'app', type: 'string' },
+			{ name: 'model', type: 'string' },
+			{ name: 'backend', type: 'string' },
+			{ name: 'method', type: 'string' },
+			{ name: 'adapter', type: 'string' },
+			{ name: 'conversation_id', type: 'string' },
 			{ name: 'prompt_tokens', type: 'number' },
 			{ name: 'completion_tokens', type: 'number' },
 			{ name: 'embedding_tokens', type: 'number' },
 			{ name: 'gpu_ms', type: 'number' },
-			{ name: 'latency_ms', type: 'number', indexed: true },
-			{ name: 'success', type: 'boolean', indexed: true },
+			{ name: 'latency_ms', type: 'number' },
+			{ name: 'success', type: 'boolean' },
 			{ name: 'error_code', type: 'string' },
 		],
 	});

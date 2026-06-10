@@ -46,19 +46,76 @@ export function assignFiniteTokenCount(
 	usage[key] = value;
 }
 
+// Body-read caps. A hostile or buggy upstream that returns a multi-GiB body
+// would otherwise OOM the process before we reject the call.
+// Success responses need room for large batch-embedding payloads (N×1536-dim
+// float arrays); 64 MiB covers the largest realistic batch with headroom.
+// Error responses are small prose strings; 256 KiB is generous.
+export const MAX_RESPONSE_BODY_BYTES = 64 << 20; // 64 MiB
+export const MAX_ERROR_BODY_BYTES = 256 << 10; // 256 KiB
+
+/**
+ * Read at most `maxBytes` from `res.body`, then JSON.parse. Throws the
+ * caller's error class — never a bare `SyntaxError` or `RangeError` — so
+ * the caller's `instanceof` checks stay consistent.
+ *
+ * A response whose body exceeds `maxBytes` is an explicit failure rather than
+ * a silent partial read; the caller's error class surfaces the diagnosis.
+ */
+export async function readBoundedJson<T>(
+	res: Response,
+	endpoint: string,
+	Err: BackendErrorCtor,
+	maxBytes: number
+): Promise<T> {
+	if (!res.body) {
+		// No body at all — treat the same as invalid JSON.
+		throw new Err(`${endpoint} returned an empty response body`);
+	}
+	const chunks: Uint8Array[] = [];
+	let totalBytes = 0;
+	for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+		totalBytes += chunk.byteLength;
+		if (totalBytes > maxBytes) {
+			throw new Err(
+				`${endpoint} response body exceeds ${maxBytes}-byte limit (received >${totalBytes} bytes); ` +
+					'rejecting to prevent unbounded memory use'
+			);
+		}
+		chunks.push(chunk);
+	}
+	const merged = totalBytes === 0 ? '' : new TextDecoder('utf-8').decode(
+		chunks.length === 1
+			? chunks[0]
+			: (() => {
+				const buf = new Uint8Array(totalBytes);
+				let offset = 0;
+				for (const c of chunks) {
+					buf.set(c, offset);
+					offset += c.byteLength;
+				}
+				return buf;
+			})()
+	);
+	try {
+		return JSON.parse(merged) as T;
+	} catch {
+		throw new Err(`${endpoint} returned a non-JSON response body`);
+	}
+}
+
 /**
  * Read a JSON response body and throw the backend's error class on parse
  * failure rather than leaking the raw `SyntaxError` (whose message can
  * include upstream-derived bytes). Matches the sanitization posture from
  * `analyticsTable.ts:35` ("Sanitized code (...). Never a raw upstream
  * message.").
+ *
+ * Caps the read at `MAX_RESPONSE_BODY_BYTES` (64 MiB) to bound memory use
+ * on hostile or misbehaving upstream endpoints.
  */
 export async function parseJsonResponse<T>(res: Response, endpoint: string, Err: BackendErrorCtor): Promise<T> {
-	try {
-		return (await res.json()) as T;
-	} catch {
-		throw new Err(`${endpoint} returned a non-JSON response body`);
-	}
+	return readBoundedJson<T>(res, endpoint, Err, MAX_RESPONSE_BODY_BYTES);
 }
 
 /**

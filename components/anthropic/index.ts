@@ -25,8 +25,10 @@ import { setGenerative } from '../../resources/models/backendRegistry.ts';
 import {
 	assignFiniteTokenCount,
 	composeSignal,
+	MAX_ERROR_BODY_BYTES,
 	normalizeOrigin,
 	parseJsonResponse,
+	readBoundedJson,
 	requireCredential,
 	requireModel,
 } from '../../resources/models/backendHelpers.ts';
@@ -59,6 +61,10 @@ const MAX_SSE_BUFFER_CHARS = 1 << 20;
 const MAX_TOOL_CALL_ARGS_CHARS = 1 << 20;
 // Cap for upstream `error.message` we surface to operators.
 const MAX_UPSTREAM_ERROR_MESSAGE_CHARS = 500;
+// Maximum number of distinct tool-call accumulator entries. Anthropic keys by
+// `index` from content_block_start events; a hostile upstream can open unbounded
+// entries if content_block_stop never arrives for earlier indices.
+const MAX_TOOL_CALL_ACCUMULATOR_ENTRIES = 128;
 
 const log = harperLogger.forComponent('anthropic').conditional;
 
@@ -165,6 +171,13 @@ export class AnthropicBackend implements ModelBackend {
 				event.index !== undefined &&
 				event.content_block?.type === 'tool_use'
 			) {
+				// Cap total accumulator entries: `index` is upstream-controlled and
+				// a content_block_stop may never arrive, leaking entries indefinitely.
+				if (toolBuf.size >= MAX_TOOL_CALL_ACCUMULATOR_ENTRIES) {
+					throw new AnthropicBackendError(
+						`Anthropic tool-call accumulator exceeded ${MAX_TOOL_CALL_ACCUMULATOR_ENTRIES} distinct tool-call entries`
+					);
+				}
 				toolBuf.set(event.index, {
 					id: event.content_block.id,
 					name: event.content_block.name,
@@ -271,7 +284,12 @@ export class AnthropicBackendError extends ServerError {
 
 async function readErrorSuffix(res: Response): Promise<string> {
 	try {
-		const body = (await res.json()) as { error?: { message?: unknown; type?: unknown } };
+		const body = await readBoundedJson<{ error?: { message?: unknown; type?: unknown } }>(
+			res,
+			'Anthropic error response',
+			AnthropicBackendError,
+			MAX_ERROR_BODY_BYTES
+		);
 		const message = body?.error?.message;
 		if (typeof message === 'string' && message.length > 0) {
 			const truncated =
