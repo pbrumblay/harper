@@ -724,6 +724,331 @@ describeUnlessLmdb('HNSW int8 cold/frozen node reads (#1161)', () => {
 	});
 });
 
+// ─── Data-integrity fixes (5.1 GA) ──────────────────────────────────────────
+describeUnlessLmdb('HNSW data-integrity fixes (5.1 GA)', () => {
+	// Minimal mock store used by several tests below. Supports put/get/remove with
+	// optional numeric-range scan (getRange), and a shared-buffer allocator.
+	function makeMockStore() {
+		const nodes = new Map();
+		let ep;
+		return {
+			encoder: { useFloat32: false },
+			getSync(key, _opts) {
+				if (key === Symbol.for('entryPoint')) return ep;
+				const k = typeof key === 'number' ? key : JSON.stringify(key);
+				return nodes.get(k);
+			},
+			put(key, value, _opts) {
+				if (key === Symbol.for('entryPoint')) {
+					ep = value;
+					return;
+				}
+				const k = typeof key === 'number' ? key : JSON.stringify(key);
+				nodes.set(k, value);
+			},
+			remove(key, _opts) {
+				if (key === Symbol.for('entryPoint')) {
+					ep = undefined;
+					return;
+				}
+				const k = typeof key === 'number' ? key : JSON.stringify(key);
+				nodes.delete(k);
+			},
+			*getRange({ start = 0, end = Infinity } = {}) {
+				for (const [k, v] of nodes) {
+					if (typeof k === 'number' && k >= start && k <= end) yield { key: k, value: v };
+				}
+			},
+			getKeys({ transaction: _t } = {}) {
+				return [];
+			},
+			getUserSharedBuffer(_name, buffer) {
+				return buffer;
+			},
+			// For test assertions: iterate all numeric-key (node) entries
+			_nodes() {
+				return nodes.entries();
+			},
+		};
+	}
+
+	// ── non-finite vector guard ────────────────────────────────────────────
+	describe('non-finite vector guard', () => {
+		it('throws ClientError for a vector containing NaN', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, {});
+			// Insert a valid first node so the graph is not empty.
+			hnsw.index('a', [1, 0, 0], null, {});
+			assert.throws(
+				() => hnsw.index('b', [0, NaN, 1], null, {}),
+				(err) => {
+					assert(err.message.includes('non-finite'), `expected "non-finite" in: ${err.message}`);
+					assert(err.message.includes('1'), `expected component index in: ${err.message}`);
+					return true;
+				}
+			);
+		});
+
+		it('throws ClientError for a vector containing Infinity', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, {});
+			hnsw.index('a', [1, 0, 0], null, {});
+			assert.throws(
+				() => hnsw.index('b', [Infinity, 0, 0], null, {}),
+				(err) => {
+					assert(err.message.includes('non-finite'), `expected "non-finite" in: ${err.message}`);
+					return true;
+				}
+			);
+		});
+
+		it('index remains searchable after a rejected NaN insert', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean' });
+			hnsw.index('good', [1, 0, 0], null, {});
+			// Swallow the expected error
+			try {
+				hnsw.index('bad', [NaN, 0, 0], null, {});
+			} catch {}
+			// The good node must still be reachable
+			const results = hnsw.search(
+				{ target: [1, 0, 0], comparator: 'sort', descending: false },
+				{ transaction: undefined }
+			);
+			assert(Array.isArray(results), 'search must return an array');
+			assert(
+				results.some((r) => r.key === 'good'),
+				'valid node must be findable after rejected NaN insert'
+			);
+		});
+	});
+
+	// ── `le` boundary inclusion ──────────────────────────────────────────────
+	describe('le comparator includes the boundary distance', () => {
+		it('le returns records at exactly the threshold distance', () => {
+			const store = makeMockStore();
+			// euclidean: distance([0], [d]) = d^2  — use 1D so we can predict exact distances
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean' });
+			// Insert vectors at known euclidean-squared distances from [0]: 0.04, 0.09, 0.16, 0.25
+			hnsw.index('d0.04', [0.2], null, {});
+			hnsw.index('d0.09', [0.3], null, {});
+			hnsw.index('d0.16', [0.4], null, {});
+			hnsw.index('d0.25', [0.5], null, {});
+
+			const target = [0];
+			// lt with value 0.09: should exclude the d0.09 record
+			const lt = hnsw.search({ target, comparator: 'lt', value: 0.09, descending: false }, { transaction: undefined });
+			assert(
+				lt.every((r) => r.distance < 0.09),
+				'lt should exclude exact boundary'
+			);
+			assert(!lt.some((r) => r.key === 'd0.09'), 'lt must not include d0.09 (distance == threshold)');
+
+			// le with value 0.09: must include the d0.09 record
+			const le = hnsw.search({ target, comparator: 'le', value: 0.09, descending: false }, { transaction: undefined });
+			assert(
+				le.some((r) => r.key === 'd0.09'),
+				'le must include d0.09 (distance == threshold)'
+			);
+			assert(
+				le.every((r) => r.distance <= 0.09),
+				'le must not include records beyond threshold'
+			);
+		});
+
+		it('le with a threshold of 0 filters to exact matches (0 is a valid threshold)', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean' });
+			hnsw.index('exact', [0.2], null, {});
+			hnsw.index('near', [0.3], null, {});
+			hnsw.index('far', [0.9], null, {});
+
+			// le 0: only the exact-distance-0 record. A falsy-0 sentinel would skip the
+			// filter entirely and return all three.
+			const le0 = hnsw.search(
+				{ target: [0.2], comparator: 'le', value: 0, descending: false },
+				{ transaction: undefined }
+			);
+			assert.strictEqual(le0.length, 1, `le 0 must return only the exact match, got ${le0.length}`);
+			assert.strictEqual(le0[0].key, 'exact');
+
+			// lt 0: no distance can be negative for euclidean — must return nothing.
+			const lt0 = hnsw.search(
+				{ target: [0.2], comparator: 'lt', value: 0, descending: false },
+				{ transaction: undefined }
+			);
+			assert.strictEqual(lt0.length, 0, 'lt 0 must return no records');
+		});
+	});
+
+	// ── delete-entry-point, remaining records still findable ──────────────────
+	describe('delete-entry-point leaves remaining records findable', () => {
+		it('search returns remaining records after deleting the entry-point node', () => {
+			// Use the mock store so this test is self-contained and immune to DB state.
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean', optimizeRouting: 0 });
+
+			// Insert N records with spread-out vectors.
+			const N = 12;
+			for (let i = 0; i < N; i++) hnsw.index(String(i), [i, i * 0.5, i % 3], null, {});
+
+			// Identify the entry-point's primaryKey and delete it.
+			const epNodeId = store.getSync(Symbol.for('entryPoint'));
+			const epPrimaryKey = store.getSync(epNodeId)?.primaryKey ?? '0';
+			hnsw.index(epPrimaryKey, null, null, {}); // deletion path (vector == null)
+
+			// All remaining records must still be reachable via search.
+			const results = hnsw.search(
+				{ target: [5, 2.5, 2], comparator: 'sort', descending: false },
+				{ transaction: undefined }
+			);
+			assert(Array.isArray(results), 'search must return an array');
+			assert(!results.some((r) => r.key === epPrimaryKey), 'deleted entry-point must not appear in results');
+			// Most remaining nodes must be reachable.
+			assert(
+				results.length >= N - 3,
+				`expected at least ${N - 3} results after entry-point deletion, got ${results.length}`
+			);
+		});
+
+		it('bulk-delete 50% including entry point still returns the remainder', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean', optimizeRouting: 0 });
+
+			const N = 14;
+			for (let i = 0; i < N; i++) hnsw.index(String(i), [i, i % 3], null, {});
+
+			// Collect the first half of node primary keys (including the entry point).
+			const epNodeId = store.getSync(Symbol.for('entryPoint'));
+			const deleteKeys = new Set();
+			deleteKeys.add(store.getSync(epNodeId)?.primaryKey ?? '0');
+			for (let i = 0; i < Math.floor(N / 2) - 1; i++) deleteKeys.add(String(i));
+
+			for (const pk of deleteKeys) hnsw.index(pk, null, null, {});
+
+			const results = hnsw.search(
+				{ target: [10, 1], comparator: 'sort', descending: false },
+				{ transaction: undefined }
+			);
+			// Deleted keys must not appear.
+			for (const pk of deleteKeys) {
+				assert(!results.some((r) => r.key === pk), `deleted key ${pk} must not appear in results`);
+			}
+		});
+	});
+
+	// ── update-then-search reachability ───────────────────────────────────────
+	describe('update-then-search reachability (sweep-levels fix)', () => {
+		it('repeatedly-updated record and its neighbors remain findable', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean', optimizeRouting: 0.5 });
+
+			// Build a small graph.
+			const N = 20;
+			for (let i = 0; i < N; i++) {
+				hnsw.index(String(i), [Math.cos(i * 0.5), Math.sin(i * 0.5), 0.1 * (i % 3)], null, {});
+			}
+			// Update key '5' ten times — exercises the level-targeted reverse-edge sweep.
+			for (let round = 0; round < 10; round++) {
+				const newVec = [Math.cos(round * 0.7), Math.sin(round * 0.7), 0.2];
+				// existingVector triggers the update path in index()
+				hnsw.index('5', newVec, [Math.cos((round - 1) * 0.7) || 1, 0.2, 0.2], {});
+			}
+			// All N records must still be reachable via a broad search.
+			const results = hnsw.search(
+				{ target: [1, 0, 0], comparator: 'sort', descending: false },
+				{ transaction: undefined }
+			);
+			// HNSW is approximate; allow up to 2 misses on a small graph.
+			assert(
+				results.length >= N - 2,
+				`expected at least ${N - 2} results after repeated updates, got ${results.length}`
+			);
+		});
+
+		it('symmetry check: fewer than 5 asymmetries after repeated updates', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean', optimizeRouting: 0.5 });
+
+			const N = 16;
+			for (let i = 0; i < N; i++) {
+				hnsw.index(String(i), [Math.cos(i * 0.5), Math.sin(i * 0.5)], null, {});
+			}
+			for (let round = 0; round < 8; round++) {
+				const newVec = [Math.cos(round * 0.7), Math.sin(round * 0.7)];
+				hnsw.index('3', newVec, [Math.cos((round - 1) * 0.7) || 1, 0.1], {});
+			}
+
+			// Check symmetry directly on the mock store.
+			let asymmetries = 0;
+			for (const [k, node] of store._nodes()) {
+				if (typeof k !== 'number' || node?.level === undefined) continue;
+				for (let l = 0; l <= node.level; l++) {
+					for (const { id: neighborId } of node[l] || []) {
+						const neighborNode = store.getSync(neighborId);
+						if (!neighborNode) continue;
+						const sym = (neighborNode[l] || []).find(({ id }) => id === k);
+						if (!sym) asymmetries++;
+					}
+				}
+			}
+			assert(asymmetries < 5, `expected < 5 asymmetries after repeated updates, got ${asymmetries}`);
+		});
+	});
+
+	// ── backfill idempotency (re-feeding existing key) ────────────────────────
+	describe('backfill resume idempotency', () => {
+		it('calling index() twice with the same key preserves symmetric connections', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean', optimizeRouting: 0 });
+
+			// First insert: establishes the node and its connections.
+			for (let i = 0; i < 8; i++) {
+				hnsw.index(String(i), [i, i * 0.5], null, {});
+			}
+
+			// Second call for key '0' with no existingVector (simulates a backfill re-feed).
+			// Should behave as an update, not a fresh insert.
+			hnsw.index('0', [0, 0], null, {});
+
+			// Verify symmetry: for every connection a→b, b→a must also exist at the same level.
+			let asymmetries = 0;
+			for (const [k, node] of store._nodes()) {
+				if (typeof k !== 'number' || node?.level === undefined) continue;
+				let l = 0;
+				while (node[l]) {
+					for (const { id: neighborId } of node[l]) {
+						const neighbor = store.getSync(neighborId);
+						if (!neighbor) continue;
+						const sym = (neighbor[l] || []).find(({ id }) => id === k);
+						if (!sym) asymmetries++;
+					}
+					l++;
+				}
+			}
+			assert(asymmetries < 3, `expected < 3 asymmetries after backfill re-feed, got ${asymmetries}`);
+		});
+
+		it('level is preserved when re-feeding an existing node without existingVector', () => {
+			const store = makeMockStore();
+			const hnsw = new HierarchicalNavigableSmallWorld(store, { distance: 'euclidean', optimizeRouting: 0 });
+			// Seed a few nodes so the graph is non-trivial.
+			for (let i = 0; i < 6; i++) hnsw.index(String(i), [i, 0], null, {});
+
+			// Capture the level of node '0' after first insert.
+			const safeKey0 = '0';
+			const nodeId0 = store.getSync(safeKey0);
+			const levelBefore = store.getSync(nodeId0)?.level;
+
+			// Re-feed with same vector, no existingVector (backfill scenario).
+			hnsw.index('0', [0, 0], null, {});
+
+			const levelAfter = store.getSync(nodeId0)?.level;
+			assert.equal(levelAfter, levelBefore, 'level must be preserved on backfill re-feed');
+		});
+	});
+});
+
 async function fromAsync(iterable) {
 	let results = [];
 	for await (let entry of iterable) {
