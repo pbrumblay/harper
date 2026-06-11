@@ -400,12 +400,11 @@ describe('Anthropic streaming tool-call accumulator cardinality cap', () => {
 		}
 		const fetch = mockFetch(() => bigToolStream());
 		const b = new AnthropicBackend({ apiKey: API_KEY, model: 'm' }, fetch);
-		await assert.rejects(
-			async () => {
-				for await (const _c of b.generateStream('q', { accounting: ACCOUNTING })) { /* drain */ }
-			},
-			/tool-call accumulator exceeded 128/
-		);
+		await assert.rejects(async () => {
+			for await (const _c of b.generateStream('q', { accounting: ACCOUNTING })) {
+				/* drain */
+			}
+		}, /tool-call accumulator exceeded 128/);
 	});
 });
 

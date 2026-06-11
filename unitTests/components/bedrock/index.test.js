@@ -413,7 +413,12 @@ describe('familyOf (cross-region inference-profile IDs + nova)', () => {
 
 	it('resolves us.meta.llama3-* to meta family', async () => {
 		const { sdk } = fakeSdk(() =>
-			jsonBodyResponse({ generation: 'llama reply', stop_reason: 'stop', prompt_token_count: 1, generation_token_count: 2 })
+			jsonBodyResponse({
+				generation: 'llama reply',
+				stop_reason: 'stop',
+				prompt_token_count: 1,
+				generation_token_count: 2,
+			})
 		);
 		_injectSdkForTests(sdk);
 		const b = new BedrockBackend({ region: 'us-east-1', model: 'us.meta.llama3-70b-instruct-v1:0' });
@@ -425,10 +430,7 @@ describe('familyOf (cross-region inference-profile IDs + nova)', () => {
 		const { sdk } = fakeSdk(() => jsonBodyResponse({}));
 		_injectSdkForTests(sdk);
 		const b = new BedrockBackend({ region: 'us-east-1', model: 'unknownco.something-v1' });
-		await assert.rejects(
-			() => b.generate('q', { accounting: ACCOUNTING }),
-			/not supported for model family 'unknown'/
-		);
+		await assert.rejects(() => b.generate('q', { accounting: ACCOUNTING }), /not supported for model family 'unknown'/);
 	});
 
 	it('throws a descriptive error for amazon.nova-* models (not yet supported)', async () => {
@@ -464,11 +466,13 @@ describe('Bedrock Anthropic-stream tool-call accumulator cardinality cap', () =>
 			for (let i = 0; i < 129; i++) {
 				yield {
 					chunk: {
-						bytes: new TextEncoder().encode(JSON.stringify({
-							type: 'content_block_start',
-							index: i,
-							content_block: { type: 'tool_use', id: `c${i}`, name: `fn${i}` },
-						})),
+						bytes: new TextEncoder().encode(
+							JSON.stringify({
+								type: 'content_block_start',
+								index: i,
+								content_block: { type: 'tool_use', id: `c${i}`, name: `fn${i}` },
+							})
+						),
 					},
 				};
 			}
@@ -476,11 +480,10 @@ describe('Bedrock Anthropic-stream tool-call accumulator cardinality cap', () =>
 		const { sdk } = fakeSdk(() => ({ body: bigStream() }));
 		_injectSdkForTests(sdk);
 		const b = new BedrockBackend({ region: 'us-east-1', model: 'anthropic.claude' });
-		await assert.rejects(
-			async () => {
-				for await (const _c of b.generateStream('q', { accounting: ACCOUNTING })) { /* drain */ }
-			},
-			/tool-call accumulator exceeded 128/
-		);
+		await assert.rejects(async () => {
+			for await (const _c of b.generateStream('q', { accounting: ACCOUNTING })) {
+				/* drain */
+			}
+		}, /tool-call accumulator exceeded 128/);
 	});
 });

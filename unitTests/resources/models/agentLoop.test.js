@@ -1642,29 +1642,29 @@ describe('agentLoop abort gate at runSingleToolCall entry', () => {
 
 	it('serial dispatch: pre-aborted signal causes runSingleToolCall to throw before the handler runs', async () => {
 		// Queue a tool-call round followed by a final answer.
-		backend.queue(
-			toolCallRound('thinking', [tc('c1', 'sideEffect', {})]),
-			final('done')
-		);
+		backend.queue(toolCallRound('thinking', [tc('c1', 'sideEffect', {})]), final('done'));
 		let handlerCallCount = 0;
 		const ctrl = new AbortController();
 		// Pre-abort before calling generate.
 		ctrl.abort(new Error('pre-abort'));
 		await assert.rejects(
-			() => models.generate('q', {
-				toolMode: 'auto',
-				signal: ctrl.signal,
-				toolHandlers: {
-					sideEffect: () => {
-						handlerCallCount++;
-						return { ran: true };
+			() =>
+				models.generate('q', {
+					toolMode: 'auto',
+					signal: ctrl.signal,
+					toolHandlers: {
+						sideEffect: () => {
+							handlerCallCount++;
+							return { ran: true };
+						},
 					},
-				},
-			}),
+				}),
 			// Must throw an AbortError, not BudgetExceededError.
 			(err) => {
-				assert.ok(err.name === 'AbortError' || err.code === 'ABORT_ERR' || ctrl.signal.aborted,
-					`expected AbortError, got ${err.name}: ${err.message}`);
+				assert.ok(
+					err.name === 'AbortError' || err.code === 'ABORT_ERR' || ctrl.signal.aborted,
+					`expected AbortError, got ${err.name}: ${err.message}`
+				);
 				return true;
 			}
 		);
@@ -1683,24 +1683,25 @@ describe('agentLoop abort gate at runSingleToolCall entry', () => {
 		);
 		// Abort inside the first handler so the second is pre-aborted when runSingleToolCall checks.
 		await assert.rejects(
-			() => models.generate('q', {
-				toolMode: 'auto',
-				signal: ctrl.signal,
-				// Force serial even for two calls.
-				toolParallelism: 'serial',
-				toolHandlers: {
-					first: () => {
-						firstRan = true;
-						ctrl.abort(new Error('abort-mid-dispatch'));
-						return { done: true };
+			() =>
+				models.generate('q', {
+					toolMode: 'auto',
+					signal: ctrl.signal,
+					// Force serial even for two calls.
+					toolParallelism: 'serial',
+					toolHandlers: {
+						first: () => {
+							firstRan = true;
+							ctrl.abort(new Error('abort-mid-dispatch'));
+							return { done: true };
+						},
+						second: () => {
+							secondRan = true;
+							return { done: true };
+						},
 					},
-					second: () => {
-						secondRan = true;
-						return { done: true };
-					},
-				},
-			}),
-			(err) => {
+				}),
+			(_err) => {
 				assert.ok(ctrl.signal.aborted, 'signal should be aborted');
 				return true;
 			}
