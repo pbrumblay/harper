@@ -436,8 +436,17 @@ export function makeTable(options) {
 									continue;
 								}
 								event.source = source;
+								// Writes applied here come from the canonical source of truth (a replication peer or an
+								// external caching source), so a transient write conflict must never drop the write —
+								// there is no re-subscribe / sequence-id-resume path to recover it. Mark the context so the
+								// commit retries such conflicts without a cap (see DatabaseTransaction commit).
+								event.sourceApply = true;
 								if (event.type === 'end_txn') {
-									txnInProgress?.resolve();
+									// Capture the in-progress transaction in a stable local: the loop variable is reset
+									// once this transaction completes (below), but the seq-id closure and the commit await
+									// still need to reference it afterward.
+									const committingTxn = txnInProgress;
+									committingTxn?.resolve();
 									let updateRecordedSequenceId: () => void;
 									if (event.localTime && lastSequenceId !== event.localTime) {
 										if (event.remoteNodeIds?.length > 0) {
@@ -464,7 +473,7 @@ export function makeTable(options) {
 														nodeStates.push(nodeState);
 													}
 													nodeState.seqId = Math.max(existingSeq?.seqId ?? 1, event.localTime);
-													if (nodeId === txnInProgress?.nodeId) {
+													if (nodeId === committingTxn?.nodeId) {
 														nodeState.lastTxnTime = event.timestamp;
 													}
 												}
@@ -486,24 +495,51 @@ export function makeTable(options) {
 											lastSequenceId = event.localTime;
 										}
 									}
-									if (event.onCommit) {
-										// if there was an onCommit callback, call that. This function can be async
-										// and if so, we want to delay the recording of the sequence id until it finished
-										// (as it can be used to indicate more associated actions, like blob transfer, are in flight)
-										const onCommitFinished = txnInProgress
-											? txnInProgress.committed.then(event.onCommit)
-											: event.onCommit();
-										if (updateRecordedSequenceId) {
-											if (onCommitFinished?.then) onCommitFinished.then(updateRecordedSequenceId);
-											else updateRecordedSequenceId();
+									// Backpressure: wait for the transaction's commit to land before recording the sequence
+									// id or pulling the next event. This serializes the apply loop so bulk ingest can't
+									// outrun the commit/conflict-check window, and guarantees the sequence id never
+									// advances past an uncommitted write (which would diverge this node from its peers).
+									let committed;
+									try {
+										committed = committingTxn ? await committingTxn.committed : undefined;
+										if (event.onCommit) {
+											// the onCommit callback can be async and carry associated work (e.g. blob
+											// transfer); wait for it too before recording the sequence id. Pass the commit
+											// resolution through, as callbacks may use the committed txn time.
+											await event.onCommit(committed);
 										}
-									} else if (updateRecordedSequenceId) updateRecordedSequenceId();
+									} finally {
+										// Always clear the completed transaction so a later standalone write isn't appended
+										// to it (and lost), and a failed commit's rejected promise isn't re-awaited on the
+										// next beginTxn (which would brick the apply loop).
+										txnInProgress = undefined;
+									}
+									// Only reached when the commit succeeded; a failure propagates to the handler's catch
+									// and the sequence id is intentionally not advanced past the unapplied write.
+									if (updateRecordedSequenceId) updateRecordedSequenceId();
 									continue;
 								}
 								if (txnInProgress) {
 									if (event.beginTxn) {
-										// if we are starting a new transaction, finish the existing one
+										// Starting a new transaction closes the existing one. When transactions are
+										// delimited by consecutive beginTxn events (end_txn only arrives after the final
+										// one), this is the backpressure point for all but the last transaction: wait for
+										// the prior commit to land before applying the next so the sequence id can't
+										// advance past an uncommitted write.
 										txnInProgress.resolve();
+										try {
+											await txnInProgress.committed;
+										} catch (error) {
+											// Transient conflicts retry without limit and never reach here, so this is a
+											// non-retryable commit failure on the prior transaction. Log and continue (rather
+											// than rethrow) so the current beginTxn still starts a fresh transaction with
+											// correct boundaries instead of having its writes applied as standalone ones.
+											logger.error?.('source-applied transaction commit failed during apply', error);
+										} finally {
+											// Clear it regardless of outcome so a rejected commit isn't re-awaited on the
+											// next beginTxn (which would brick the apply loop).
+											txnInProgress = undefined;
+										}
 									} else {
 										// write in the current transaction if one is in progress
 										txnInProgress.writePromises.push(writeUpdate(event, txnInProgress));
@@ -570,8 +606,20 @@ export function makeTable(options) {
 								}
 
 								if (event.onCommit) {
-									if (commitResolution) commitResolution.then(event.onCommit);
-									else event.onCommit();
+									if (txnInProgress) {
+										// begin_txn: commitResolution stays pending until the matching end_txn, so it
+										// can't be awaited here; onCommit is awaited at end_txn once the commit lands.
+										if (commitResolution) commitResolution.then(event.onCommit);
+										else event.onCommit();
+									} else {
+										// standalone write: backpressure on the commit before pulling the next event,
+										// and pass the commit resolution through to the callback.
+										const committed = commitResolution ? await commitResolution : undefined;
+										await event.onCommit(committed);
+									}
+								} else if (commitResolution && !txnInProgress) {
+									// standalone write with no onCommit: still backpressure on the commit.
+									await commitResolution;
 								}
 							} catch (error) {
 								logger.error?.('error in subscription handler', error);
@@ -4202,6 +4250,9 @@ export function makeTable(options) {
 				if (!nextTxn) {
 					// no next one, then add our database
 					transaction.next = isRocksDB ? new DatabaseTransaction() : new LMDBTransaction();
+					// Inherit never-drop-on-conflict so a source-applied multi-store transaction doesn't
+					// drop the canonical write when a secondary store hits a transient conflict.
+					transaction.next.sourceApply = transaction.sourceApply;
 					if (transaction.open === TRANSACTION_STATE.CLOSED) {
 						// if the current transaction is already closed, we need to retain that state on new databases we work with
 						transaction.next.open = TRANSACTION_STATE.CLOSED;

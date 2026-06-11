@@ -22,6 +22,9 @@ export const TRANSACTION_STATE = {
 	LINGERING: 2, // the transaction has completed a read, but can be used for immediate writes
 };
 const MAX_RETRIES = 40;
+// Cap the per-retry backoff so replication-applied transactions, which retry conflicts without a
+// cap (see the commit rejection handler), don't grow the delay unbounded.
+const MAX_RETRY_DELAY_MS = 1000;
 let outstandingCommit, outstandingCommitStart;
 let confirmReplication;
 export function replicationConfirmation(callback) {
@@ -96,6 +99,10 @@ export class DatabaseTransaction implements Transaction {
 	overloadChecked: boolean;
 	open = TRANSACTION_STATE.OPEN;
 	replicatedConfirmation: number;
+	// Set when this transaction is applying data from a canonical source of truth (replication peer
+	// or external caching source); its commits retry transient conflicts without the request-path
+	// retry cap. Propagated to chained (multi-store) transactions in txnForContext.
+	declare sourceApply?: boolean;
 
 	getReadTxn(): ReadTransaction {
 		this.readTxnRefCount = (this.readTxnRefCount || 0) + 1;
@@ -296,7 +303,16 @@ export class DatabaseTransaction implements Transaction {
 					const completions = [];
 					return commitResolution.then(
 						() => {
-							(transaction as any).onCommit?.();
+							// onCommit may be async (e.g. RocksTransactionLogStore emits 'aftercommit'). Surface a
+							// rejection — or a synchronous throw — via logging rather than failing the commit, since
+							// the write is already durable.
+							try {
+								const onCommitResult = (transaction as any).onCommit?.();
+								if (onCommitResult?.then)
+									onCommitResult.catch((error) => harperLogger.warn?.('onCommit handler failed after commit', error));
+							} catch (error) {
+								harperLogger.warn?.('onCommit handler failed after commit', error);
+							}
 							if (this.next) {
 								completions.push(this.next.commit(options));
 							}
@@ -348,13 +364,31 @@ export class DatabaseTransaction implements Transaction {
 								this.retries++;
 								harperLogger.debug?.('retrying', transaction.id, this.retries);
 								if (this.retries > 2) {
+									// Transactions applying data from a canonical source of truth (replication peer or
+									// external caching source) must never drop a write on a transient conflict: there is no
+									// re-subscribe / sequence-id-resume path, so a dropped write would leave this node
+									// permanently diverged (harper-pro#348). Such transactions retry without a cap; the source
+									// apply loop serializes commits (backpressure), so contention clears rather than
+									// compounding. Request-path transactions keep the MAX_RETRIES cap and surface a loud error.
+									const neverDropOnConflict = this.sourceApply;
 									if (this.retries > MAX_RETRIES) {
-										throw new ServerError(
-											`After ${MAX_RETRIES} retries, unable to commit transaction, transaction is in conflict with ongoing writes`
-										);
+										if (!neverDropOnConflict) {
+											throw new ServerError(
+												`After ${MAX_RETRIES} retries, unable to commit transaction, transaction is in conflict with ongoing writes`
+											);
+										}
+										// Uncapped retry can otherwise stall silently (debug logging is off in production);
+										// surface periodic visibility into a stalled source-apply commit.
+										if (this.retries % MAX_RETRIES === 0) {
+											harperLogger.warn?.(
+												`Source-applied transaction ${transaction.id} still in conflict after ${this.retries} retries; continuing to retry`
+											);
+										}
 									}
 									// start delaying, back off to try to space out transactions and avoid excessive conflicts
-									return delay(this.retries * this.retries).then(() => this.commit({ transaction }));
+									return delay(Math.min(this.retries * this.retries, MAX_RETRY_DELAY_MS)).then(() =>
+										this.commit({ transaction })
+									);
 								}
 								return this.commit({ transaction }); // try again
 							} else throw error;
