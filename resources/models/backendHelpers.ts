@@ -48,10 +48,12 @@ export function assignFiniteTokenCount(
 
 // Body-read caps. A hostile or buggy upstream that returns a multi-GiB body
 // would otherwise OOM the process before we reject the call.
-// Success responses need room for large batch-embedding payloads (N×1536-dim
-// float arrays); 64 MiB covers the largest realistic batch with headroom.
+// Success responses must accommodate the largest LEGAL embedding batch: OpenAI
+// accepts up to 2048 inputs per request, and text-embedding-3-large returns
+// 3072 floats each — roughly 125-190 MiB of JSON. 256 MiB clears that with
+// headroom while still bounding a runaway upstream.
 // Error responses are small prose strings; 256 KiB is generous.
-export const MAX_RESPONSE_BODY_BYTES = 64 << 20; // 64 MiB
+export const MAX_RESPONSE_BODY_BYTES = 256 << 20; // 256 MiB
 export const MAX_ERROR_BODY_BYTES = 256 << 10; // 256 KiB
 
 // Module-level TextDecoder avoids per-call allocation in the streaming read path.
@@ -127,7 +129,7 @@ export async function readBoundedJson<T>(
  * `analyticsTable.ts:35` ("Sanitized code (...). Never a raw upstream
  * message.").
  *
- * Caps the read at `MAX_RESPONSE_BODY_BYTES` (64 MiB) to bound memory use
+ * Caps the read at `MAX_RESPONSE_BODY_BYTES` (256 MiB) to bound memory use
  * on hostile or misbehaving upstream endpoints.
  */
 export async function parseJsonResponse<T>(res: Response, endpoint: string, Err: BackendErrorCtor): Promise<T> {
