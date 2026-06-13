@@ -311,9 +311,9 @@ describe('readBoundedJson', () => {
 		);
 	});
 
-	it('parseJsonResponse uses the 64 MiB success-body cap', () => {
-		// The constant should be 64 MiB = 67108864 bytes.
-		assert.strictEqual(MAX_RESPONSE_BODY_BYTES, 64 * 1024 * 1024);
+	it('parseJsonResponse uses the 256 MiB success-body cap', () => {
+		// Raised from 64 MiB to 256 MiB to accommodate large OpenAI embedding batch responses (125–190 MiB JSON).
+		assert.strictEqual(MAX_RESPONSE_BODY_BYTES, 256 * 1024 * 1024);
 	});
 
 	it('MAX_ERROR_BODY_BYTES is 256 KiB', () => {
