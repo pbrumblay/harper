@@ -13,10 +13,23 @@
  */
 import { handleMcpRequest, type McpProfile, type NormRequest, type NormResponse } from '../transport.ts';
 
+/**
+ * The inbound body as Harper hands it to a custom HTTP handler: a Node-stream
+ * event emitter (`server/serverHelpers/Request.ts` `RequestBody`). Only the
+ * event API is guaranteed — `RequestBody` does not implement
+ * `Symbol.asyncIterator`, so we must read via `.on()` here (see `readBody`).
+ */
+interface BodyStream {
+	on(event: 'data', listener: (chunk: Buffer | string) => void): unknown;
+	on(event: 'end', listener: () => void): unknown;
+	on(event: 'error', listener: (err: Error) => void): unknown;
+	on(event: 'close', listener: () => void): unknown;
+}
+
 interface HarperHttpRequest {
 	method: string;
 	headers: Iterable<[string, string | string[]]> & { get?: (name: string) => string | undefined };
-	body?: AsyncIterable<Buffer | string>;
+	body?: BodyStream;
 	/**
 	 * Full user object as Harper's auth pipeline attaches it (includes role +
 	 * permission tree). Transport reads `username` for session binding and
@@ -62,13 +75,42 @@ function normalizeHeaders(headers: HarperHttpRequest['headers']): Record<string,
 	return out;
 }
 
-async function readBody(body: AsyncIterable<Buffer | string> | undefined): Promise<string> {
-	if (!body) return '';
-	const chunks: Buffer[] = [];
-	for await (const chunk of body) {
-		chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk);
-	}
-	return Buffer.concat(chunks).toString('utf8');
+/**
+ * Read the full request body to a UTF-8 string via the Node stream event API.
+ *
+ * Harper wraps the inbound body in a `RequestBody` (server/serverHelpers/
+ * Request.ts) that exposes `.on()`/`.pipe()` — the same contract every other
+ * inbound-body consumer in Harper reads through (e.g. the content-type
+ * deserializers at `server/serverHelpers/contentTypes.ts`). Harper's
+ * `RequestBody` historically exposed only `.on()`/`.pipe()`, so a `for await`
+ * over it threw `TypeError: body is not async iterable` and 500'd every request
+ * (#1317). This PR also adds `Symbol.asyncIterator` to `RequestBody`, but we
+ * still read via the event API here because it's the canonical, always-present
+ * contract that every other inbound-body consumer uses — async iteration isn't
+ * guaranteed on every body wrapper.
+ */
+function readBody(body: BodyStream | undefined): Promise<string> {
+	if (!body) return Promise.resolve('');
+	return new Promise((resolve, reject) => {
+		const chunks: Buffer[] = [];
+		let settled = false;
+		body.on('data', (chunk) => chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk));
+		body.on('end', () => {
+			settled = true;
+			resolve(Buffer.concat(chunks).toString('utf8'));
+		});
+		body.on('error', (err) => {
+			settled = true;
+			reject(err);
+		});
+		// On a premature client disconnect `IncomingMessage` emits 'close' without
+		// 'end' or 'error', so without this the promise would hang forever and the
+		// buffered chunks leak. On normal completion 'close' fires after 'end',
+		// where `settled` is already true, so this is a no-op.
+		body.on('close', () => {
+			if (!settled) reject(Object.assign(new Error('request aborted'), { code: 'ECONNRESET' }));
+		});
+	});
 }
 
 function toHarperResponse(res: NormResponse): HarperHttpResponse {

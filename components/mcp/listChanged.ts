@@ -18,6 +18,7 @@ import harperLogger from '../../utility/logging/harper_logger.ts';
 import { listResources } from './resources.ts';
 import { type RegisteredSession, forEachSessionByProfile, getRegisteredSession } from './sessionRegistry.ts';
 import { listTools, type AuthedUser } from './toolRegistry.ts';
+import { refreshApplicationTools } from './tools/application.ts';
 import type { McpProfile } from './transport.ts';
 
 const MAX_TOOLS_PAGE = 1000;
@@ -196,6 +197,19 @@ async function onUserChange(): Promise<void> {
  * grants).
  */
 async function onSchemaChange(): Promise<void> {
+	// Rebuild the application tool registry first so `tools/list` reflects the
+	// current schema graph (a table may have been added/removed after the MCP
+	// component loaded). No-op when the application profile isn't enabled.
+	// Guarded: a throw here (e.g. an unexpected Resource shape during schema
+	// iteration) must not abort the session-notification loops below.
+	try {
+		refreshApplicationTools();
+	} catch (err) {
+		// warn, not trace: a tool-rebuild failure leaves `tools/list` stale, which
+		// is invisible at default log levels if only traced. The notification loops
+		// below still run.
+		harperLogger.warn(`MCP listChanged refreshApplicationTools failed: ${(err as Error).message}`);
+	}
 	for (const r of snapshotSessions('application')) {
 		await refreshSessionUser(r);
 		maybeNotifyToolsChanged(r);

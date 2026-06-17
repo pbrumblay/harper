@@ -6,10 +6,12 @@
  * `authAndEnsureUserOnRequest` preValidation hook, so the authenticated
  * user lands on `request.hdb_user` before this handler runs.
  *
- * Fastify auto-parses JSON request bodies; we re-stringify so the core's
- * `parseMessage` sees the raw envelope it expects. The round-trip is
- * cheap for the small JSON-RPC frames in the MCP wire format and keeps
- * the core framework-agnostic.
+ * Fastify auto-parses the JSON request body into an object; the transport
+ * core's `parseMessage` accepts both strings and parsed values, so we pass it
+ * through directly. (A malformed operations-profile body is therefore rejected
+ * by Fastify with an HTTP 400 before this handler runs — spec-permitted for the
+ * Streamable HTTP transport; the application profile reads the raw body and
+ * returns a JSON-RPC `-32700` frame instead. See #1317 S1.)
  */
 import { handleMcpRequest, type McpProfile, type NormRequest } from '../transport.ts';
 
@@ -36,10 +38,9 @@ export function createFastifyHandler(profile: McpProfile) {
 		const norm: NormRequest = {
 			method: request.method,
 			headers: normalizeHeaders(request.headers),
-			// Fastify has already parsed the JSON body into an object via its
-			// preParsing pipeline. Pass it through directly — the transport
-			// core's parseMessage accepts both strings and parsed values, so we
-			// avoid an unnecessary stringify/re-parse round trip on the hot path.
+			// Fastify has already parsed the JSON body into an object; the
+			// transport core's parseMessage accepts both strings and parsed
+			// values, so pass it through directly.
 			body: request.body,
 			user: request.hdb_user?.username ?? '',
 			userObject: (request.hdb_user ?? undefined) as NormRequest['userObject'],

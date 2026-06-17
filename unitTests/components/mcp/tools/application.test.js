@@ -1,9 +1,11 @@
 const assert = require('node:assert/strict');
 const {
 	registerApplicationTools,
+	refreshApplicationTools,
 	_setResourcesForTest,
 	_setRequestTargetForTest,
 	_resetCustomToolWarningsForTest,
+	_resetApplicationToolsRegisteredForTest,
 } = require('#src/components/mcp/tools/application');
 const { listTools, getTool, _resetRegistryForTest } = require('#src/components/mcp/toolRegistry');
 
@@ -78,6 +80,71 @@ describe('mcp/tools/application — registration', () => {
 		_resetRegistryForTest();
 		_setResourcesForTest(undefined);
 		_setRequestTargetForTest(undefined);
+		_resetApplicationToolsRegisteredForTest();
+	});
+
+	it('rebuilds the tool set when a table appears after initial registration (#1317)', () => {
+		// First pass: no exported tables yet (MCP loaded before the app's schema).
+		_setResourcesForTest(makeRegistry([]));
+		registerApplicationTools();
+		assert.equal(listTools({ user: SUPER, profile: 'application', sessionId: 's', limit: 200 }).tools.length, 0);
+
+		// Table registers later, then a schema-change fires refreshApplicationTools.
+		const Product = makeTableResource({ databaseName: 'data', tableName: 'product', attributes: [{ name: 'id' }] });
+		_setResourcesForTest(makeRegistry([['Product', { Resource: Product }]]));
+		refreshApplicationTools();
+		const names = listTools({ user: SUPER, profile: 'application', sessionId: 's2', limit: 200 }).tools.map(
+			(t) => t.name
+		);
+		assert.ok(
+			names.some((n) => n === 'create_Product'),
+			`expected create_Product after refresh, got: ${names.join(', ')}`
+		);
+	});
+
+	it('restores the prior tool set when a rebuild throws mid-loop (#1320 review)', () => {
+		// First pass registers a healthy table.
+		const Product = makeTableResource({ databaseName: 'data', tableName: 'product', attributes: [{ name: 'id' }] });
+		_setResourcesForTest(makeRegistry([['Product', { Resource: Product }]]));
+		registerApplicationTools();
+		const before = listTools({ user: SUPER, profile: 'application', sessionId: 's', limit: 200 }).tools.length;
+		assert.ok(before > 0, 'baseline tools registered');
+
+		// Second pass includes a resource that throws during registration.
+		const Bad = makeTableResource({ databaseName: 'data', tableName: 'bad', attributes: [{ name: 'id' }] });
+		Object.defineProperty(Bad, 'description', {
+			get() {
+				throw new Error('boom registering bad table');
+			},
+		});
+		_setResourcesForTest(makeRegistry([['Bad', { Resource: Bad }]]));
+		assert.throws(() => refreshApplicationTools(), /boom registering bad table/);
+
+		// The registry must not be left empty: the prior Product tools are restored.
+		const after = listTools({ user: SUPER, profile: 'application', sessionId: 's2', limit: 200 }).tools.map(
+			(t) => t.name
+		);
+		assert.ok(
+			after.some((n) => n === 'create_Product'),
+			`prior tools must survive a failed rebuild, got: ${after.join(', ')}`
+		);
+	});
+
+	it('re-registration is idempotent — no duplicate tools', () => {
+		const Product = makeTableResource({ databaseName: 'data', tableName: 'product', attributes: [{ name: 'id' }] });
+		_setResourcesForTest(makeRegistry([['Product', { Resource: Product }]]));
+		registerApplicationTools();
+		const first = listTools({ user: SUPER, profile: 'application', sessionId: 's', limit: 500 }).tools.length;
+		registerApplicationTools();
+		const second = listTools({ user: SUPER, profile: 'application', sessionId: 's2', limit: 500 }).tools.length;
+		assert.equal(second, first);
+	});
+
+	it('refreshApplicationTools is a no-op before the profile is registered', () => {
+		const Product = makeTableResource({ databaseName: 'data', tableName: 'product', attributes: [{ name: 'id' }] });
+		_setResourcesForTest(makeRegistry([['Product', { Resource: Product }]]));
+		refreshApplicationTools(); // never registered → should not populate
+		assert.equal(listTools({ user: SUPER, profile: 'application', sessionId: 's', limit: 200 }).tools.length, 0);
 	});
 
 	it('emits get_/search_/create_/update_/delete_ tools for a fully-implemented Resource', () => {
@@ -562,6 +629,29 @@ describe('mcp/tools/application — handler dispatch', () => {
 		assert.equal(captured.user, 'admin');
 		assert.equal(res.isError, undefined);
 		assert.deepEqual(res.structuredContent, { id: '42', name: 'widget' });
+	});
+
+	it('create_ marks the target as a collection so Resource.post routes to create (#1317)', async () => {
+		let captured;
+		const Product = makeTableResource({
+			databaseName: 'data',
+			tableName: 'product',
+			staticHandlers: {
+				post: async (target, data) => {
+					captured = { isCollection: target.isCollection, data };
+					return { id: 'new-1', ...data };
+				},
+			},
+		});
+		_setResourcesForTest(makeRegistry([['Product', { Resource: Product }]]));
+		registerApplicationTools();
+		const res = await getTool('create_Product').handler(
+			{ name: 'widget' },
+			{ user: SUPER, profile: 'application', sessionId: 's' }
+		);
+		assert.equal(captured.isCollection, true, 'create target must be flagged as a collection');
+		assert.deepEqual(captured.data, { name: 'widget' });
+		assert.equal(res.isError, undefined);
 	});
 
 	it('search_ enforces limit cap, encodes nextCursor when more pages exist', async () => {

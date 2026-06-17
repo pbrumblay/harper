@@ -16,7 +16,8 @@ import { createHash } from 'node:crypto';
 import * as env from '../../../utility/environment/environmentManager.ts';
 import { CONFIG_PARAMS } from '../../../utility/hdbTerms.ts';
 import harperLogger from '../../../utility/logging/harper_logger.ts';
-import { addTool, type AuthedUser, type ToolResult } from '../toolRegistry.ts';
+import { addTool, clearProfileTools, snapshotProfileTools, type AuthedUser, type ToolResult } from '../toolRegistry.ts';
+import { decodeCursor, encodeCursor } from '../pagination.ts';
 import {
 	type AttributePermissionEntry,
 	type HarperAttribute,
@@ -89,6 +90,7 @@ type RequestTargetCtor = new () => Record<string, unknown> & {
 	offset?: number;
 	select?: string[];
 	id?: unknown;
+	isCollection?: boolean;
 };
 
 // Test seams: avoid Harper's eager graph init in unit tests.
@@ -222,22 +224,6 @@ function wrapError(toolName: string, err: unknown): ToolResult {
 	};
 }
 
-function encodeCursor(offset: number): string {
-	return Buffer.from(JSON.stringify({ offset }), 'utf8').toString('base64url');
-}
-
-function decodeCursor(cursor: string | undefined): number {
-	if (!cursor) return 0;
-	try {
-		const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { offset?: unknown };
-		const o = decoded?.offset;
-		if (typeof o === 'number' && o >= 0 && Number.isInteger(o)) return o;
-		return 0;
-	} catch {
-		return 0;
-	}
-}
-
 // ─── Verb-specific handler factories ───────────────────────────────────────
 
 function makeGetHandler(toolName: string, ResourceClass: ResourceClassLike) {
@@ -265,7 +251,11 @@ function makeSearchHandler(toolName: string, ResourceClass: ResourceClassLike) {
 			if (Array.isArray(a.get_attributes)) target.select = a.get_attributes as string[];
 			const requestedLimit = typeof a.limit === 'number' && a.limit > 0 ? Math.floor(a.limit) : DEFAULT_SEARCH_LIMIT;
 			const limit = Math.min(requestedLimit, searchLimitFor('application'));
-			const offset = decodeCursor(typeof a.cursor === 'string' ? a.cursor : undefined);
+			// Reuse the shared cursor serialization, but unlike the MCP list-method
+			// protocol (which rejects a bad cursor with -32602), this is a tool
+			// *argument*: an unusable cursor falls back to offset 0 (best effort)
+			// rather than failing the search call.
+			const offset = decodeCursor(typeof a.cursor === 'string' ? a.cursor : '') ?? 0;
 			// Fetch one extra to know if there's a next page without a second round-trip.
 			target.limit = limit + 1;
 			target.offset = offset;
@@ -304,6 +294,11 @@ function makeCreateHandler(toolName: string, ResourceClass: ResourceClassLike) {
 		const a = (args ?? {}) as Record<string, unknown>;
 		try {
 			const target = makeTarget();
+			// Mark the target as a collection so `Resource.post` resolves the table
+			// (not a single record) and routes to `create()` — without this, the
+			// base `post` throws `missingMethod` ("does not have a post method")
+			// because a record-scoped resource has no insert path (#1317).
+			target.isCollection = true;
 			const data = await ResourceClass.post!(target, a, buildContext(context.user));
 			return wrapResult(data ?? { ok: true });
 		} catch (err) {
@@ -714,12 +709,52 @@ function makeCustomMethodHandler(toolName: string, ResourceClass: ResourceClassL
  * for each entry that passes the exportTypes + verb-presence filters.
  * Re-invocation overwrites prior tool entries (Map.set semantics).
  */
+// True once the application profile has registered its tools at least once.
+// Gates `refreshApplicationTools` so schema-change rebuilds only happen when the
+// application profile is actually enabled.
+let applicationToolsRegistered = false;
+
+/**
+ * Rebuild the application tool registry from the CURRENT schema graph. Tools are
+ * derived from exported `@table` Resources, which may register AFTER the MCP
+ * component loads (component load order isn't guaranteed). Re-running on every
+ * schema change keeps `tools/list` in sync — without it, a table created after
+ * boot would never surface a `create_`/`get_` tool (#1317). No-op until the
+ * application profile has been registered once.
+ */
+export function refreshApplicationTools(): void {
+	if (applicationToolsRegistered) registerApplicationTools();
+}
+
+/** Test seam: reset the registered flag so suites can re-exercise registration. */
+export function _resetApplicationToolsRegisteredForTest(): void {
+	applicationToolsRegistered = false;
+}
+
 export function registerApplicationTools(): void {
 	const resources = loadResources();
 	if (!resources) {
 		harperLogger.warn('MCP application profile: Resources registry not available; no tools registered');
 		return;
 	}
+	applicationToolsRegistered = true;
+	// Atomic idempotent rebuild: drop any application tools from a prior pass so a
+	// removed/renamed table doesn't leave a stale tool behind. Snapshot the prior
+	// set first so a throw mid-loop (e.g. a malformed custom tool on a @table)
+	// restores it rather than leaving `tools/list` empty until the next schema
+	// change. Registration is synchronous, so no reader observes the gap.
+	const previousTools = snapshotProfileTools('application');
+	clearProfileTools('application');
+	try {
+		buildApplicationTools(resources);
+	} catch (err) {
+		clearProfileTools('application');
+		for (const def of previousTools) addTool(def);
+		throw err;
+	}
+}
+
+function buildApplicationTools(resources: ResourcesRegistry): void {
 	const claimedSuffixes = new Set<string>();
 	let toolsRegistered = 0;
 	let resourcesConsidered = 0;
