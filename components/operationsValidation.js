@@ -243,6 +243,7 @@ function deployComponentValidator(req) {
 		install_allow_scripts: Joi.boolean().optional(),
 		deployment_timeout: Joi.number().min(0).optional(),
 		force: Joi.boolean().optional(),
+		ignore_replication_errors: Joi.boolean().optional(),
 		urlPath: Joi.string()
 			.min(1)
 			.custom((value, helpers) => {
