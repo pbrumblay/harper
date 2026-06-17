@@ -17,7 +17,7 @@ import { createSecureServer } from 'node:http2';
 import { createServer as createSecureServerHttp1 } from 'node:https';
 import { createServer, IncomingMessage } from 'node:http';
 import { Request, BunRequest, isBun } from './serverHelpers/Request.ts';
-import { appendHeader, Headers } from './serverHelpers/Headers.ts';
+import { appendHeader, Headers, toWriteHeadHeaders } from './serverHelpers/Headers.ts';
 import { Blob } from '../resources/blob.ts';
 import { recordAction, recordActionBinary } from '../resources/analytics/write.ts';
 import { Readable, Writable } from 'node:stream';
@@ -439,7 +439,9 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 								}
 							}
 						} // else the fast path, if we don't have to defer
-						else nodeResponse.writeHead(status, headers && (headers[Symbol.iterator] ? Array.from(headers) : headers));
+						// toWriteHeadHeaders converts iterable headers to an object writeHead accepts (a flat
+						// array form is required otherwise, and `Array.from` would pass invalid nested tuples).
+						else nodeResponse.writeHead(status, toWriteHeadHeaders(headers));
 					}
 					if (sentBody) nodeResponse.end(body);
 				}
@@ -489,7 +491,7 @@ function getHTTPServer(port: number, secure: boolean, options: ServerOptions) {
 				const headers = error.headers;
 				const status = error.statusCode || 500;
 				try {
-					nodeResponse.writeHead(status, headers && (headers[Symbol.iterator] ? Array.from(headers) : headers));
+					nodeResponse.writeHead(status, toWriteHeadHeaders(headers));
 				} catch {} // silently ignore errors writing headers, because they may have been set already
 				nodeResponse.end(errorToString(error));
 				logRequest(nodeRequest, status, requestId, performance.now() - startTime);
