@@ -543,6 +543,13 @@ export function createBlob(
 }
 _assignPackageExport('createBlob', createBlob);
 
+// When set (during a migration via encodeBlobsWithFilePath), saveBlob pushes the in-flight
+// writeBlob save promise here so the migration can await every blob's durable write before
+// declaring the database done. Without this, the migration's `await targetDbi.put(...)`
+// only waits for the RocksDB record commit, not the async blob file pipeline, so records
+// can be committed referencing fileIds whose blob files were never durably written.
+let pendingMigrationBlobSaves: Promise<void>[] | undefined;
+
 export function saveBlob(blob: FileBackedBlob, deleteOnFailure = false) {
 	let storageInfo = storageInfoForBlob.get(blob);
 	if (!storageInfo) {
@@ -566,6 +573,23 @@ export function saveBlob(blob: FileBackedBlob, deleteOnFailure = false) {
 	else {
 		// for native blobs, we have to read them from the stream
 		writeBlobWithStream(blob as any, Readable.from(blob.stream()), storageInfo);
+	}
+	// Track the in-flight save when a migration is collecting them. storageInfo.saving is set
+	// by writeBlobWithStream; writeBlobWithBuffer for small blobs may not produce one. The
+	// wrapping `.then(...)` removes resolved promises from the list so a long migration does not
+	// accumulate every settled save in memory. A side `.catch(noop)` is attached to the tracked
+	// chain so a mid-loop rejection doesn't fire Node's `unhandledRejection` before the migration
+	// reaches `Promise.allSettled(pendingBlobSaves)` — that observation is via a separate handler
+	// chain, so the original `tracked` still rejects and the migration's allSettled still detects
+	// the failure and throws the structured `Migration of … failed: …` error.
+	if (pendingMigrationBlobSaves && storageInfo.saving) {
+		const list = pendingMigrationBlobSaves;
+		const tracked: Promise<void> = storageInfo.saving.then(() => {
+			const i = list.indexOf(tracked);
+			if (i !== -1) list.splice(i, 1);
+		});
+		tracked.catch(() => {});
+		list.push(tracked);
 	}
 	return storageInfo;
 }
@@ -896,6 +920,29 @@ export function encodeBlobsWithFilePath<T>(callback: () => T, encodingId: number
 		encodeForStorageForRecordId = undefined;
 		currentStore = undefined;
 	}
+}
+
+/**
+ * Open and close a window where saveBlob tracks every in-flight blob save promise. Used by the
+ * v4→v5 migration in copyDb.ts so the migration can await every blob file write before declaring
+ * a database done. Without this, fire-and-forget blob saves can be left mid-pipeline at migration
+ * end, producing records in the target DB that reference fileIds whose files were never durably
+ * written — exactly the "missing blob file" state behind the base-copy wedge in harper#1337.
+ *
+ * Usage:
+ *   const saves = beginPendingMigrationBlobSaves();
+ *   // ... run migration loop, encodeBlobsWithFilePath collects saves into `saves` ...
+ *   const results = await Promise.allSettled(saves);
+ *   endPendingMigrationBlobSaves();
+ *   const failed = results.filter(r => r.status === 'rejected');
+ *   if (failed.length > 0) throw ...;
+ */
+export function beginPendingMigrationBlobSaves(): Promise<void>[] {
+	pendingMigrationBlobSaves = [];
+	return pendingMigrationBlobSaves;
+}
+export function endPendingMigrationBlobSaves(): void {
+	pendingMigrationBlobSaves = undefined;
 }
 /**
  * Encode blobs as buffers, so they can be transferred remotely
