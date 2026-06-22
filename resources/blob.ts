@@ -763,9 +763,7 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 			const armIdleTimer = () => {
 				if (idleTimer) clearTimeout(idleTimer);
 				idleTimer = setTimeout(() => {
-					(stream as Readable).destroy(
-						new Error(`Blob source stream idle for ${idleTimeoutMs}ms (fileId=${fileId})`)
-					);
+					(stream as Readable).destroy(new Error(`Blob source stream idle for ${idleTimeoutMs}ms (fileId=${fileId})`));
 				}, idleTimeoutMs).unref();
 			};
 			stream.on('data', armIdleTimer);
