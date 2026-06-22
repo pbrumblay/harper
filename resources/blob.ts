@@ -724,6 +724,18 @@ export function saveBlob(blob: FileBackedBlob, deleteOnFailure = false) {
 /**
  * Create a blob from a readable stream
  */
+// Optional source-stream idle timeout for writeBlobWithStream. When > 0, a stream that goes this
+// long without delivering data is force-destroyed so the save promise rejects in finite time.
+// Default 0 (off) preserves prior behavior. Replication's blob-receive path enables it: without
+// this, pipeline(source, writeStream, finished) sits forever on a sender that never sends the
+// closing `finished:true` BLOB_CHUNK, saveBlob.saving never settles, outstandingBlobsToFinish
+// keeps the stuck promise, and the per-database apply consumer's drain await wedges. Surfaced in
+// production as a (sender, receiver, database) tuple pinned at lastReceivedStatus="Receiving"
+// indefinitely. Read at call time so tests and operators can change it without a process restart.
+function getBlobStreamIdleTimeoutMs(): number {
+	return Number(process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS) || 0;
+}
+
 function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageInfo: StorageInfo): Blob {
 	const { filePath, fileId, store, compress, flush } = storageInfo;
 	storageInfo.saving = new Promise((resolve, reject) => {
@@ -738,6 +750,26 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 			// if we know the size, we can write the header immediately
 			writeStream.write(createHeader(blob.size)); // write the default header
 			wroteSize = true;
+		}
+		// Source-idle watchdog: armed on every 'data' event, destroys the source if it goes silent
+		// (no end, no error, no more data) for longer than the configured threshold so pipeline
+		// rejects cleanly. Off by default; replication sets HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS so an
+		// abandoned BLOB_CHUNK stream cannot wedge the apply consumer. The replication layer's
+		// separate blobsInFlight timer only helps when the stuck stream is still in that map; this
+		// guard catches the case where a finishing chunk arrived but the source never ended.
+		let idleTimer: NodeJS.Timeout | undefined;
+		const idleTimeoutMs = getBlobStreamIdleTimeoutMs();
+		if (idleTimeoutMs > 0) {
+			const armIdleTimer = () => {
+				if (idleTimer) clearTimeout(idleTimer);
+				idleTimer = setTimeout(() => {
+					(stream as Readable).destroy(
+						new Error(`Blob source stream idle for ${idleTimeoutMs}ms (fileId=${fileId})`)
+					);
+				}, idleTimeoutMs).unref();
+			};
+			stream.on('data', armIdleTimer);
+			armIdleTimer();
 		}
 		let compressedStream: any;
 		if (compress) {
@@ -758,6 +790,10 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 		}
 		// when the stream is finished, we may need to flush, and then close the handle and resolve the promise
 		function finished(error?: Error) {
+			if (idleTimer) {
+				clearTimeout(idleTimer);
+				idleTimer = undefined;
+			}
 			const fd = (writeStream as any).fd;
 			if (error) {
 				store.unlock(lockKey);
