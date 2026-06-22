@@ -724,16 +724,21 @@ export function saveBlob(blob: FileBackedBlob, deleteOnFailure = false) {
 /**
  * Create a blob from a readable stream
  */
-// Optional source-stream idle timeout for writeBlobWithStream. When > 0, a stream that goes this
-// long without delivering data is force-destroyed so the save promise rejects in finite time.
-// Default 0 (off) preserves prior behavior. Replication's blob-receive path enables it: without
-// this, pipeline(source, writeStream, finished) sits forever on a sender that never sends the
-// closing `finished:true` BLOB_CHUNK, saveBlob.saving never settles, outstandingBlobsToFinish
-// keeps the stuck promise, and the per-database apply consumer's drain await wedges. Surfaced in
-// production as a (sender, receiver, database) tuple pinned at lastReceivedStatus="Receiving"
-// indefinitely. Read at call time so tests and operators can change it without a process restart.
+// Source-stream idle timeout for writeBlobWithStream. When > 0, a stream that goes this long without
+// delivering data is force-destroyed so the save promise rejects in finite time. Without it,
+// pipeline(source, writeStream, finished) sits forever on a sender that never sends the closing
+// `finished:true` BLOB_CHUNK, saveBlob.saving never settles, outstandingBlobsToFinish keeps the
+// stuck promise, and the per-database apply consumer's drain await wedges — surfaced in production
+// as a (sender, receiver, database) tuple pinned at lastReceivedStatus="Receiving" indefinitely
+// (JJill preprod 5.1.7; harper-pro#453).
+// Defaults ON to 120000ms so the wedge can't happen out of the box; HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS
+// overrides it (set 0 to disable). The timer re-arms while the source is paused, so legitimate write
+// backpressure never trips it — only a genuinely silent source is destroyed. Read at call time so
+// tests and operators can change it without a process restart.
+const DEFAULT_BLOB_STREAM_IDLE_TIMEOUT_MS = 120000;
 function getBlobStreamIdleTimeoutMs(): number {
-	return Number(process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS) || 0;
+	const configured = process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS;
+	return configured != null ? Number(configured) : DEFAULT_BLOB_STREAM_IDLE_TIMEOUT_MS;
 }
 
 function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageInfo: StorageInfo): Blob {
@@ -752,7 +757,7 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 			wroteSize = true;
 		}
 		// Source-idle watchdog: destroys the source if no 'data' arrives for the configured threshold
-		// so pipeline rejects cleanly. Off by default; replication sets HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS.
+		// so pipeline rejects cleanly. On by default (120s); HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS overrides.
 		// On expiry, re-arm if the stream is paused (pipeline backpressure, not a real stall) so a slow
 		// writeStream doesn't trip a false destroy.
 		let idleTimer: NodeJS.Timeout | undefined;
