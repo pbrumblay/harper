@@ -751,18 +751,21 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 			writeStream.write(createHeader(blob.size)); // write the default header
 			wroteSize = true;
 		}
-		// Source-idle watchdog: armed on every 'data' event, destroys the source if it goes silent
-		// (no end, no error, no more data) for longer than the configured threshold so pipeline
-		// rejects cleanly. Off by default; replication sets HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS so an
-		// abandoned BLOB_CHUNK stream cannot wedge the apply consumer. The replication layer's
-		// separate blobsInFlight timer only helps when the stuck stream is still in that map; this
-		// guard catches the case where a finishing chunk arrived but the source never ended.
+		// Source-idle watchdog: destroys the source if no 'data' arrives for the configured threshold
+		// so pipeline rejects cleanly. Off by default; replication sets HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS.
+		// On expiry, re-arm if the stream is paused (pipeline backpressure, not a real stall) so a slow
+		// writeStream doesn't trip a false destroy.
 		let idleTimer: NodeJS.Timeout | undefined;
+		let armIdleTimer: (() => void) | undefined;
 		const idleTimeoutMs = getBlobStreamIdleTimeoutMs();
 		if (idleTimeoutMs > 0) {
-			const armIdleTimer = () => {
+			armIdleTimer = () => {
 				if (idleTimer) clearTimeout(idleTimer);
 				idleTimer = setTimeout(() => {
+					if ((stream as Readable).isPaused()) {
+						armIdleTimer?.();
+						return;
+					}
 					(stream as Readable).destroy(new Error(`Blob source stream idle for ${idleTimeoutMs}ms (fileId=${fileId})`));
 				}, idleTimeoutMs).unref();
 			};
@@ -791,6 +794,10 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 			if (idleTimer) {
 				clearTimeout(idleTimer);
 				idleTimer = undefined;
+			}
+			if (armIdleTimer) {
+				stream.removeListener('data', armIdleTimer);
+				armIdleTimer = undefined;
 			}
 			const fd = (writeStream as any).fd;
 			if (error) {
