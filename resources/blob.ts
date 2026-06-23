@@ -51,7 +51,7 @@ type StorageInfo = {
 	filePath?: string;
 	recordId?: number;
 	contentBuffer?: any;
-	source?: NodeJS.ReadableStream;
+	source?: Readable;
 	storageBuffer?: Buffer;
 	compress?: boolean;
 	flush?: boolean;
@@ -753,7 +753,40 @@ export function saveBlob(blob: FileBackedBlob, deleteOnFailure = false) {
 /**
  * Create a blob from a readable stream
  */
-function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageInfo: StorageInfo): Blob {
+// Source-stream idle timeout for writeBlobWithStream. When > 0, a stream that goes this long without
+// delivering data is force-destroyed so the save promise rejects in finite time. Without it,
+// pipeline(source, writeStream, finished) sits forever on a sender that never sends the closing
+// `finished:true` BLOB_CHUNK, saveBlob.saving never settles, outstandingBlobsToFinish keeps the
+// stuck promise, and the per-database apply consumer's drain await wedges — surfaced in production
+// as a (sender, receiver, database) tuple pinned at lastReceivedStatus="Receiving" indefinitely
+// (JJill preprod 5.1.7; harper-pro#453).
+//
+// OFF by default. writeBlobWithStream is the generic primitive for every blob write — HTTP upload,
+// origin-fetch cache fill, replication receive — and bounding a source's liveness is the owning
+// caller's responsibility, not this primitive's: a blanket timeout here would destroy a legitimately
+// slow non-replication source. The owning caller arms it per-write by setting `blobStreamIdleTimeoutMs`
+// on the source stream (the replication receive path does this on its PassThrough). A process-wide
+// HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS env var, when set, overrides the per-stream value for every write
+// (ops escape hatch / kill switch — set 0 to force-disable). Read at call time so tests and operators
+// can change it without a restart. The timer re-arms while the source is paused (pipeline backpressure,
+// not a real stall) so a slow writeStream never trips a false destroy.
+// Largest delay setTimeout accepts; a larger value (or Infinity/NaN) is silently coerced to 1ms, which
+// would fire the watchdog almost immediately and destroy a healthy stream — so clamp/reject instead.
+const MAX_SET_TIMEOUT_MS = 2147483647; // 2^31 - 1
+function getBlobStreamIdleTimeoutMs(stream: Readable): number {
+	const configured = process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS;
+	// env override (process-wide kill switch) when set, else the per-stream value the owning caller armed.
+	const raw =
+		configured != null
+			? Number(configured)
+			: Number((stream as { blobStreamIdleTimeoutMs?: number }).blobStreamIdleTimeoutMs ?? 0);
+	// A NaN/negative/zero value means off; cap a too-large value at the setTimeout max so it doesn't
+	// collapse to 1ms and instantly destroy the source.
+	if (!Number.isFinite(raw) || raw <= 0) return 0;
+	return Math.min(raw, MAX_SET_TIMEOUT_MS);
+}
+
+function writeBlobWithStream(blob: Blob, stream: Readable, storageInfo: StorageInfo): Blob {
 	const { filePath, fileId, store, compress, flush } = storageInfo;
 	storageInfo.saving = new Promise((resolve, reject) => {
 		// pipe the stream to the file
@@ -767,6 +800,27 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 			// if we know the size, we can write the header immediately
 			writeStream.write(createHeader(blob.size)); // write the default header
 			wroteSize = true;
+		}
+		// Source-idle watchdog: destroys the source if no 'data' arrives for the threshold so pipeline
+		// rejects cleanly. Off unless the owning caller armed this source (or the env override is set);
+		// see getBlobStreamIdleTimeoutMs. On expiry, re-arm if the stream is paused (pipeline backpressure,
+		// not a real stall) so a slow writeStream doesn't trip a false destroy.
+		let idleTimer: NodeJS.Timeout | undefined;
+		let armIdleTimer: (() => void) | undefined;
+		const idleTimeoutMs = getBlobStreamIdleTimeoutMs(stream);
+		if (idleTimeoutMs > 0) {
+			armIdleTimer = () => {
+				if (idleTimer) clearTimeout(idleTimer);
+				idleTimer = setTimeout(() => {
+					if (stream.isPaused()) {
+						armIdleTimer?.();
+						return;
+					}
+					stream.destroy(new Error(`Blob source stream idle for ${idleTimeoutMs}ms (fileId=${fileId})`));
+				}, idleTimeoutMs).unref();
+			};
+			stream.on('data', armIdleTimer);
+			armIdleTimer();
 		}
 		let compressedStream: any;
 		if (compress) {
@@ -787,6 +841,14 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 		}
 		// when the stream is finished, we may need to flush, and then close the handle and resolve the promise
 		function finished(error?: Error) {
+			if (idleTimer) {
+				clearTimeout(idleTimer);
+				idleTimer = undefined;
+			}
+			if (armIdleTimer) {
+				stream.removeListener('data', armIdleTimer);
+				armIdleTimer = undefined;
+			}
 			const fd = (writeStream as any).fd;
 			if (error) {
 				store.unlock(lockKey);

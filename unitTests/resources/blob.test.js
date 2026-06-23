@@ -854,6 +854,182 @@ describe('Blob test', () => {
 		setDeletionDelay(500); // restore original
 	});
 });
+
+describe('saveBlob with idle source stream (replication wedge regression)', () => {
+	let WedgeTable;
+	let savedIdleTimeoutEnv;
+	before(function () {
+		setupTestDBPath();
+		// Enable the source-stream idle timeout for these tests so the wedge case has a finite
+		// settle deadline. The value must be short enough that the 'never-ended' test settles
+		// inside its 3s wait.
+		savedIdleTimeoutEnv = process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS;
+		process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS = '1500';
+		WedgeTable = table({
+			table: 'WedgeTable',
+			database: 'test',
+			attributes: [
+				{ name: 'id', isPrimaryKey: true },
+				{ name: 'blob', type: 'Blob' },
+			],
+		});
+	});
+	after(function () {
+		if (savedIdleTimeoutEnv === undefined) delete process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS;
+		else process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS = savedIdleTimeoutEnv;
+	});
+
+	it('settles saveBlob.saving when the source PassThrough was destroyed before save started', async () => {
+		// Mirrors the replication-receive race: the BLOB_CHUNK handler creates a PassThrough in
+		// blobsInFlight; a later chunk with `finished:true, error:"..."` calls stream.destroy(err).
+		// When the audit entry then arrives, receiveBlobs retrieves the destroyed stream and
+		// saveBlob's pipeline runs over an already-destroyed source. Without the idle watchdog,
+		// pipeline() may not observe the destroy, saveBlob.saving never settles, and the per-
+		// (sender, receiver, database) replication tuple wedges at status "Receiving".
+		const stream = new PassThrough();
+		stream.on('error', () => {}); // suppress 'unhandled error' from the manual destroy
+		stream.destroy(new Error('Blob error: simulated upstream tear-down'));
+		const blob = await createBlob(stream);
+		const info = decodeFromDatabase(() => saveBlob(blob), WedgeTable.primaryStore.rootStore);
+
+		let state = 'pending';
+		// eslint-disable-next-line promise/catch-or-return
+		(info.saving ?? Promise.resolve())
+			.then(() => {
+				state = 'resolved';
+			})
+			.catch(() => {
+				state = 'rejected';
+			});
+
+		await delay(2000);
+		assert.notStrictEqual(
+			state,
+			'pending',
+			'saveBlob.saving never settled; in replication this wedges the per-database receive consumer indefinitely'
+		);
+	});
+
+	it('settles saveBlob.saving when the source stream has chunks but is never ended', async () => {
+		// Production scenario: a sender's BLOB_CHUNK frames arrive partial. Some content lands but
+		// the closing `finished:true` (or error) frame never does. The PassThrough sits idle:
+		// neither ended nor destroyed. Without the idle watchdog, pipeline waits forever and the
+		// tracked saveBlob.saving promise pins outstandingBlobsToFinish, stalling the apply
+		// consumer's drain await with no log signature.
+		const stream = new PassThrough();
+		stream.write(Buffer.from('chunk-but-no-finish'));
+		// NO destroy, NO end: prod-observed state of an abandoned blob stream.
+
+		const blob = await createBlob(stream);
+		const info = decodeFromDatabase(() => saveBlob(blob), WedgeTable.primaryStore.rootStore);
+
+		let state = 'pending';
+		// eslint-disable-next-line promise/catch-or-return
+		(info.saving ?? Promise.resolve())
+			.then(() => {
+				state = 'resolved';
+			})
+			.catch(() => {
+				state = 'rejected';
+			});
+
+		await delay(3000);
+		assert.notStrictEqual(
+			state,
+			'pending',
+			'saveBlob.saving did not settle within 3s for an idle source stream; pipeline waits forever and wedges the per-database replication apply consumer (production: lastReceivedStatus stuck on "Receiving")'
+		);
+	});
+
+	it('settles when a mid-stream chunk arrives, then a destroy, then no further chunks', async () => {
+		// More faithful repro of the receive path: PassThrough is created in blobsInFlight, some
+		// chunks arrive, the stream is destroyed (e.g. by a sender-side error frame), then
+		// saveBlob is started by the audit-record receive. No further chunks ever land. In the
+		// production receiver this leaves pipeline() waiting on a torn-down source that never
+		// ends nor errors from this side, holding outstandingBlobsToFinish forever.
+		const stream = new PassThrough();
+		stream.on('error', () => {});
+
+		stream.write(Buffer.from('partial-blob-payload-'));
+		stream.destroy(new Error('Blob error: simulated tear-down mid-stream'));
+
+		const blob = await createBlob(stream);
+		const info = decodeFromDatabase(() => saveBlob(blob), WedgeTable.primaryStore.rootStore);
+
+		let state = 'pending';
+		// eslint-disable-next-line promise/catch-or-return
+		(info.saving ?? Promise.resolve())
+			.then(() => {
+				state = 'resolved';
+			})
+			.catch(() => {
+				state = 'rejected';
+			});
+
+		await delay(3000);
+		assert.notStrictEqual(
+			state,
+			'pending',
+			'saveBlob.saving never settled with a partially-written-then-destroyed source: replication wedge'
+		);
+	});
+});
+
+describe('saveBlob source-idle watchdog is opt-in (off by default, per-stream arm)', () => {
+	let OptInTable;
+	let savedIdleTimeoutEnv;
+	before(function () {
+		setupTestDBPath();
+		// Deliberately NO HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS: the watchdog must be OFF unless the owning
+		// caller arms the specific source. writeBlobWithStream is the generic primitive for every blob
+		// write (HTTP upload, origin-fetch cache fill, replication receive); bounding a source is the
+		// caller's job, not the primitive's. (The process-wide env override is exercised in the block above.)
+		savedIdleTimeoutEnv = process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS;
+		delete process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS;
+		OptInTable = table({
+			table: 'OptInTable',
+			database: 'test',
+			attributes: [
+				{ name: 'id', isPrimaryKey: true },
+				{ name: 'blob', type: 'Blob' },
+			],
+		});
+	});
+	after(function () {
+		if (savedIdleTimeoutEnv === undefined) delete process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS;
+		else process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS = savedIdleTimeoutEnv;
+	});
+
+	it('does NOT destroy an unarmed idle source (a slow non-replication write is left alone)', async () => {
+		const stream = new PassThrough();
+		stream.write(Buffer.from('slow-source-no-arm')); // chunk lands, never ended, never armed
+		const blob = await createBlob(stream);
+		const info = decodeFromDatabase(() => saveBlob(blob), OptInTable.primaryStore.rootStore);
+		let state = 'pending';
+		// eslint-disable-next-line promise/catch-or-return
+		(info.saving ?? Promise.resolve()).then(() => (state = 'resolved')).catch(() => (state = 'rejected'));
+		await delay(1500);
+		assert.strictEqual(state, 'pending', 'an unarmed idle source must NOT be force-destroyed by the watchdog');
+		stream.destroy(); // clean up the deliberately-stuck write so the blob lock is released
+		await delay(50);
+	});
+
+	it('settles when the owning caller arms the source via stream.blobStreamIdleTimeoutMs', async () => {
+		// How the replication receive path opts in: it sets this on its PassThrough; other callers stay off.
+		const stream = new PassThrough();
+		stream.blobStreamIdleTimeoutMs = 800;
+		stream.on('error', () => {});
+		stream.write(Buffer.from('armed-but-never-finished')); // chunk lands, then idle, never ended
+		const blob = await createBlob(stream);
+		const info = decodeFromDatabase(() => saveBlob(blob), OptInTable.primaryStore.rootStore);
+		let state = 'pending';
+		// eslint-disable-next-line promise/catch-or-return
+		(info.saving ?? Promise.resolve()).then(() => (state = 'resolved')).catch(() => (state = 'rejected'));
+		await delay(2500);
+		assert.notStrictEqual(state, 'pending', 'an armed idle source should be destroyed within its timeout and settle');
+	});
+});
+
 function delay(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms)); // wait for audit log removal and deletion
 }
