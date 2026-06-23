@@ -15,9 +15,12 @@ import { addExtension, pack, Packr } from 'msgpackr';
 import { readFile, statfs, readdir, rmdir, unlink as unlinkPromised } from 'node:fs/promises';
 import {
 	close,
+	closeSync,
+	createReadStream,
 	createWriteStream,
 	fdatasync,
 	open,
+	openSync,
 	readFileSync,
 	read,
 	readSync,
@@ -31,7 +34,7 @@ import {
 	type FSWatcher,
 } from 'node:fs';
 import type { StatsFs } from 'node:fs';
-import { createDeflate, deflate } from 'node:zlib';
+import { createDeflate, createInflate, deflate } from 'node:zlib';
 import { Readable, pipeline } from 'node:stream';
 import { ensureDirSync } from 'fs-extra';
 import { get as envGet, getHdbBasePath } from '../utility/environment/environmentManager.ts';
@@ -1515,6 +1518,10 @@ addExtension({
 				// declare it as being fulfilled
 				if (promisedWrites) promisedWrites.push(blob.bytes());
 				else {
+					// Deliberately UNCODED (no ERR_BLOB_INCOMPLETE): unlike the read paths above, this sync
+					// encode path has no writer-finished guard — a size mismatch here can be a blob still being
+					// written. Coding it would let replication advance past (and unlink) a recoverable blob =
+					// silent data loss. Stay uncoded so the receiver holds the gap and retries (harper-pro#429).
 					throw new Error('Incomplete blob');
 				}
 				return Buffer.alloc(0);
@@ -1698,5 +1705,119 @@ export async function cleanupOrphans(database: any, databaseName?: string) {
 				}
 			}
 		});
+	}
+}
+
+async function isBlobFileComplete(storageInfo: StorageInfo): Promise<boolean> {
+	let filePath: string;
+	let fileSize: number;
+	try {
+		filePath = getFilePath(storageInfo);
+		fileSize = statSync(filePath).size;
+	} catch (e) {
+		if ((e as any).code === 'ENOENT') return false;
+		throw e;
+	}
+	if (fileSize < HEADER_SIZE) return false;
+	const header = Buffer.alloc(HEADER_SIZE);
+	const fd = openSync(filePath, 'r');
+	try {
+		readSync(fd, header, 0, HEADER_SIZE, 0);
+	} finally {
+		closeSync(fd);
+	}
+	const headerValue = new DataView(header.buffer, header.byteOffset, 8).getBigUint64(0);
+	if (Number(headerValue >> 48n) === ERROR_TYPE) return false;
+	// The header size field holds the *uncompressed* content length for both compressed and
+	// uncompressed blobs (writeBlobWithStream stores deflate.bytesWritten, which is the input/
+	// uncompressed byte count). For an uncompressed blob that equals the on-disk body length;
+	// for a compressed blob it does not, so the body length can't be compared to it directly.
+	const size = Number(headerValue & 0xffffffffffffn);
+	if (size === UNKNOWN_SIZE) return false; // in-flight placeholder, header not yet finalized
+	if (header[1] === DEFLATE_TYPE) {
+		// A compressed blob's header size is the uncompressed length, so it can't be compared to the
+		// compressed on-disk body. Verify by streaming the body through inflate and counting the
+		// decompressed bytes: a fully-written deflate stream inflates to exactly `size` bytes; a
+		// truncated one errors (Z_BUF_ERROR) or yields fewer. Streaming (rather than inflateSync on
+		// the whole buffer) keeps memory bounded during the repair sweep, which may touch many large
+		// blobs.
+		return new Promise<boolean>((resolve) => {
+			let inflatedLength = 0;
+			const source = createReadStream(filePath, { start: HEADER_SIZE });
+			const inflate = createInflate();
+			const fail = () => {
+				source.destroy();
+				resolve(false);
+			};
+			source.on('error', fail);
+			inflate.on('error', fail);
+			inflate.on('data', (chunk: Buffer) => {
+				inflatedLength += chunk.length;
+			});
+			inflate.on('end', () => resolve(inflatedLength === size));
+			source.pipe(inflate);
+		});
+	}
+	return size === fileSize - HEADER_SIZE;
+}
+
+/**
+ * Resolves true if the given blob's backing file is present and complete: no error stub, not an
+ * in-flight placeholder, and the content matches the header (uncompressed blobs by body length,
+ * compressed blobs by a streamed inflate). Used by the repair sweep to verify a blob was durably
+ * written after a peer fetch.
+ */
+export async function isBlobComplete(blob: Blob): Promise<boolean> {
+	if (!(blob instanceof FileBackedBlob)) return true; // inline blobs are always complete
+	const storageInfo = storageInfoForBlob.get(blob);
+	if (!storageInfo?.fileId) return false;
+	return isBlobFileComplete(storageInfo);
+}
+
+/**
+ * Async generator that yields records whose referenced blob files are missing, truncated, or in an
+ * error state. Used by the blob repair sweep to find candidates for peer-fetched recovery.
+ * Only scans the primary store (current record versions); audit-log blobs are not checked.
+ */
+export async function* findIncompleteBlobRefs(
+	database: any,
+	databaseName?: string
+): AsyncGenerator<{ tableName: string; table: any; recordId: any }> {
+	const { HAS_BLOBS } = await import('./auditStore.ts');
+	let i = 0;
+	const perMS = Math.floor((envGet(CONFIG_PARAMS.STORAGE_BLOBCLEANUPSPEED) ?? 10000) / 1000 + 1);
+	for (const tableName in database) {
+		logger.info?.('Scanning table for incomplete blobs', tableName, databaseName ?? '');
+		const table = database[tableName];
+		for (const entry of table.primaryStore.getRange({ versions: true, snapshot: false, lazy: true })) {
+			try {
+				if (entry.metadataFlags & HAS_BLOBS && entry.value) {
+					const storageInfos: StorageInfo[] = [];
+					findBlobsInObject(entry.value, (blob) => {
+						if (blob instanceof FileBackedBlob) {
+							const storageInfo = storageInfoForBlob.get(blob);
+							if (storageInfo?.fileId != null) storageInfos.push(storageInfo);
+						}
+					});
+					let hasIncomplete = false;
+					for (const storageInfo of storageInfos) {
+						try {
+							if (!(await isBlobFileComplete(storageInfo))) {
+								hasIncomplete = true;
+								break;
+							}
+						} catch {
+							hasIncomplete = true; // unreadable path → treat as incomplete
+							break;
+						}
+					}
+					if (hasIncomplete) yield { tableName, table, recordId: entry.key };
+				}
+				if (i++ % perMS === 0) await delay(1);
+				else await rest();
+			} catch (error) {
+				logger.error?.('Error scanning record for incomplete blobs', tableName, entry?.key, error);
+			}
+		}
 	}
 }

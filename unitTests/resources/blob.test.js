@@ -21,8 +21,20 @@ const {
 	decodeFromDatabase,
 	startPreCommitBlobsForRecord,
 	isSourceBlobUnavailable,
+	isBlobComplete,
+	findIncompleteBlobRefs,
 } = require('#src/resources/blob');
-const { existsSync, unlinkSync, openSync, writeSync, ftruncateSync, closeSync } = require('fs');
+const {
+	existsSync,
+	unlinkSync,
+	openSync,
+	writeSync,
+	ftruncateSync,
+	closeSync,
+	statSync,
+	truncateSync,
+	writeFileSync,
+} = require('fs');
 const { pack } = require('msgpackr');
 const { randomBytes } = require('crypto');
 const { waitFor } = require('../waitFor.js');
@@ -668,6 +680,96 @@ describe('Blob test', () => {
 		assert.equal(list.length, 0); // list cleared so subsequent abort/skip calls are no-ops
 		cleanupUnusedBlobs(list); // does not throw on empty list
 		cleanupUnusedBlobs(undefined); // does not throw when never tracked
+	});
+	it('isBlobComplete: true for saved blob, false for unsaved/ENOENT', async () => {
+		// native Blob (not FileBackedBlob) — always complete, no file backing
+		assert.equal(await isBlobComplete(new Blob(['hello'])), true, 'native Blob → true');
+
+		// unsaved FileBackedBlob (no fileId yet) — can't be complete
+		const freshBlob = createBlob(Buffer.from('hello'));
+		assert.equal(await isBlobComplete(freshBlob), false, 'unsaved blob (no fileId) → false');
+
+		// fully saved blob — file present, header matches size
+		const savedBlob = await createBlob(randomBytes(20000)); // > FILE_STORAGE_THRESHOLD → file-backed
+		await decodeFromDatabase(() => saveBlob(savedBlob).saving, BlobTest.primaryStore.rootStore);
+		assert.equal(await isBlobComplete(savedBlob), true, 'saved blob → true');
+
+		// truncated file — header records the original size but the file body is short, so the
+		// size check (header size === fileSize - HEADER_SIZE) fails
+		const truncatedBlob = await createBlob(randomBytes(20000));
+		await decodeFromDatabase(() => saveBlob(truncatedBlob).saving, BlobTest.primaryStore.rootStore);
+		const truncatedPath = getFilePathForBlob(truncatedBlob);
+		const truncatedFullSize = statSync(truncatedPath).size;
+		truncateSync(truncatedPath, truncatedFullSize - 100); // drop 100 body bytes, header still claims the full size
+		assert.equal(await isBlobComplete(truncatedBlob), false, 'truncated blob (size mismatch) → false');
+		unlinkSync(truncatedPath);
+
+		// error-stub file — an 8-byte header whose top 16 bits are the ERROR_TYPE marker (0xff),
+		// written when a save failed; isBlobFileComplete treats it as incomplete
+		const errorBlob = await createBlob(randomBytes(20000));
+		await decodeFromDatabase(() => saveBlob(errorBlob).saving, BlobTest.primaryStore.rootStore);
+		const errorPath = getFilePathForBlob(errorBlob);
+		const errorHeader = Buffer.alloc(8);
+		errorHeader.writeBigUInt64BE(0xffn << 48n); // ERROR_TYPE in the high 16 bits
+		writeFileSync(errorPath, errorHeader);
+		assert.equal(await isBlobComplete(errorBlob), false, 'error-stub blob (ERROR_TYPE header) → false');
+		unlinkSync(errorPath);
+
+		// delete the file to simulate ENOENT (missing blob)
+		const blobPath = getFilePathForBlob(savedBlob);
+		unlinkSync(blobPath);
+		assert.equal(await isBlobComplete(savedBlob), false, 'missing blob file (ENOENT) → false');
+	});
+	it('isBlobComplete: compressed (DEFLATE) blob — complete when fully saved, false when truncated', async () => {
+		// A compressed blob stores the *uncompressed* length in its header, but the on-disk body is
+		// the (smaller) compressed stream. The naive `header size === fileSize - HEADER_SIZE` check
+		// therefore wrongly reports a correctly-saved compressed blob as incomplete (Codex finding on
+		// harper#1387). Use highly compressible content so the compressed body is clearly shorter than
+		// the uncompressed size — otherwise the bug wouldn't even be observable.
+		const compressiblePayload = Buffer.alloc(20000, 'a'); // > FILE_STORAGE_THRESHOLD and very compressible
+		const compressedBlob = await createBlob(compressiblePayload, { compress: true });
+		await decodeFromDatabase(() => saveBlob(compressedBlob).saving, BlobTest.primaryStore.rootStore);
+		const compressedPath = getFilePathForBlob(compressedBlob);
+		// sanity: the on-disk body really is shorter than the uncompressed payload, so a body-length
+		// comparison against the header (uncompressed) size would fail
+		assert(
+			statSync(compressedPath).size - 8 < compressiblePayload.length,
+			'compressed body should be smaller than the uncompressed payload'
+		);
+		assert.equal(await isBlobComplete(compressedBlob), true, 'fully-saved compressed blob → true');
+
+		// truncating the compressed body breaks the deflate stream → inflate fails → incomplete
+		const fullSize = statSync(compressedPath).size;
+		truncateSync(compressedPath, fullSize - 20); // drop trailing compressed bytes
+		assert.equal(await isBlobComplete(compressedBlob), false, 'truncated compressed blob → false');
+		unlinkSync(compressedPath);
+	});
+	it('findIncompleteBlobRefs: yields records with missing blobs, skips complete ones', async () => {
+		// record 901: blob saved normally — must NOT appear in the sweep
+		const completeBlob = await createBlob(randomBytes(20000));
+		await BlobTest.put({ id: 901, blob: completeBlob });
+
+		// record 902: blob file deleted after save — must appear in the sweep
+		const gapBlob = await createBlob(randomBytes(20000));
+		await BlobTest.put({ id: 902, blob: gapBlob });
+		const gapPath = getFilePathForBlob(gapBlob);
+		unlinkSync(gapPath);
+
+		// record 903: no blob at all — the HAS_BLOBS metadata flag is never set, so the per-record
+		// gate (entry.metadataFlags & HAS_BLOBS) skips it and it is never yielded
+		await BlobTest.put({ id: 903 });
+
+		const foundIds = new Set();
+		for await (const ref of findIncompleteBlobRefs(getDatabases().test)) {
+			foundIds.add(ref.recordId);
+		}
+
+		assert(!foundIds.has(901), 'complete-blob record must not be yielded');
+		assert(foundIds.has(902), 'record with deleted blob file must be yielded');
+		assert(!foundIds.has(903), 'record without the HAS_BLOBS flag must not be yielded');
+
+		// cleanup: remove the complete blob file so cleanupOrphans stays clean
+		unlinkSync(getFilePathForBlob(completeBlob));
 	});
 	it('cleanupOrphans', async () => {
 		let orphansDeleted = await cleanupOrphans(getDatabases().test);
