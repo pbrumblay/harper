@@ -997,7 +997,6 @@ describe('saveBlob source-idle watchdog is opt-in (off by default, per-stream ar
 	});
 });
 
-
 function delay(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms)); // wait for audit log removal and deletion
 }
