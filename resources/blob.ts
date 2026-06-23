@@ -51,7 +51,7 @@ type StorageInfo = {
 	filePath?: string;
 	recordId?: number;
 	contentBuffer?: any;
-	source?: NodeJS.ReadableStream;
+	source?: Readable;
 	storageBuffer?: Buffer;
 	compress?: boolean;
 	flush?: boolean;
@@ -741,7 +741,7 @@ function getBlobStreamIdleTimeoutMs(): number {
 	return configured != null ? Number(configured) : DEFAULT_BLOB_STREAM_IDLE_TIMEOUT_MS;
 }
 
-function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageInfo: StorageInfo): Blob {
+function writeBlobWithStream(blob: Blob, stream: Readable, storageInfo: StorageInfo): Blob {
 	const { filePath, fileId, store, compress, flush } = storageInfo;
 	storageInfo.saving = new Promise((resolve, reject) => {
 		// pipe the stream to the file
@@ -767,11 +767,11 @@ function writeBlobWithStream(blob: Blob, stream: NodeJS.ReadableStream, storageI
 			armIdleTimer = () => {
 				if (idleTimer) clearTimeout(idleTimer);
 				idleTimer = setTimeout(() => {
-					if ((stream as Readable).isPaused()) {
+					if (stream.isPaused()) {
 						armIdleTimer?.();
 						return;
 					}
-					(stream as Readable).destroy(new Error(`Blob source stream idle for ${idleTimeoutMs}ms (fileId=${fileId})`));
+					stream.destroy(new Error(`Blob source stream idle for ${idleTimeoutMs}ms (fileId=${fileId})`));
 				}, idleTimeoutMs).unref();
 			};
 			stream.on('data', armIdleTimer);
