@@ -731,14 +731,30 @@ export function saveBlob(blob: FileBackedBlob, deleteOnFailure = false) {
 // stuck promise, and the per-database apply consumer's drain await wedges — surfaced in production
 // as a (sender, receiver, database) tuple pinned at lastReceivedStatus="Receiving" indefinitely
 // (JJill preprod 5.1.7; harper-pro#453).
-// Defaults ON to 120000ms so the wedge can't happen out of the box; HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS
-// overrides it (set 0 to disable). The timer re-arms while the source is paused, so legitimate write
-// backpressure never trips it — only a genuinely silent source is destroyed. Read at call time so
-// tests and operators can change it without a process restart.
-const DEFAULT_BLOB_STREAM_IDLE_TIMEOUT_MS = 120000;
-function getBlobStreamIdleTimeoutMs(): number {
+//
+// OFF by default. writeBlobWithStream is the generic primitive for every blob write — HTTP upload,
+// origin-fetch cache fill, replication receive — and bounding a source's liveness is the owning
+// caller's responsibility, not this primitive's: a blanket timeout here would destroy a legitimately
+// slow non-replication source. The owning caller arms it per-write by setting `blobStreamIdleTimeoutMs`
+// on the source stream (the replication receive path does this on its PassThrough). A process-wide
+// HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS env var, when set, overrides the per-stream value for every write
+// (ops escape hatch / kill switch — set 0 to force-disable). Read at call time so tests and operators
+// can change it without a restart. The timer re-arms while the source is paused (pipeline backpressure,
+// not a real stall) so a slow writeStream never trips a false destroy.
+// Largest delay setTimeout accepts; a larger value (or Infinity/NaN) is silently coerced to 1ms, which
+// would fire the watchdog almost immediately and destroy a healthy stream — so clamp/reject instead.
+const MAX_SET_TIMEOUT_MS = 2147483647; // 2^31 - 1
+function getBlobStreamIdleTimeoutMs(stream: Readable): number {
 	const configured = process.env.HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS;
-	return configured != null ? Number(configured) : DEFAULT_BLOB_STREAM_IDLE_TIMEOUT_MS;
+	// env override (process-wide kill switch) when set, else the per-stream value the owning caller armed.
+	const raw =
+		configured != null
+			? Number(configured)
+			: Number((stream as { blobStreamIdleTimeoutMs?: number }).blobStreamIdleTimeoutMs ?? 0);
+	// A NaN/negative/zero value means off; cap a too-large value at the setTimeout max so it doesn't
+	// collapse to 1ms and instantly destroy the source.
+	if (!Number.isFinite(raw) || raw <= 0) return 0;
+	return Math.min(raw, MAX_SET_TIMEOUT_MS);
 }
 
 function writeBlobWithStream(blob: Blob, stream: Readable, storageInfo: StorageInfo): Blob {
@@ -756,13 +772,13 @@ function writeBlobWithStream(blob: Blob, stream: Readable, storageInfo: StorageI
 			writeStream.write(createHeader(blob.size)); // write the default header
 			wroteSize = true;
 		}
-		// Source-idle watchdog: destroys the source if no 'data' arrives for the configured threshold
-		// so pipeline rejects cleanly. On by default (120s); HARPER_BLOB_STREAM_IDLE_TIMEOUT_MS overrides.
-		// On expiry, re-arm if the stream is paused (pipeline backpressure, not a real stall) so a slow
-		// writeStream doesn't trip a false destroy.
+		// Source-idle watchdog: destroys the source if no 'data' arrives for the threshold so pipeline
+		// rejects cleanly. Off unless the owning caller armed this source (or the env override is set);
+		// see getBlobStreamIdleTimeoutMs. On expiry, re-arm if the stream is paused (pipeline backpressure,
+		// not a real stall) so a slow writeStream doesn't trip a false destroy.
 		let idleTimer: NodeJS.Timeout | undefined;
 		let armIdleTimer: (() => void) | undefined;
-		const idleTimeoutMs = getBlobStreamIdleTimeoutMs();
+		const idleTimeoutMs = getBlobStreamIdleTimeoutMs(stream);
 		if (idleTimeoutMs > 0) {
 			armIdleTimer = () => {
 				if (idleTimer) clearTimeout(idleTimer);
